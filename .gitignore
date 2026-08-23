@@ -10,6 +10,7 @@ _meta/labtest-brief.md
 portal/content.js
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+docs/.vitepress/sidebar.generated.json
 node_modules/
 
 # ===== 运行残留 =====

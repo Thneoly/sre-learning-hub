@@ -1,0 +1,14 @@
+{
+  "name": "sre-learning-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "云原生 SRE 学习中心：15 模块教程 + labs + VitePress 书站",
+  "scripts": {
+    "docs:dev": "node scripts/gen-vitepress-nav.mjs && vitepress dev docs",
+    "docs:build": "node scripts/gen-vitepress-nav.mjs && vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}
