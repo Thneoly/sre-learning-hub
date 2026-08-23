@@ -36,6 +36,8 @@ kubectl -n kafka-lab rollout status deploy/strimzi-cluster-operator --timeout=30
 
 为什么用 KafkaNodePool：0.46 是 KRaft-only 版本，`replicas` 与 `storage` 定义在节点池上，集群 CR 只负责版本、listener、配置。双角色（controller+broker）节点适合练习集群，生产上大集群会分离。`cruiseControl: {}` 现在就打开，是为了加分项的 KafkaRebalance 能直接用。
 
+坑位提醒：0.46 里这两个注解**必填**——缺了 operator 会直接抛 `InvalidConfigurationException: Strimzi 0.46.0 supports only KRaft-based Apache Kafka clusters`，Kafka CR 永远起不来（这是从旧版 YAML 迁移过来最常见的翻车点）。
+
 ```bash
 # [master]
 kubectl -n kafka-lab apply -f - <<'EOF'
@@ -66,6 +68,9 @@ kind: Kafka
 metadata:
   name: my-cluster
   namespace: kafka-lab
+  annotations:
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
 spec:
   kafka:
     version: 3.9.0
@@ -187,7 +192,9 @@ kubectl -n kafka-lab exec pod/my-cluster-kafka-0 -c kafka -- \
 
 ```bash
 # [master] 路径 2：kafka-exporter 指标（生产上接 Prometheus 的那条路）
-kubectl -n kafka-lab port-forward svc/my-cluster-kafka-exporter 9404:9404 &
+# 注意：Strimzi 不会为 kafka-exporter 创建 Service（监控栈是靠 PodMonitor 直接抓 Pod），
+# port-forward 要指到 deployment 上而不是 svc。
+kubectl -n kafka-lab port-forward deploy/my-cluster-kafka-exporter 9404:9404 &
 sleep 3
 curl -s http://localhost:9404/metrics | grep 'kafka_consumergroup_.*orders'
 # 预期形如：
@@ -202,9 +209,14 @@ kill %1
 ```bash
 # [master] 扩节点池副本数
 kubectl -n kafka-lab scale kafkanodepool/kafka --replicas=4
-kubectl -n kafka-lab rollout status sts/my-cluster-kafka --timeout=600s
-# 预期：my-cluster-kafka-3 起来，rollout 完成
+kubectl -n kafka-lab wait pod/my-cluster-kafka-3 --for=condition=Ready --timeout=600s
+# 预期：my-cluster-kafka-3 起来，输出 pod/my-cluster-kafka-3 condition met
+```
 
+坑位提醒：0.46 里 operator **直接管理 Pod**（经它内部的 PodSet 控制器），`kubectl -n kafka-lab get sts` 是空的，`rollout status sts/my-cluster-kafka` 会直接 NotFound——等新 broker 就绪请用上面的 `kubectl wait pod/...`。另外扩容会触发 operator 重新渲染 Pod spec（证书 SAN、配置 revision 变化），旧 Pod 可能被顺带滚动（事件里写 `Rolling Pod ... due to [Pod has old revision]`），滚动期间 ISR 会短暂缩到 2，等它滚完自然回满，不用手动干预。
+
+```bash
+# [master] 确认分区没动
 kubectl -n kafka-lab exec pod/my-cluster-kafka-0 -c kafka -- \
   /opt/kafka/bin/kafka-topics.sh \
   --bootstrap-server my-cluster-kafka-bootstrap:9092 --describe --topic orders
@@ -224,6 +236,8 @@ kind: KafkaRebalance
 metadata:
   name: orders-add-broker
   namespace: kafka-lab
+  labels:
+    strimzi.io/cluster: my-cluster
 spec:
   mode: add-brokers
   brokers: [3]

@@ -18,9 +18,9 @@ POD=my-cluster-kafka-0
 BOOTSTRAP=my-cluster-kafka-bootstrap:9092
 PASS=0; FAIL=0; TOTAL=0
 
-report() { # $1=1 表示通过, $2 为用例描述
+report() { # $1 为上一命令退出码(0=通过), $2 为用例描述
   TOTAL=$((TOTAL+1))
-  if [ "$1" -eq 1 ]; then
+  if [ "$1" -eq 0 ]; then
     PASS=$((PASS+1)); echo "PASS: $2"
   else
     FAIL=$((FAIL+1)); echo "FAIL: $2"
@@ -63,9 +63,9 @@ report $? "KafkaTopic/$TOPIC Ready=True, partitions=6, replicas=3（Ready=${topi
 describe_out=$(kubectl -n "$NS" exec "pod/$POD" -c kafka -- \
   /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$BOOTSTRAP" --describe --topic "$TOPIC" 2>/dev/null)
 part_lines=$(printf '%s\n' "$describe_out" | grep -c 'Partition:')
-iso_ok=$(printf '%s\n' "$describe_out" | awk -F'\t' '/Partition:/ {
-  r=$4; sub(/^Replicas: /, "", r); n=split(r, a, ",");
-  i=$5; sub(/^Isr: /, "", i); m=split(i, b, ",");
+iso_ok=$(printf '%s\n' "$describe_out" | awk '/Partition:/ {
+  if (match($0, /Replicas: [0-9,]+/)) { n = split(substr($0, RSTART + 10, RLENGTH - 10), a, ",") } else { n = 0 }
+  if (match($0, /Isr: [0-9,]+/)) { m = split(substr($0, RSTART + 5, RLENGTH - 5), b, ",") } else { m = 0 }
   if (n == 3 && m == 3) ok++
 } END {print ok+0}')
 [ "${part_lines:-0}" -eq 6 ] && [ "${iso_ok:-0}" -eq 6 ]

@@ -60,6 +60,8 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
 .mini{font-size:12px;padding:2px 8px;border-radius:4px;border:1px solid #d0d7de;background:#f6f8fa;cursor:pointer;color:#57606a;text-decoration:none;display:inline-block;font-family:inherit}
 .mini:hover{background:#eef1f4;color:#24292f}
 .mini.accent{border-color:#0969da;color:#0969da}
+.mini.danger{border-color:#cf222e;color:#cf222e;background:#fff}
+.mini.danger:hover{background:#ffebe9;color:#cf222e}
 .btn{padding:7px 18px;border-radius:6px;border:1px solid #d0d7de;background:#f6f8fa;cursor:pointer;font-size:14px;font-family:inherit;text-decoration:none;display:inline-block;color:#24292f}
 .btn:hover{background:#eef1f4}
 .btn.primary{background:#0969da;border-color:#0969da;color:#fff}
@@ -117,6 +119,42 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
 .wr-row.bad{background:#ffebe9;color:#cf222e;border:1px solid #ffcecb}
 .wr-row.good{background:#dafbe1;color:#116329;border:1px solid #aceebb}
 .wr-explain{font-size:13.5px;color:#57606a;background:#f6f8fa;border-radius:6px;padding:10px 12px;margin-top:8px;line-height:1.7}
+
+/* ---------- 技能卡 ---------- */
+.fk-top{display:flex;align-items:center;gap:14px;margin:6px 0 14px;flex-wrap:wrap}
+.fk-meta{font-size:13px;color:#57606a}
+.fk-stats{display:flex;gap:22px;flex-wrap:wrap;font-size:13px;color:#57606a;margin:0 0 6px}
+.fk-stat b{font-size:17px;font-family:Consolas,monospace;color:#24292f;margin-right:4px}
+.fk-stat.due b{color:#cf222e}
+.fk-filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 6px;font-size:13px;color:#57606a}
+.fk-filters select{padding:6px 10px;border:1px solid #d0d7de;border-radius:6px;background:#f6f8fa;font-family:inherit;font-size:13px;color:#24292f;cursor:pointer}
+.fk-switch{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.fk-switch input{width:15px;height:15px;cursor:pointer}
+.fk-scene{perspective:1400px;height:340px;margin:10px 0 6px}
+.fk-card{position:relative;width:100%;height:100%;cursor:pointer;transform-style:preserve-3d;transition:transform .4s}
+.fk-card.flipped{transform:rotateY(180deg)}
+.fk-face{position:absolute;inset:0;-webkit-backface-visibility:hidden;backface-visibility:hidden;background:#fff;border:1px solid #d0d7de;border-radius:10px;padding:20px 26px 16px;overflow-y:auto;display:flex;flex-direction:column}
+.fk-backface{transform:rotateY(180deg);background:#f5fbff;border-color:#0969da}
+.fk-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
+.fk-src{font-size:11.5px;color:#8b949e;font-family:Consolas,monospace;word-break:break-all}
+.fk-badges{display:flex;gap:6px;align-items:center}
+.fk-badge{font-size:11px;font-weight:700;border-radius:4px;padding:0 7px;border:1px solid #d0d7de;background:#f6f8fa;color:#57606a}
+.fk-badge.selftest{color:#0969da;border-color:#a5d6ff;background:#f0f7ff}
+.fk-badge.scenario{color:#116329;border-color:#aceebb;background:#dafbe1}
+.fk-badge.quiz{color:#8250df;border-color:#d2cdf3;background:#f8f4fe}
+.fk-badge.box{color:#57606a}
+.fk-text{font-size:15.5px;line-height:1.85;white-space:pre-line;flex:1}
+.fk-text code{font-family:Consolas,"Courier New",monospace;font-size:13.5px;background:rgba(175,184,193,.25);padding:1px 5px;border-radius:4px}
+.fk-hint{font-size:12px;color:#b0b8c1;text-align:center;margin-top:10px}
+.fk-grades{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:8px 0 4px}
+.fk-g{padding:8px 26px;border-radius:6px;border:1px solid #d0d7de;background:#f6f8fa;cursor:pointer;font-size:14px;font-family:inherit;color:#24292f}
+.fk-g:hover{background:#eef1f4}
+.fk-g small{color:#8b949e;font-size:11px;margin-left:4px}
+.fk-g.g-no:hover{background:#ffebe9;border-color:#ffcecb;color:#cf222e}
+.fk-g.g-fuzzy:hover{background:#fff8c5;border-color:#d4a72c;color:#7d4e00}
+.fk-g.g-yes:hover{background:#dafbe1;border-color:#aceebb;color:#116329}
+.fk-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:12px;color:#8b949e}
+.fk-note{font-size:12.5px;color:#8b949e;margin:2px 0 10px}
 
 /* ---------- 计时器 ---------- */
 .timer-card{text-align:center;padding:28px 22px}
@@ -180,10 +218,12 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
 
 <script src="content.js"></script>
 <script src="quiz-data.js"></script>
+<script src="cards-data.js"></script>
 <script>
 /* SRE 学习中心（learning-hub）：单文件应用，无外部依赖，file:// 双击可用。
-   内容索引与题库分别来自同目录 content.js（build-content.ps1 生成）与 quiz-data.js。
-   两个脚本缺失时本页仍可工作：清单勾选、测验（有题库时）、计时器、速查不受影响。 */
+   内容索引与题库分别来自同目录 content.js（build-content.ps1 生成）与 quiz-data.js；
+   技能卡来自 cards-data.js（scripts/gen-skill-cards.mjs 生成）。
+   这些脚本缺失时本页仍可工作：清单勾选、测验（有题库时）、计时器、速查不受影响。 */
 (function () {
   'use strict';
 
@@ -743,6 +783,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
   /* ================= 侧栏与路由 ================= */
   var NAV_TOOLS = [
     { h: '#/quiz', t: '自测题库' },
+    { h: '#/cards', t: '技能卡' },
     { h: '#/practice', t: '练习平台' },
     { h: '#/cheat', t: '速查手册' },
     { h: '#/scenarios', t: '场景速查', src: 'SCENARIOS.md' },
@@ -865,6 +906,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     else if (h.indexOf('#/m/') === 0) { renderModule(h.slice(4)); }
     else if (h.indexOf('#/read/') === 0) { renderReader(decodeURIComponent(h.slice(7))); }
     else if (h.indexOf('#/quiz') === 0) { renderQuiz(); }
+    else if (h.indexOf('#/cards') === 0) { renderCards(); }
     else if (h.indexOf('#/practice') === 0) { renderPractice(); }
     else if (h.indexOf('#/cheat') === 0) { renderCheat(); }
     else if (h.indexOf('#/scenarios') === 0) { renderScenarios(); }
@@ -941,6 +983,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     h += '<h2 class="sec">备考工具</h2><div class="grid">';
     h += toolCard('#/timer', '考试计时器', '120 分钟倒计时 + 17 题勾选追踪，模拟 CKA 节奏');
     h += toolCard('#/quiz', '自测题库', '共 ' + quizBanks().length + ' 个题库（自动发现 quiz-data.js 中的全部题库），逐题作答、交卷看解析');
+    h += toolCard('#/cards', '技能卡', cardsToolDesc());
     h += toolCard('#/cheat', '速查手册', 'kubectl / vim / PromQL 考场速查表');
     h += toolCard('#/practice', '练习平台', '练习集群环境说明、lab 判分脚本与故障注入用法');
     h += '</div>';
@@ -1171,6 +1214,211 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     } else {
       h += quizQuestionHtml(qd[quizState.bank]);
     }
+    document.getElementById('page').innerHTML = h;
+  }
+
+  /* ================= 技能卡 =================
+     数据来自同目录 cards-data.js（window.HUB_CARDS，scripts/gen-skill-cards.mjs 生成，
+     源头为各章自测问答 + SCENARIOS.md + quiz-data.js）。
+     记忆曲线用 Leitner 简版：自评 会=box+1（封顶 3）、模糊=box 不变、不会=box 重置 1；
+     box 决定复习到期间隔：box1=10 分钟、box2=1 天、box3=7 天。
+     进度存 localStorage 键 hub-cards：{ 卡id: {box:1|2|3, due:时间戳} }。 */
+  var CKEY = 'hub-cards';
+  var BOX_MS = { 1: 10 * 60 * 1000, 2: 24 * 60 * 60 * 1000, 3: 7 * 24 * 60 * 60 * 1000 };
+  var CARD_TYPE_NAME = { selftest: '自测', scenario: '场景', quiz: '题库' };
+  var cardsState = { group: 'all', shuffle: false, deck: null, idx: 0, flipped: false };
+
+  function loadCardMem() {
+    try {
+      var v = JSON.parse(localStorage.getItem(CKEY) || '{}');
+      return (v && typeof v === 'object') ? v : {};
+    } catch (e) { return {}; }
+  }
+  function saveCardMem(m) {
+    try { localStorage.setItem(CKEY, JSON.stringify(m)); } catch (e) {}
+  }
+  function hubCards() {
+    var c = window.HUB_CARDS;
+    return (c && Array.isArray(c.cards) && c.cards.length) ? c.cards : null;
+  }
+  function pillarIndexOf(modDir) {
+    var m = modByDir(modDir);
+    if (!m) { return -1; }
+    for (var a = 0; a < PILLARS.length; a++) {
+      for (var b = 0; b < PILLARS[a].ids.length; b++) {
+        if (PILLARS[a].ids[b] === m.id) { return a; }
+      }
+    }
+    return -1;
+  }
+  function cardsStats(cards, mem) {
+    var now = Date.now(), learned = 0, mastered = 0, due = 0;
+    for (var a = 0; a < cards.length; a++) {
+      var r = mem[cards[a].id];
+      if (!r) { continue; }
+      learned++;
+      if (r.box === 3) { mastered++; }
+      if (r.due && r.due <= now) { due++; }
+    }
+    return { total: cards.length, learned: learned, mastered: mastered, due: due };
+  }
+  function cardsFiltered(group) {
+    var cards = hubCards();
+    if (!cards) { return []; }
+    var mem = null, out = [];
+    if (group === 'due') { mem = loadCardMem(); }
+    var now = Date.now();
+    for (var a = 0; a < cards.length; a++) {
+      var c = cards[a];
+      if (group === 'all') { out.push(c); }
+      else if (group === 'due') {
+        var r = mem[c.id];
+        if (r && r.due && r.due <= now) { out.push(c); }
+      }
+      else if (group.indexOf('mod:') === 0) { if (c.module === group.slice(4)) { out.push(c); } }
+      else if (group.indexOf('type:') === 0) { if (c.type === group.slice(5)) { out.push(c); } }
+      else if (group.indexOf('pillar:') === 0) {
+        if (pillarIndexOf(c.module) === parseInt(group.slice(7), 10)) { out.push(c); }
+      }
+    }
+    if (cardsState.shuffle) {
+      for (var b = out.length - 1; b > 0; b--) {
+        var j = Math.floor(Math.random() * (b + 1));
+        var t = out[b]; out[b] = out[j]; out[j] = t;
+      }
+    }
+    return out;
+  }
+  function rebuildDeck() {
+    cardsState.deck = cardsFiltered(cardsState.group);
+    cardsState.idx = 0;
+    cardsState.flipped = false;
+  }
+  function gradeCard(id, grade) {
+    var m = loadCardMem();
+    var r = m[id] || { box: 1, due: 0 };
+    var box = r.box || 1;
+    if (grade === 'yes') { box = Math.min(3, box + 1); }
+    else if (grade === 'no') { box = 1; }
+    r.box = box;
+    r.due = Date.now() + BOX_MS[box];
+    r.ts = Date.now();
+    m[id] = r;
+    saveCardMem(m);
+  }
+  function cardSrcHtml(c) {
+    var path = String(c.source || '').split('#')[0];
+    if (/\.md$/.test(path)) {
+      return '<button class="scn-link" data-nav="#/read/' + path + '">' + esc(c.source) + '</button>';
+    }
+    return '<span>' + esc(c.source) + '</span>';
+  }
+  function cardsToolDesc() {
+    var cards = hubCards();
+    if (!cards) {
+      return '翻卡记忆复习（先运行 node scripts/gen-skill-cards.mjs 生成卡片数据）';
+    }
+    var st = cardsStats(cards, loadCardMem());
+    return st.total + ' 张记忆卡（自测/场景/题库）· Leitner 间隔复习 · 今日到期 ' + st.due + ' 张';
+  }
+  function cardsFilterHtml(cards, mem) {
+    var counts = { all: cards.length };
+    for (var a = 0; a < cards.length; a++) { counts['type:' + cards[a].type] = (counts['type:' + cards[a].type] || 0) + 1; }
+    var st = cardsStats(cards, mem);
+    var h = '<div class="fk-filters"><b>牌组</b><select data-cards-group>';
+    h += '<optgroup label="混合">';
+    h += '<option value="all"' + (cardsState.group === 'all' ? ' selected' : '') + '>全部混合（' + counts.all + '）</option>';
+    h += '<option value="due"' + (cardsState.group === 'due' ? ' selected' : '') + '>只练到期（' + st.due + '）</option>';
+    h += '</optgroup><optgroup label="按类型">';
+    for (var t = 0, keys = ['selftest', 'scenario', 'quiz']; t < keys.length; t++) {
+      var k = keys[t];
+      if (counts['type:' + k]) {
+        h += '<option value="type:' + k + '"' + (cardsState.group === 'type:' + k ? ' selected' : '') + '>' +
+          CARD_TYPE_NAME[k] + '（' + counts['type:' + k] + '）</option>';
+      }
+    }
+    h += '</optgroup><optgroup label="按支柱">';
+    for (var p = 0; p < PILLARS.length; p++) {
+      h += '<option value="pillar:' + p + '"' + (cardsState.group === 'pillar:' + p ? ' selected' : '') + '>' +
+        esc(PILLARS[p].name) + '</option>';
+    }
+    h += '</optgroup><optgroup label="按模块">';
+    for (var m0 = 0; m0 < MODULES.length; m0++) {
+      var mod = MODULES[m0];
+      var n = 0;
+      for (var q = 0; q < cards.length; q++) { if (cards[q].module === mod.dir) { n++; } }
+      if (n) {
+        h += '<option value="mod:' + mod.dir + '"' + (cardsState.group === 'mod:' + mod.dir ? ' selected' : '') + '>' +
+          esc(mod.nav + ' · ' + mod.name) + '（' + n + '）</option>';
+      }
+    }
+    h += '</optgroup></select>';
+    h += '<label class="fk-switch"><input type="checkbox" data-cards-shuffle' + (cardsState.shuffle ? ' checked' : '') + '>随机顺序</label>';
+    h += '<button class="mini danger" data-cards-clear>清空记忆记录</button></div>';
+    return h;
+  }
+  function renderCards() {
+    var h = '<h1 class="pg">技能卡</h1><div class="sub">翻卡自评的记忆卡：正面想答案，点卡翻面核对，再按 会 / 模糊 / 不会 打分。Leitner 间隔复习：会 升一级、模糊 不动、不会 打回 box1；box1/2/3 分别 10 分钟 / 1 天 / 7 天后到期。</div>';
+    var cards = hubCards();
+    if (!cards) {
+      h += '<div class="hintbox"><b>未检测到卡片数据</b>（window.HUB_CARDS 为空）。在仓库根目录运行 <code>node scripts/gen-skill-cards.mjs</code> 生成 portal/cards-data.js（同时产出 _meta/skill-cards.json 与 Anki 导出 _meta/skill-cards-anki.csv）后刷新本页。</div>';
+      document.getElementById('page').innerHTML = h;
+      return;
+    }
+    var mem = loadCardMem();
+    var st = cardsStats(cards, mem);
+    h += '<div class="card"><div class="fk-stats">';
+    h += '<span class="fk-stat"><b>' + st.total + '</b>总卡数</span>';
+    h += '<span class="fk-stat"><b>' + st.learned + '</b>已学</span>';
+    h += '<span class="fk-stat"><b>' + st.mastered + '</b>已掌握(box3)</span>';
+    h += '<span class="fk-stat due"><b>' + st.due + '</b>今日到期</span></div>';
+    h += cardsFilterHtml(cards, mem);
+    h += '<div class="fk-note">Anki 导出：仓库 <code>_meta/skill-cards-anki.csv</code>（front,back,tags 三列，重新生成卡片后需重跑脚本更新）。键盘：空格翻卡，1/2/3 = 不会/模糊/会，←/→ 前后翻。</div></div>';
+
+    if (!cardsState.deck) { rebuildDeck(); }
+    var deck = cardsState.deck;
+    if (!deck.length) {
+      h += '<div class="card" style="text-align:center;padding:34px"><b>当前牌组没有卡片。</b>';
+      if (cardsState.group === 'due') { h += '今天没有到期的卡——先用其他牌组学新卡，到期了这里见。'; }
+      h += '</div>';
+      document.getElementById('page').innerHTML = h;
+      return;
+    }
+    if (cardsState.idx >= deck.length) {
+      h += '<div class="card" style="text-align:center;padding:30px">';
+      h += '<div class="score-big">' + deck.length + ' / ' + deck.length + '</div>';
+      h += '<div class="pnum">本组过完一轮。会 的卡进入更高 box（间隔变长），不会 的 10 分钟后就到期、可再来。</div>';
+      h += '<div style="margin-top:12px"><button class="btn primary" data-cards-restart>再来一轮</button> ';
+      h += '<button class="btn" data-cards-rebuild>换牌组 / 重新洗牌</button></div></div>';
+      document.getElementById('page').innerHTML = h;
+      return;
+    }
+    var c = deck[cardsState.idx];
+    var rec = mem[c.id];
+    var mod = modByDir(c.module);
+    var h2 = '<div class="fk-top"><span class="fk-meta"><b>' + (cardsState.idx + 1) + ' / ' + deck.length + '</b> · ' +
+      esc(mod ? mod.nav : c.module) + ' · ' + esc(CARD_TYPE_NAME[c.type] || c.type) + '</span>';
+    if (cardsState.group === 'due') { h2 += '<span class="fk-meta">到期复习</span>'; }
+    h2 += '</div><div class="fk-scene"><div class="fk-card' + (cardsState.flipped ? ' flipped' : '') + '" data-cards-flip>';
+    h2 += '<div class="fk-face"><div class="fk-head"><div class="fk-badges">' +
+      '<span class="fk-badge ' + c.type + '">' + esc(CARD_TYPE_NAME[c.type] || c.type) + '</span>' +
+      '<span class="fk-badge box">' + c.id + (rec ? ' · box' + rec.box : '') + '</span></div>' +
+      '<span class="fk-src">' + cardSrcHtml(c) + '</span></div>' +
+      '<div class="fk-text">' + inlineMd(c.front) + '</div>' +
+      '<div class="fk-hint">心里先答一遍，再点卡片翻面核对（空格）</div></div>';
+    h2 += '<div class="fk-face fk-backface"><div class="fk-head"><div class="fk-badges">' +
+      '<span class="fk-badge ' + c.type + '">' + esc(CARD_TYPE_NAME[c.type] || c.type) + '</span></div>' +
+      '<span class="fk-src">' + cardSrcHtml(c) + '</span></div>' +
+      '<div class="fk-text">' + inlineMd(c.back) + '</div>' +
+      '<div class="fk-hint">按下方按钮自评（1/2/3）</div></div></div></div>';
+    h += h2;
+    h += '<div class="fk-grades">';
+    h += '<button class="fk-g g-no" data-cards-grade="no">不会<small>1</small></button>';
+    h += '<button class="fk-g g-fuzzy" data-cards-grade="fuzzy">模糊<small>2</small></button>';
+    h += '<button class="fk-g g-yes" data-cards-grade="yes">会<small>3</small></button></div>';
+    h += '<div class="fk-foot"><span><button class="mini" data-cards-prev>← 上一张</button> <button class="mini" data-cards-skip>跳过 →</button></span>';
+    h += '<span>' + esc(c.module) + (rec && rec.due ? ' · 下次到期 ' + new Date(rec.due).toLocaleString() : '') + '</span></div>';
+    h += '<div class="pbar"><span style="width:' + Math.floor(cardsState.idx * 100 / deck.length) + '%"></span></div>';
     document.getElementById('page').innerHTML = h;
   }
 
@@ -1742,6 +1990,65 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       return;
     }
 
+    var cfx = closestAttr(t, 'data-cards-flip');
+    if (cfx) {
+      cardsState.flipped = !cardsState.flipped;
+      if (cfx.classList) { cfx.classList.toggle('flipped', cardsState.flipped); }
+      return;
+    }
+
+    var cgr = closestAttr(t, 'data-cards-grade');
+    if (cgr) {
+      if (cardsState.deck && cardsState.idx < cardsState.deck.length) {
+        gradeCard(cardsState.deck[cardsState.idx].id, cgr.getAttribute('data-cards-grade'));
+        cardsState.idx++;
+        cardsState.flipped = false;
+        renderCards();
+      }
+      return;
+    }
+
+    var cpv = closestAttr(t, 'data-cards-prev');
+    if (cpv) {
+      if (cardsState.idx > 0) { cardsState.idx--; }
+      cardsState.flipped = false;
+      renderCards();
+      return;
+    }
+
+    var csk = closestAttr(t, 'data-cards-skip');
+    if (csk) {
+      cardsState.idx++;
+      cardsState.flipped = false;
+      renderCards();
+      return;
+    }
+
+    var crt = closestAttr(t, 'data-cards-restart');
+    if (crt) {
+      cardsState.idx = 0;
+      cardsState.flipped = false;
+      renderCards();
+      return;
+    }
+
+    var cbr = closestAttr(t, 'data-cards-rebuild');
+    if (cbr) {
+      rebuildDeck();
+      renderCards();
+      return;
+    }
+
+    var ccl = closestAttr(t, 'data-cards-clear');
+    if (ccl) {
+      if (window.confirm('确定清空技能卡的全部记忆记录（box 与到期时间）？')) {
+        try { localStorage.removeItem(CKEY); } catch (e) {}
+        rebuildDeck();
+        renderCards();
+      }
+      return;
+    }
+
     var tt = closestAttr(t, 'data-timer');
     if (tt) {
       var act = tt.getAttribute('data-timer');
@@ -1796,6 +2103,49 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       updateExamCount();
       var lab = t.parentNode;
       if (lab && lab.classList) { lab.classList.toggle('done', t.checked); }
+      return;
+    }
+
+    if (t.getAttribute('data-cards-group') !== null) {
+      cardsState.group = t.value || 'all';
+      rebuildDeck();
+      renderCards();
+      return;
+    }
+
+    if (t.getAttribute('data-cards-shuffle') !== null) {
+      cardsState.shuffle = t.checked;
+      rebuildDeck();
+      renderCards();
+    }
+  });
+
+  /* 技能卡键盘操作：空格翻卡，1/2/3 自评，←/→ 翻页（仅 #/cards 页生效） */
+  document.addEventListener('keydown', function (ev) {
+    if ((location.hash || '').indexOf('#/cards') !== 0) { return; }
+    var tag = ev.target && ev.target.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') { return; }
+    var deck = cardsState.deck;
+    if (!deck || !deck.length || cardsState.idx >= deck.length) { return; }
+    var cur = deck[cardsState.idx];
+    if (ev.key === ' ' || ev.key === 'Spacebar') {
+      ev.preventDefault();
+      var el = document.querySelector('.fk-card');
+      cardsState.flipped = !cardsState.flipped;
+      if (el && el.classList) { el.classList.toggle('flipped', cardsState.flipped); }
+    } else if (ev.key === '1' || ev.key === '2' || ev.key === '3') {
+      gradeCard(cur.id, ev.key === '3' ? 'yes' : (ev.key === '2' ? 'fuzzy' : 'no'));
+      cardsState.idx++;
+      cardsState.flipped = false;
+      renderCards();
+    } else if (ev.key === 'ArrowLeft') {
+      if (cardsState.idx > 0) { cardsState.idx--; }
+      cardsState.flipped = false;
+      renderCards();
+    } else if (ev.key === 'ArrowRight') {
+      cardsState.idx++;
+      cardsState.flipped = false;
+      renderCards();
     }
   });
 

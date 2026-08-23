@@ -13,6 +13,7 @@
 
 ```
 scripts/
+├── labctl.sh                  # 练习平台 CLI：list/show/check/scores/solution/fault/drill/timer
 ├── lib/
 │   └── common.sh              # 公共函数库：颜色输出 / confirm 交互 / pass fail / 等待函数
 ├── setup/
@@ -42,6 +43,30 @@ scripts/
 
 脚本依赖关系：`setup/` 与 `faults/` 下的脚本都 `source ../lib/common.sh`，拷贝时带上 `lib/` 目录；
 各 lab 目录的 `check.sh` 自带 helper、**不依赖** `lib/common.sh`，可单独拷到任意机器执行。
+
+## labctl 练习平台（lab 的统一入口）
+
+`labctl.sh` 是单文件 bash CLI（只依赖 bash/kubectl），把"读题 → 判分 → 记分 → 看答案 → 注故障 → 限时演练"串成一个闭环。
+自动发现全仓库 59 个 lab（`*/labs/*/task.md`），记分写入 `~/.labctl/scores.tsv`，需 root 的 `check.sh` 与故障脚本会自动走 sudo（密码默认 `123`，可用 `LABCTL_SUDO_PASS` 覆盖）。
+
+```bash
+# [master] 建议先做个别名：alias labctl='bash ~/hub/scripts/labctl.sh'
+labctl --help                    # 中文自文档（子命令、lab 的四种写法、环境变量）
+labctl list                      # 全部 59 个 lab：编号/难度/名称/✓ 最佳得分
+labctl list 05                   # 只看 05-cka 模块（也可写 05-cka、cka）
+labctl show 11                   # 读题（支持 11 / 11-rbac-role-binding / 05:11 / 完整路径）
+labctl check 05:11               # 跑 check.sh 判分，PASS/FAIL 彩色回放，自动记分并与历史最佳对比
+labctl scores                    # 记分板：最佳成绩/尝试次数/最近时间 + 完成数与平均得分率
+labctl solution 11               # 确认后才显示 solution.md 前 80 行（防剧透，完整路径会给出）
+labctl fault                     # 列出 12 个故障（难度/是否已注入）
+labctl fault random              # 随机注入一个（3 秒倒计时，先打 VM 快照）
+labctl fault restore coredns     # 恢复指定故障；restore all 全部恢复
+labctl drill                     # 靶场抽卡：随机一条【靶场】现象 + 15 分钟限时提示（不阻塞）
+labctl timer 15                  # 简易倒计时，到点响铃
+```
+
+记分文件格式 `日期时间|lab|得分|满分`，例：`2026-08-23 14:49:40|05-cka/labs/11-rbac-role-binding|8|8`。
+推荐节奏（与 `SCENARIOS.md` 文末的限时演练法一致）：`list` 挑 lab → `show` 读题 → 动手做 → `check` 判分 → 卡住再 `solution` → 顺手 `fault random` 或 `drill` 做一轮限时排障。
 
 ## 安全警告（务必先读）
 

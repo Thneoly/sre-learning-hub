@@ -33,6 +33,37 @@ sudo chown -R 9999:9999 /var/flink-state
 ```bash
 # [master]
 kubectl create namespace flink-lab
+```
+
+先补作业侧 RBAC：operator 默认用名为 `flink` 的 ServiceAccount 跑 FlinkDeployment，而 helm 只为 `flink-operator` namespace 里的 operator 自己建了权限，**作业 namespace 必须自建 SA + RoleBinding**（绑到 operator 的 ClusterRole `flink-operator`）。缺这一步 JobManager 会在 watch TaskManager Pod 时收到 403 Forbidden 然后退出，容器反复重启。
+
+```bash
+# [master]
+kubectl -n flink-lab apply -f - <<'EOF'
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flink
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flink-role-binding
+subjects:
+- kind: ServiceAccount
+  name: flink
+  namespace: flink-lab
+roleRef:
+  kind: ClusterRole
+  name: flink-operator
+  apiGroup: rbac.authorization.k8s.io
+EOF
+```
+
+词源服务：
+
+```bash
+# [master]
 cat > wordsrv.yaml <<'EOF'
 apiVersion: apps/v1
 kind: Deployment
@@ -90,11 +121,16 @@ kubectl -n flink-lab get endpoints wordsrv
 
 设计说明：
 
-- `nc -l -p 9000` 每次只接受一条 TCP 连接，外层 `while true; sleep 1` 保证断开后 1 秒内重新监听——配合作业的重启策略，socket 抖动可以自愈；
+- `nc -l -p 9000` 每次只接受一条 TCP 连接，外层 `while true; sleep 1` 保证断开后 1 秒内重新监听——作业重启时若撞上这 1 秒空窗，source 连接失败会走重启策略自愈（但注意：连接被**正常关闭**是 EOF，作业会直接 FINISHED，见第 6 步的坑位提醒）；
 - 2 副本对应 Flink 作业的 source 并行度 2：Service 把两条连接分别落到两个 Pod，各自独立供数；
 - `FLOOD=1` 时改喂 `yes hello`：全量单一热点词 `hello`，制造"热点 key + 高流速"两个现象。
 
 ## 第 4 步：部署 FlinkDeployment（Application 模式）
+
+两个最容易翻车的点先说清楚：
+
+- **挂载必须走 podTemplate**：FlinkDeployment 的 CRD 里没有 `spec.volumes` / `spec.jobManager.volumeMounts` 这类顶层字段（`jobManager`/`taskManager` 下只有 `podTemplate`、`replicas`、`resource`），写上去 apply 时会被 API Server 以 `strict decoding error: unknown field "spec.volumes"` 直接拒绝。
+- **podTemplate 里的容器名必须叫 `flink-main-container`**：operator 按"容器名"把 podTemplate 里的镜像/挂载/env 合并进**它自己生成的主容器**。起别的名字（比如 `flink-job-manager`），operator 不会把它当主容器，而是原样保留成一个多余的 sidecar——这个 sidecar 没有 command，flink 镜像入口打印 usage 后立即退出，Pod 进入 CrashLoopBackOff。JobManager 和 TaskManager 两侧遵守同一约定。
 
 ```bash
 # [master]
@@ -107,6 +143,7 @@ metadata:
 spec:
   image: flink:1.19
   flinkVersion: v1_19
+  serviceAccount: flink
   flinkConfiguration:
     execution.checkpointing.interval: 10s
     execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
@@ -116,25 +153,40 @@ spec:
     restart-strategy.fixed-delay.attempts: "10"
     restart-strategy.fixed-delay.delay: 5s
     taskmanager.numberOfTaskSlots: "2"
-  volumes:
-    - name: flink-state
-      hostPath:
-        path: /var/flink-state
-        type: Directory
   jobManager:
     resource:
       memory: 1024m
       cpu: 0.5
-    volumeMounts:
-      - name: flink-state
-        mountPath: /opt/flink/state
+    podTemplate:
+      spec:
+        volumes:
+          - name: flink-state
+            hostPath:
+              path: /var/flink-state
+              type: Directory
+        containers:
+          - name: flink-main-container
+            image: flink:1.19
+            volumeMounts:
+              - name: flink-state
+                mountPath: /opt/flink/state
   taskManager:
     resource:
       memory: 1024m
       cpu: 1
-    volumeMounts:
-      - name: flink-state
-        mountPath: /opt/flink/state
+    podTemplate:
+      spec:
+        volumes:
+          - name: flink-state
+            hostPath:
+              path: /var/flink-state
+              type: Directory
+        containers:
+          - name: flink-main-container
+            image: flink:1.19
+            volumeMounts:
+              - name: flink-state
+                mountPath: /opt/flink/state
   job:
     jarURI: local:///opt/flink/examples/streaming/SocketWindowWordCount.jar
     entryClass: org.apache.flink.streaming.examples.socket.SocketWindowWordCount
@@ -144,8 +196,8 @@ spec:
 EOF
 kubectl apply -f flinkdeployment-wordcount.yaml
 kubectl -n flink-lab get flinkdeployment wordcount -w
-# 预期几分钟后: NAME       PHASE     STATUS   AGE
-#               wordcount  RUNNING   RUNNING  2m
+# 预期几分钟后: NAME       JOB STATUS   LIFECYCLE STATE
+#               wordcount  RUNNING      STABLE
 ```
 
 关键点：
@@ -153,7 +205,8 @@ kubectl -n flink-lab get flinkdeployment wordcount -w
 - `spec.job` 存在即为 Application 模式：main() 在 JobManager 里跑，集群随作业而生；
 - checkpoint 间隔 10s + `state.checkpoints.dir` 落 hostPath —— 状态在 Pod 重建后仍在；
 - `upgradeMode: savepoint` 决定后面每次升级先做 savepoint 再停；
-- 示例 jar 用 processing time 滚动窗口（`TumblingProcessingTimeWindows`），无需 watermark 即可出结果，适合当部署练手件。
+- 示例 jar 用 processing time 滚动窗口（`TumblingProcessingTimeWindows`），无需 watermark 即可出结果，适合当部署练手件；
+- JobManager 若起不来：日志里 `Received 403 on websocket ... Forbidden` 是第 3 步的 RoleBinding 没建（SA 没权限 watch TM Pod）；容器里只有 usage 输出则是容器名没写对。
 
 ## 第 5 步：验证 RUNNING、checkpoint 与窗口输出
 
@@ -187,6 +240,18 @@ kubectl -n flink-lab set env deployment/wordsrv FLOOD=1
 kubectl -n flink-lab rollout status deployment/wordsrv
 ```
 
+坑位提醒：wordsrv 滚动重启会把 socket 连接**正常关闭**（EOF），socket source 遇 EOF 是"正常结束"而不是失败——作业直接变 FINISHED，重启策略不会拉起它（它只管失败）。所以切完 FLOOD 后如果 `jobStatus.state` 变成了 FINISHED，把 CR 删掉重新 apply 即可（hostPath 状态不受影响；此时**不要**用 `restartNonce` 复活：savepoint 升级模式下 operator 会引用作业结束 时已被 Flink 清理的最后一个 checkpoint，`upgradeSavepointPath` 指向不存在的 `chk-N`，JobManager 会陷在 FileNotFoundException 里起不来）：
+
+```bash
+# [master] 作业 FINISHED 时的标准复活动作（没 FINISHED 就跳过）
+kubectl -n flink-lab get flinkdeployment wordcount -o jsonpath='{.status.jobStatus.state}'; echo
+kubectl -n flink-lab delete flinkdeployment wordcount --wait=false
+sleep 15 && kubectl -n flink-lab delete deploy wordcount --ignore-not-found
+kubectl -n flink-lab apply -f flinkdeployment-wordcount.yaml
+watch -n5 'kubectl -n flink-lab get flinkdeployment wordcount -o wide'
+# 等到 JOB STATUS=RUNNING、LIFECYCLE STATE=STABLE（Ctrl+C 退出）再进入下面的观察
+```
+
 等 1 分钟左右，任选一种方式观察（保持上一步的 port-forward）：
 
 浏览器 `http://localhost:8081` → 进入作业 → Operators 页签 → Backpressure：Source 顶点会随采样变红（HIGH）；Metrics 页签把三个每子任务指标 `busyTimeMsPerSecond` / `backPressuredTimeMsPerSecond` / `idleTimeMsPerSecond` 打开后能看到两极分化。
@@ -211,32 +276,52 @@ kubectl -n flink-lab set env deployment/wordsrv FLOOD=0
 kubectl -n flink-lab rollout status deployment/wordsrv
 ```
 
+切回 FLOOD=0 同样会滚动重启 wordsrv、把当前作业送进 FINISHED——后面第 7~9 步（savepoint、恢复）都需要作业在 RUNNING，所以照上面"标准复活动作"再删一次 CR、重新 apply，等 RUNNING 后继续。
+
 ## 第 7 步：触发 savepoint
 
 ```bash
 # [master]
 kubectl -n flink-lab patch flinkdeployment wordcount --type merge \
   -p '{"spec":{"job":{"savepointTriggerNonce":1}}}'
-kubectl -n flink-lab get flinkdeployment wordcount \
-  -o jsonpath='{.status.jobStatus.savepointPath}'; echo
-# 预期: file:///opt/flink/state/savepoints/savepoint-1a2b3c-4d5e6f
+```
+
+1.10+ 的 operator 把手动触发的 savepoint 记录在专门的 `FlinkStateSnapshot` CR 里（旧文档里的 `.status.jobStatus.savepointPath` 字段已不存在，nonce 触发的不写进 `savepointInfo.savepointHistory`）：
+
+```bash
+# [master] 等 20 秒左右（savepoint 是异步的）
+kubectl -n flink-lab get flinkstatesnapshot \
+  -o custom-columns='NAME:.metadata.name,STATE:.status.state,PATH:.status.path'
+# 预期: wordcount-savepoint-manual-xxxxx   COMPLETED   file:/opt/flink/state/savepoints/savepoint-1a2b3c-4d5e6f
 sudo ls /var/flink-state/savepoints/
 # 预期: savepoint-1a2b3c-4d5e6f   （nonce 递增可重复触发: 2, 3, ...）
 ```
 
-savepoint 由 TaskManager 执行写入挂载的 hostPath；CR 的 status 字段与目录两边互相印证。
+savepoint 由 TaskManager 执行写入挂载的 hostPath；`FlinkStateSnapshot` 的 `status.path` 与目录两边互相印证。
 
 ## 第 8 步：从 savepoint 恢复并把并行度改为 1
 
+恢复字段用 `spec.job.initialSavepointPath`（旧文档里的 `fromSavepoint` 在 1.13 的 CRD 里已不存在，apply/patch 时会被"unknown field"警告后**静默丢弃**，作业照常按无状态启动）。另外示例 jar 没给算子显式 `.uid()`，2→1 缩并行后算子 ID 对不上，会报 `Cannot map checkpoint/savepoint state ... operator is not available in the new program`——加 `execution.savepoint.ignore-unclaimed-state: "true"` 允许跳过映射不上的算子状态（等价于 CLI 的 `--allowNonRestoredState`；真实业务该给算子设 uid 而不是靠这个开关）。
+
+一次性把并行度和恢复源 patch 进去：
+
 ```bash
 # [master] 路径换成上一步的实际输出
-kubectl -n flink-lab patch flinkdeployment wordcount --type merge \
-  -p '{"spec":{"job":{"parallelism":1,"fromSavepoint":"file:///opt/flink/state/savepoints/savepoint-1a2b3c-4d5e6f"}}}'
-kubectl -n flink-lab get flinkdeployment wordcount -w
-# 预期经历 SAVEPOINT/升级 过程后回到: PHASE RUNNING, jobStatus.state RUNNING
+kubectl -n flink-lab patch flinkdeployment wordcount --type merge -p '{
+  "spec": {
+    "flinkConfiguration": {"execution.savepoint.ignore-unclaimed-state": "true"},
+    "job": {
+      "parallelism": 1,
+      "initialSavepointPath": "file:///opt/flink/state/savepoints/savepoint-1a2b3c-4d5e6f"
+    }
+  }}'
+watch -n5 'kubectl -n flink-lab get flinkdeployment wordcount -o wide'
+# 预期经历 SAVEPOINT/升级 过程后回到: JOB STATUS=RUNNING, LIFECYCLE STATE=STABLE
 ```
 
-发生了什么：`upgradeMode: savepoint` 让 operator 先做一次 savepoint 停旧作业，再按新 spec（parallelism 1）拉起新执行，并从 `fromSavepoint` 指定的快照恢复状态——keyed state 按 key group 从 2 个 subtask 迁移合并到 1 个。
+注意：如果 patch 时 JobManager 正好在重启风暴里（wordsrv 滚动后 source 反复重连失败），operator 可能一直停在"ready for upgrade with savepoint → Savepoint Error"，此时按第 6 步的"标准复活动作"删 CR，把 `parallelism: 1`、`initialSavepointPath`、`execution.savepoint.ignore-unclaimed-state` 直接写进 YAML 重新 apply 一次到位。
+
+发生了什么：`upgradeMode: savepoint` 让 operator 先做一次 savepoint 停旧作业，再按新 spec（parallelism 1）拉起新执行，并从 `initialSavepointPath` 指定的快照恢复状态——keyed state 按 key group 从 2 个 subtask 迁移合并到 1 个（本例的窗口计数状态因无 uid 被跳过，恢复语义本身已验证：REST 里 `restored>=1`）。
 
 ## 第 9 步：验证恢复成功
 
@@ -259,6 +344,8 @@ helm uninstall flink-kubernetes-operator -n flink-operator
 kubectl delete namespace flink-lab flink-operator
 sudo rm -rf /var/flink-state
 ```
+
+坑位提醒：卸载顺序很重要——如果 operator 先没了（卸载 helm 或删 ns）而 `FlinkDeployment`/`FlinkStateSnapshot` 还在，它们的 finalizer 没人摘，`flink-lab` 会卡在 Terminating；补救是手工清 finalizer：`kubectl -n flink-lab patch <资源> <名字> --type=merge -p '{"metadata":{"finalizers":[]}}'`。
 
 ## 附：check.sh 通过结果
 

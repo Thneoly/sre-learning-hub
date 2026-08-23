@@ -18,10 +18,10 @@
 ## 任务清单
 
 1. 创建 namespace `kafka-lab`，安装 Strimzi 0.46.0 Operator（watch 该 namespace），确认 `deployment/strimzi-cluster-operator` Ready。
-2. 部署 `Kafka` CR `my-cluster` + `KafkaNodePool` `kafka`：3 副本（controller+broker 双角色）、KRaft（Kafka 3.9.0）、内部 `plain` listener 9092（不加密）、`min.insync.replicas=2`、`default.replication.factor=3`、开启 `entityOperator` 与 `kafkaExporter`、`cruiseControl`；存储用 `ephemeral`；JVM 堆 512m。
+2. 部署 `Kafka` CR `my-cluster` + `KafkaNodePool` `kafka`：3 副本（controller+broker 双角色）、KRaft（Kafka 3.9.0）、内部 `plain` listener 9092（不加密）、`min.insync.replicas=2`、`default.replication.factor=3`、开启 `entityOperator` 与 `kafkaExporter`、`cruiseControl`；存储用 `ephemeral`；JVM 堆 512m。注意：Kafka CR 上必须带 `strimzi.io/node-pools: enabled` 与 `strimzi.io/kraft: enabled` 两个注解（0.46 缺注解会直接报错拒绝调和）。
 3. 创建 `KafkaTopic` CR `orders`：6 分区、3 副本、`retention.ms=604800000`、`min.insync.replicas=2`，确认 status 为 Ready。
 4. 在 broker Pod 内验证生产消费：向 `orders` 生产 300 条带 key 的消息；用消费者组 `order-workers` 从头消费 100 条后退出（组位移已提交）。
-5. 用 `kafka-consumer-groups.sh --describe` 展示 `order-workers` 的 lag（应约为 200）；再用 port-forward 访问 kafka-exporter 的 `/metrics`，grep 出该组的 `kafka_consumergroup_current_offset` / `kafka_consumergroup_log_offset`。
+5. 用 `kafka-consumer-groups.sh --describe` 展示 `order-workers` 的 lag（应约为 200）；再用 port-forward 访问 kafka-exporter 的 `/metrics`，grep 出该组的 `kafka_consumergroup_current_offset` / `kafka_consumergroup_log_offset`（exporter 没有 Service，port-forward 目标用 `deploy/my-cluster-kafka-exporter`）。
 6. 把 `KafkaNodePool` 扩到 `replicas: 4`，等新 broker Ready；用 `kafka-topics.sh --describe --topic orders` 记录分区副本分布，回答"新 broker 是否分到了旧分区"。（可选加分）用 `KafkaRebalance`（mode: add-brokers）把分区搬过去。
 7. 运行 `./check.sh`，输出 `SCORE: 9/9`。
 
@@ -43,7 +43,7 @@
 
 <details><summary>提示 2：Pod 名为什么不是 my-cluster-broker-0？</summary>
 
-Strimzi 的节点池模式下，StatefulSet/Pod 以 `<cluster>-<pool>` 命名。本 lab 池名叫 `kafka`，所以 Pod 是 `my-cluster-kafka-0/1/2/3`，bootstrap service 仍是 `my-cluster-kafka-bootstrap:9092`。
+Strimzi 的节点池模式下，Pod 以 `<cluster>-<pool>` 命名。本 lab 池名叫 `kafka`，所以 Pod 是 `my-cluster-kafka-0/1/2/3`，bootstrap service 仍是 `my-cluster-kafka-bootstrap:9092`。注意：0.46 起 operator 直接管理这些 Pod（namespace 里查不到 StatefulSet），`rollout status sts/...` 会 NotFound；等扩容的新 broker 就绪用 `kubectl -n kafka-lab wait pod/my-cluster-kafka-3 --for=condition=Ready --timeout=600s`。
 </details>
 
 <details><summary>提示 3：容器里怎么快速生产 300 条带 key 的消息？</summary>

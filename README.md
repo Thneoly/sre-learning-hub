@@ -23,7 +23,7 @@
 | 03 | `03-docker/` | 7 章 + 8 labs | 容器原理：namespace/cgroup/镜像分层/网络/安全/运行时生态 |
 | 04 | `04-k8s-fundamentals/` | 14 章 | **原理层**：架构与控制循环、Pod、网络、存储、调度、RBAC、etcd |
 | 05 | `05-cka/` | 7 章 + 20 labs + 题库手册 | CKA 备考：缺口补全（RBAC/kubeadm/etcd 备份）+ 考试策略 |
-| 06 | `06-cicd-iac-gitops/` | 8 章 + 3 labs | **工程化**：Git、GitLab CI、Jenkins/GHA、ArgoCD、Ansible+Jinja2、Terraform、Kustomize、Helm |
+| 06 | `06-cicd-iac-gitops/` | 9 章 + 3 labs | **工程化**：DevOps 概念、Git、GitLab CI、Jenkins/GHA、ArgoCD、Ansible+Jinja2、Terraform、Kustomize、Helm |
 | 07 | `07-cks/` | 7 章 + 10 labs | CKS 备考：加固、审计、Falco/Trivy/AppArmor/gVisor/加密 |
 | 08 | `08-pca/` | 7 章 + 2 题集 | PCA 备考：Prometheus 架构、PromQL(28%)、告警、Grafana |
 | 09 | `09-otel/` | 6 章 + 3 labs | OpenTelemetry(1.x 行业事实标准)：三信号、Collector、K8s 自动注入 |
@@ -65,8 +65,11 @@
 scripts/
 ├── setup/    环境初始化：装 Docker、kubeadm 单节点集群、Prometheus 栈、重置
 ├── faults/   12 个故障注入脚本（支持 --restore 恢复）+ FIXES.md（答案）
+├── labctl.sh 练习平台 CLI：list/show/check/scores/solution/fault/drill/timer
 └── lib/      公共函数库
 ```
+
+lab 统一入口：`bash scripts/labctl.sh list`（`check` 判分记分、`fault` 注故障、`drill` 靶场抽卡，详见 `scripts/README.md` 的"labctl 练习平台"）。
 
 每个 lab 含三件套：`task.md`（题目）、`check.sh`（自动判分 SCORE: X/Y）、`solution.md`（详解）。
 推荐闭环：**读章节 → 做 lab → 跑 check.sh 判分 → 注入一个 fault 限时排障**。
