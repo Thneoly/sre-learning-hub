@@ -1,0 +1,1811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SRE 学习中心 · 15 模块学习平台</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:"Segoe UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;background:#f5f6f8;color:#24292f;font-size:15px;line-height:1.65}
+a{color:#0969da}
+#app{display:flex;min-height:100vh}
+
+/* ---------- 侧栏 ---------- */
+#sidebar{width:230px;min-width:230px;background:#1c2128;color:#c9d1d9;position:fixed;top:0;bottom:0;left:0;overflow-y:auto;padding-bottom:24px}
+.brand{padding:20px 16px 14px;border-bottom:1px solid #2d333b}
+.brand .t1{font-size:17px;font-weight:700;color:#fff;letter-spacing:.5px}
+.brand .t2{font-size:12px;color:#8b949e;margin-top:4px}
+.nav-group{margin-top:12px}
+.nav-cap{font-size:11px;color:#6e7681;padding:8px 16px 2px;letter-spacing:1px}
+.nav-item{display:flex;width:100%;text-align:left;padding:9px 16px;background:none;border:none;border-left:3px solid transparent;color:#c9d1d9;font-size:14px;cursor:pointer;font-family:inherit;align-items:center;justify-content:space-between;gap:8px}
+.nav-item:hover{background:#262d36;color:#fff}
+.nav-item.active{background:#2d3640;color:#fff;border-left-color:#58a6ff;font-weight:600}
+.nav-pct{font-size:11px;color:#8b949e;font-family:Consolas,monospace}
+.nav-item.active .nav-pct{color:#c9d1d9}
+.side-foot{margin:22px 16px 0;padding-top:12px;border-top:1px solid #2d333b;font-size:11px;color:#6e7681;line-height:1.8}
+
+/* ---------- 主区 ---------- */
+#main{margin-left:230px;flex:1;padding:26px 32px 70px;min-height:100vh}
+.page{max-width:960px;margin:0 auto}
+h1.pg{font-size:24px;margin:0 0 6px}
+h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px solid #e4e7eb}
+.sub{color:#57606a;font-size:13px;margin-bottom:18px}
+.card{background:#fff;border:1px solid #e4e7eb;border-radius:8px;padding:18px 22px;margin-bottom:18px}
+.card h3{margin:0 0 10px;font-size:15px}
+.grid{display:flex;flex-wrap:wrap;gap:16px}
+.grid .card{flex:1 1 270px;margin-bottom:0}
+.modcard{cursor:pointer;transition:border-color .15s}
+.modcard:hover{border-color:#0969da}
+.mc-desc{font-size:13px;color:#57606a;margin:2px 0 10px;min-height:40px}
+.mc-meta{font-size:12px;color:#8b949e;margin-top:6px}
+.pbar{height:8px;background:#e9ecef;border-radius:4px;overflow:hidden;margin:8px 0 4px}
+.pbar>span{display:block;height:100%;background:#2da44e;border-radius:4px;transition:width .2s}
+.pnum{font-size:12px;color:#57606a}
+.hintbox{background:#fff8c5;border:1px solid #d4a72c;border-radius:6px;padding:12px 16px;font-size:13px;margin:14px 0;line-height:1.8}
+.hintbox code{background:rgba(175,184,193,.25);padding:1px 5px;border-radius:4px;font-family:Consolas,monospace}
+
+/* ---------- 清单 ---------- */
+.listcard{padding:8px 14px}
+.list-note{font-size:12px;color:#8b949e;padding:8px 6px 4px}
+.item-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-bottom:1px solid #f0f2f4}
+.item-row:last-child{border-bottom:none}
+.item-row input[type=checkbox]{width:16px;height:16px;cursor:pointer;flex:none}
+.item-title{flex:1;font-size:14px;min-width:0}
+.item-title a{color:inherit;text-decoration:none}
+.item-title a:hover{color:#0969da;text-decoration:underline}
+.item-row.done .item-title a{color:#8b949e}
+.item-row.done .item-title{text-decoration:line-through;color:#8b949e}
+.item-path{font-size:11px;color:#b0b8c1;font-family:Consolas,monospace;flex:none}
+.mini{font-size:12px;padding:2px 8px;border-radius:4px;border:1px solid #d0d7de;background:#f6f8fa;cursor:pointer;color:#57606a;text-decoration:none;display:inline-block;font-family:inherit}
+.mini:hover{background:#eef1f4;color:#24292f}
+.mini.accent{border-color:#0969da;color:#0969da}
+.btn{padding:7px 18px;border-radius:6px;border:1px solid #d0d7de;background:#f6f8fa;cursor:pointer;font-size:14px;font-family:inherit;text-decoration:none;display:inline-block;color:#24292f}
+.btn:hover{background:#eef1f4}
+.btn.primary{background:#0969da;border-color:#0969da;color:#fff}
+.btn.primary:hover{background:#0860ca}
+.btn.danger{color:#cf222e;border-color:#cf222e;background:#fff}
+.btn.danger:hover{background:#ffebe9}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ---------- 阅读器 / markdown ---------- */
+.reader-bar{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.reader-path{font-family:Consolas,monospace;font-size:13px;color:#57606a;flex:1}
+.reader-card{padding:6px 26px 26px}
+.toc{border:1px solid #d0d7de;border-radius:8px;background:#fff;padding:10px 16px;margin:14px 0;font-size:13px}
+.toc .toc-t{font-weight:700;margin-bottom:4px;font-size:12px;color:#57606a;letter-spacing:1px}
+.toc a{display:block;color:#0969da;text-decoration:none;padding:2px 0}
+.toc a:hover{text-decoration:underline}
+.md h1{font-size:24px;margin:18px 0 14px;padding-bottom:8px;border-bottom:2px solid #e4e7eb}
+.md h2{font-size:19px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px solid #e4e7eb}
+.md h3{font-size:16px;margin:22px 0 8px}
+.md h4,.md h5,.md h6{font-size:15px;margin:18px 0 6px}
+.md p{margin:10px 0}
+.md ul,.md ol{margin:10px 0;padding-left:26px}
+.md li{margin:4px 0}
+.md blockquote{margin:12px 0;padding:8px 14px;border-left:4px solid #d0d7de;background:#f6f8fa;color:#57606a;border-radius:0 6px 6px 0}
+.md hr{border:none;border-top:1px solid #e4e7eb;margin:20px 0}
+.md code{font-family:Consolas,"Courier New",monospace;font-size:13px;background:rgba(175,184,193,.25);padding:1px 5px;border-radius:4px}
+.md img{max-width:100%}
+.twrap{overflow-x:auto;margin:12px 0}
+.twrap table,.cheat table{border-collapse:collapse;width:100%;font-size:13.5px}
+.twrap th,.twrap td,.cheat th,.cheat td{border:1px solid #e4e7eb;padding:6px 10px;text-align:left;vertical-align:top;line-height:1.6}
+.twrap th,.cheat th{background:#f6f8fa;white-space:nowrap}
+.twrap code,.cheat code{font-family:Consolas,"Courier New",monospace;font-size:12.5px;background:rgba(175,184,193,.25);padding:1px 4px;border-radius:4px}
+.codewrap{margin:12px 0;border:1px solid #e4e7eb;border-radius:8px;overflow:hidden;background:#f6f8fa}
+.codelang{font-size:11px;color:#57606a;background:#eef1f4;padding:4px 12px;border-bottom:1px solid #e4e7eb;font-family:Consolas,monospace;letter-spacing:.5px}
+.codewrap pre{margin:0;padding:12px 14px;overflow-x:auto}
+.codewrap code{font-family:Consolas,"Courier New",monospace;font-size:13px;line-height:1.6;background:none;padding:0;white-space:pre;tab-size:4}
+.md-details{border:1px solid #d0d7de;border-radius:8px;margin:12px 0;background:#fff}
+.md-details>summary{cursor:pointer;padding:9px 14px;font-weight:600;background:#f6f8fa;border-radius:8px}
+.md-details[open]>summary{border-bottom:1px solid #e4e7eb;border-radius:8px 8px 0 0}
+.md-details-body{padding:4px 16px 10px}
+.taskbox{margin-right:2px}
+.taskbox input{cursor:default}
+
+/* ---------- 测验 ---------- */
+.quiz-top{display:flex;align-items:center;gap:14px;margin:6px 0 14px;flex-wrap:wrap}
+.quiz-meta{font-size:13px;color:#57606a}
+.quiz-card{padding:22px 26px}
+.quiz-q{font-size:16px;font-weight:600;line-height:1.7;margin-bottom:16px}
+.quiz-opts{display:flex;flex-direction:column;gap:10px}
+.quiz-opt{display:flex;gap:12px;align-items:flex-start;text-align:left;padding:11px 14px;border:1px solid #d0d7de;border-radius:8px;background:#fff;cursor:pointer;font-size:14px;font-family:inherit;line-height:1.6;color:#24292f}
+.quiz-opt:hover{border-color:#0969da;background:#f0f7ff}
+.qo-key{flex:none;font-weight:700;color:#0969da;font-family:Consolas,monospace}
+.score-big{font-size:34px;font-weight:700;text-align:center;margin:6px 0 10px}
+.wr-row{padding:7px 12px;border-radius:6px;margin:6px 0;font-size:14px}
+.wr-row.bad{background:#ffebe9;color:#cf222e;border:1px solid #ffcecb}
+.wr-row.good{background:#dafbe1;color:#116329;border:1px solid #aceebb}
+.wr-explain{font-size:13.5px;color:#57606a;background:#f6f8fa;border-radius:6px;padding:10px 12px;margin-top:8px;line-height:1.7}
+
+/* ---------- 计时器 ---------- */
+.timer-card{text-align:center;padding:28px 22px}
+.timer-disp{font-family:Consolas,"Courier New",monospace;font-size:54px;font-weight:700;letter-spacing:2px}
+.timer-disp.warn{color:#9a6700}
+.timer-disp.over{color:#cf222e}
+.timer-btns{margin:16px 0 10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.timer-msg{display:none;margin:12px auto 0;padding:9px 16px;border-radius:6px;font-size:14px;max-width:560px}
+.timer-msg.show{display:block;background:#fff8c5;color:#7d4e00;border:1px solid #d4a72c}
+.timer-msg.show.danger{background:#ffebe9;color:#cf222e;border:1px solid #ffcecb;font-weight:700}
+.exam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-top:6px}
+.exam-item{display:flex;align-items:center;gap:6px;border:1px solid #e4e7eb;border-radius:6px;padding:6px 8px;font-size:13px;cursor:pointer;background:#fff}
+.exam-item.done{background:#dafbe1;border-color:#aceebb;color:#116329}
+.exam-item input{margin:0}
+
+/* ---------- 速查 ---------- */
+.cheat h3{font-size:15px;margin:20px 0 8px}
+.cheat p{font-size:13.5px;color:#57606a}
+
+/* ---------- 能力支柱视图 ---------- */
+.pillar-row{padding:12px 2px;border-bottom:1px solid #f0f2f4}
+.pillar-row:last-child{border-bottom:none;padding-bottom:4px}
+.pr-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.pr-name{font-weight:700;font-size:15px}
+.pr-pct{font-size:12px;color:#57606a;font-family:Consolas,monospace}
+.pr-role{font-size:12px;color:#8b949e;margin-top:2px}
+.pr-one{font-size:13px;color:#57606a;margin:4px 0 8px}
+.pr-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.pchip{font-size:12px;padding:1px 9px;border-radius:10px;border:1px solid #d0d7de;background:#f6f8fa;color:#57606a;cursor:pointer;font-family:Consolas,monospace;font-weight:600}
+.pchip:hover{border-color:#0969da;color:#0969da;background:#f0f7ff}
+.pchip.alt{border-style:dashed;font-family:inherit;font-weight:400}
+
+/* ---------- 场景速查 ---------- */
+.scn-src{font-size:12.5px;color:#57606a;margin:-6px 0 12px}
+.scn-src code{font-family:Consolas,monospace;background:rgba(175,184,193,.25);padding:1px 5px;border-radius:4px}
+.scn-ops{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 14px;font-size:12px;color:#8b949e}
+.scn-cat{border:1px solid #d0d7de;border-radius:8px;background:#fff;margin-bottom:10px}
+.scn-cat>summary{cursor:pointer;padding:10px 14px;font-weight:600;background:#f6f8fa;border-radius:8px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;list-style:none}
+.scn-cat>summary::-webkit-details-marker{display:none}
+.scn-cat[open]>summary{border-bottom:1px solid #e4e7eb;border-radius:8px 8px 0 0}
+.scn-cat>summary::before{content:'▸';color:#8b949e;margin-right:2px}
+.scn-cat[open]>summary::before{content:'▾'}
+.scn-t{font-size:14px}
+.scn-sub{font-weight:400;font-size:12px;color:#8b949e}
+.scn-count{font-weight:400;font-size:12px;color:#0969da;margin-left:auto}
+.scn-item{padding:10px 16px;border-bottom:1px solid #f0f2f4}
+.scn-item:last-child{border-bottom:none}
+.scn-phe{font-size:14px;font-weight:600;line-height:1.65}
+.scn-meta{font-size:13px;color:#57606a;margin-top:3px;line-height:1.7}
+.scn-meta b{color:#24292f;font-weight:600}
+.scn-badge{display:inline-block;font-size:11px;font-weight:700;color:#cf222e;background:#ffebe9;border:1px solid #ffcecb;border-radius:4px;padding:0 6px;margin-right:6px;vertical-align:1px}
+.scn-link{background:none;border:none;padding:0;color:#0969da;cursor:pointer;font:inherit;font-size:inherit;text-align:left;text-decoration:none}
+.scn-link:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar"></aside>
+  <main id="main"><div class="page" id="page"></div></main>
+</div>
+
+<script src="content.js"></script>
+<script src="quiz-data.js"></script>
+<script>
+/* SRE 学习中心（learning-hub）：单文件应用，无外部依赖，file:// 双击可用。
+   内容索引与题库分别来自同目录 content.js（build-content.ps1 生成）与 quiz-data.js。
+   两个脚本缺失时本页仍可工作：清单勾选、测验（有题库时）、计时器、速查不受影响。 */
+(function () {
+  'use strict';
+
+  /* ================= 基础工具 ================= */
+  function $(sel) { return document.querySelector(sel); }
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function safeHref(u) {
+    var v = String(u || '').trim();
+    if (/^(https?:|mailto:|#|\/|\.\/|\.\.\/)/i.test(v)) { return v; }
+    return '#';
+  }
+  function tbl(head, rows) {
+    var h = '<div class="twrap"><table><thead><tr>';
+    for (var a = 0; a < head.length; a++) { h += '<th>' + head[a] + '</th>'; }
+    h += '</tr></thead><tbody>';
+    for (var b = 0; b < rows.length; b++) {
+      h += '<tr>';
+      for (var c = 0; c < rows[b].length; c++) { h += '<td>' + rows[b][c] + '</td>'; }
+      h += '</tr>';
+    }
+    return h + '</tbody></table></div>';
+  }
+  function codeBlock(lang, code) {
+    return '<div class="codewrap"><div class="codelang">' + esc(lang || 'text') + '</div><pre><code>' + esc(code) + '</code></pre></div>';
+  }
+
+  /* ================= 模块清单（硬编码，路径与仓库实际文件一一对应） =================
+     章节键：m.dir + '/' + f；lab 键：m.dir + '/' + p。
+     相对链接 ../<dir>/... 从 portal/ 出发指向 learning-hub 根下的源文件。 */
+  var MODULES = [
+    {
+      id: 'linux', nav: 'Linux 底座', name: 'Linux 底座与性能', dir: '01-linux',
+      desc: '启动与 systemd、文件系统与 IO、内存、CFS 调度、内核网络栈与性能分析方法论，为一切运维工作打底。',
+      chapters: [
+        { f: '01-boot-and-systemd.md', t: '01 · 启动流程与 systemd' },
+        { f: '02-filesystem-and-io.md', t: '02 · 文件系统与 IO' },
+        { f: '03-memory-deep-dive.md', t: '03 · 内存深入：虚拟内存、page cache 与 OOM' },
+        { f: '04-processes-and-cfs.md', t: '04 · 进程、CFS 调度与负载均值' },
+        { f: '05-network-stack-internals.md', t: '05 · 内核网络栈：收包路径、netfilter 与 TIME_WAIT' },
+        { f: '06-performance-analysis.md', t: '06 · 性能分析方法论：USE、60 秒巡检与火焰图' }
+      ],
+      labs: [
+        { p: 'labs/01-sixty-second-drill', t: 'Lab 01 · 60 秒应急排查演练：CPU / 内存 / 磁盘' },
+        { p: 'labs/02-network-stack-lab', t: 'Lab 02 · TCP 协议栈实战：TIME_WAIT 洪峰与短连接生命周期' }
+      ]
+    },
+    {
+      id: 'programming', nav: '编程', name: '运维编程：Shell / Python / Go', dir: '02-programming',
+      desc: 'Shell 从能跑到不炸、把命令变成工具，Python 运维工具箱，Go 进阶通向 Operator 与采集器。',
+      chapters: [
+        { f: '01-shell-fundamentals.md', t: '01 · Shell 基础：从"能跑"到"不炸"' },
+        { f: '02-shell-ops-patterns.md', t: '02 · Shell 运维模式：把命令变成工具' },
+        { f: '03-python-for-ops.md', t: '03 · Python 运维基础：为写工具而学' },
+        { f: '04-python-ops-toolkit.md', t: '04 · Python 运维工具箱：四个能写进简历的工具' },
+        { f: '05-go-for-sre.md', t: '05 · Go for SRE：选学进阶，通向 Operator' }
+      ],
+      labs: [
+        { p: 'labs/01-shell-inspection', t: 'Lab 01 · 批量巡检脚本 batch-inspect.sh' },
+        { p: 'labs/02-python-exporter', t: 'Lab 02 · 用 Python 写一个 Prometheus exporter' }
+      ]
+    },
+    {
+      id: 'docker', nav: 'Docker', name: '容器技术', dir: '03-docker',
+      desc: 'Namespace/Cgroups 原理、镜像分层、容器网络、存储卷、Compose 与安全实践，为 Kubernetes 打底。',
+      chapters: [
+        { f: '01-container-fundamentals.md', t: '01 · 容器核心概念：Namespace、Cgroups 与联合文件系统' },
+        { f: '02-images-and-building.md', t: '02 · 镜像原理：分层、构建缓存、多阶段构建与 Registry 协议' },
+        { f: '03-container-networking.md', t: '03 · 容器网络：docker0、veth、iptables 端口映射与四种网络模式' },
+        { f: '04-storage-volumes.md', t: '04 · 存储与数据卷：volume、bind mount 与 tmpfs' },
+        { f: '05-compose.md', t: '05 · Docker Compose：多容器应用与通往 Kubernetes 的桥' },
+        { f: '06-security-best-practices.md', t: '06 · 容器安全与最佳实践：非 root、能力裁剪与镜像供应链' },
+        { f: '07-runtime-ecosystem.md', t: '07 · 运行时生态：dockerd、containerd、runc 与 CRI' }
+      ],
+      labs: [
+        { p: 'labs/01-first-containers', t: 'Lab 01 · 容器基本操作与生命周期' },
+        { p: 'labs/02-image-layers-build', t: 'Lab 02 · 镜像分层观察与多阶段构建' },
+        { p: 'labs/03-networking-modes', t: 'Lab 03 · 四种网络模式与端口映射的 iptables 真相' },
+        { p: 'labs/04-volumes-persistence', t: 'Lab 04 · Volume vs Bind Mount 与 --volumes-from' },
+        { p: 'labs/05-compose-stack', t: 'Lab 05 · Compose 三服务栈：nginx + redis + app' },
+        { p: 'labs/06-resource-limits', t: 'Lab 06 · CPU/内存限制与 throttling 观察' },
+        { p: 'labs/07-security-hardening', t: 'Lab 07 · 容器安全加固：cap-drop / no-new-privileges / 非 root' },
+        { p: 'labs/08-local-registry', t: 'Lab 08 · 起一个本地 registry:2 并完成 push/pull 闭环' }
+      ]
+    },
+    {
+      id: 'k8s', nav: 'K8s 基础', name: 'Kubernetes 基础', dir: '04-k8s-fundamentals',
+      desc: '从架构与控制循环到 Pod、网络、存储、调度、RBAC 与可观测，14 章铺满主干知识。',
+      chapters: [
+        { f: '01-why-kubernetes.md', t: '01 · 为什么需要 Kubernetes：声明式系统与控制循环' },
+        { f: '02-architecture-and-control-loop.md', t: '02 · 架构与控制循环：控制面四组件、list-watch 与 kubelet' },
+        { f: '03-pods-deep-dive.md', t: '03 · Pod 深入：命名空间本质、生命周期、探针与优雅退出' },
+        { f: '04-workload-controllers.md', t: '04 · 工作负载控制器：Deployment、HPA、StatefulSet、DaemonSet 与 Job' },
+        { f: '05-service-and-dns.md', t: '05 · Service 与 DNS：虚拟 IP、iptables 规则链与 CoreDNS' },
+        { f: '06-ingress-and-gateway-api.md', t: '06 · Ingress 与 Gateway API：七层入口的资源模型与角色分离' },
+        { f: '07-storage.md', t: '07 · 存储体系：PV / PVC / StorageClass 与 CSI 的完整链路' },
+        { f: '08-scheduling.md', t: '08 · 调度器：过滤、打分、亲和、污点与抢占' },
+        { f: '09-configmap-and-secret.md', t: '09 · ConfigMap 与 Secret：注入方式、原子更新与 base64 不是加密' },
+        { f: '10-cni-and-pod-networking.md', t: '10 · CNI 与 Pod 网络：veth、overlay 与 NetworkPolicy' },
+        { f: '11-resources-and-qos.md', t: '11 · 资源与 QoS：requests、limits 与 cgroups 的真相' },
+        { f: '12-rbac-and-service-accounts.md', t: '12 · RBAC 与 ServiceAccount：从你是谁到你能做什么' },
+        { f: '13-cluster-admin-and-etcd.md', t: '13 · 集群管理与 etcd：kubeadm 产物、静态 Pod、升级与证书' },
+        { f: '14-observability.md', t: '14 · 可观测性：metrics-server、三层日志、Events 与 audit' }
+      ],
+      labs: []
+    },
+    {
+      id: 'cka', nav: 'CKA', name: 'CKA 备考专篇', dir: '05-cka',
+      desc: '考场策略、大纲缺口分析、高频实操专题，配 20 个按考纲设计的 lab。',
+      chapters: [
+        { f: '00-exam-overview.md', t: '00 · CKA 考试概览与考场策略' },
+        { f: '01-curriculum-gap-analysis.md', t: '01 · CKA 大纲与题库缺口分析' },
+        { f: '02-rbac-practice.md', t: '02 · RBAC 实操：Role、绑定与 can-i 验证' },
+        { f: '03-kubeadm-install-upgrade.md', t: '03 · kubeadm 集群安装、扩节点与版本升级' },
+        { f: '04-etcd-backup-restore.md', t: '04 · etcd 备份与恢复实操' },
+        { f: '05-secrets-and-cert-troubleshooting.md', t: '05 · Secret 实操与集群证书排错' },
+        { f: '06-node-maintenance-troubleshooting.md', t: '06 · 节点维护与集群排错方法论' },
+        { f: 'question-bank-manual-v1.35.md', t: '附 · CKA v1.35 完整学习指南（题库操作手册）' }
+      ],
+      labs: [
+        { p: 'labs/01-deploy-rollout', t: 'Lab 01 · Deployment 滚动发布与回滚' },
+        { p: 'labs/02-hpa-autoscale', t: 'Lab 02 · HPA 基于 CPU 的自动扩缩容' },
+        { p: 'labs/03-service-nodeport', t: 'Lab 03 · Service 暴露：NodePort' },
+        { p: 'labs/04-ingress-routes', t: 'Lab 04 · Ingress 按域名和路径路由' },
+        { p: 'labs/05-networkpolicy-isolate', t: 'Lab 05 · NetworkPolicy 命名空间内微隔离' },
+        { p: 'labs/06-pvc-static-binding', t: 'Lab 06 · 静态 PV 与 PVC 手工绑定' },
+        { p: 'labs/07-storageclass-default', t: 'Lab 07 · 默认 StorageClass 与延迟绑定' },
+        { p: 'labs/08-priority-preemption', t: 'Lab 08 · PriorityClass 与调度抢占' },
+        { p: 'labs/09-sidecar-logging', t: 'Lab 09 · Sidecar 容器接管日志输出' },
+        { p: 'labs/10-gateway-api-route', t: 'Lab 10 · Gateway API：Gateway + HTTPRoute 路由' },
+        { p: 'labs/11-rbac-role-binding', t: 'Lab 11 · RBAC Role 与 RoleBinding' },
+        { p: 'labs/12-sa-token-permissions', t: 'Lab 12 · ServiceAccount Token 与权限验证' },
+        { p: 'labs/13-etcd-snapshot-restore', t: 'Lab 13 · etcd 快照与模拟恢复' },
+        { p: 'labs/14-kubeadm-upgrade-drain', t: 'Lab 14 · kubeadm 升级演练：cordon/drain 与 upgrade plan' },
+        { p: 'labs/15-static-pod-repair', t: 'Lab 15 · 静态 Pod 修复' },
+        { p: 'labs/16-kubelet-troubleshoot', t: 'Lab 16 · kubelet 排错：NotReady 节点' },
+        { p: 'labs/17-dns-debugging', t: 'Lab 17 · 集群内 DNS 排查' },
+        { p: 'labs/18-crashloop-triage', t: 'Lab 18 · ImagePullBackOff 与 CrashLoopBackOff 排障' },
+        { p: 'labs/19-resource-pressure-diagnosis', t: 'Lab 19 · 资源压力诊断：Pending 的 Pod' },
+        { p: 'labs/20-cluster-recovery-drill', t: 'Lab 20 · 综合恢复演练：三重故障' }
+      ]
+    },
+    {
+      id: 'cicd', nav: 'CI/CD & IaC', name: 'CI/CD 与 IaC、GitOps', dir: '06-cicd-iac-gitops',
+      desc: 'DevOps 理念、Git 对象模型与救命操作、GitLab CI、Jenkins 与 GitHub Actions、ArgoCD 拉模式交付、Ansible、Terraform 与 Kustomize。',
+      chapters: [
+        { f: '00-devops-concepts.md', t: '00 · DevOps 理念：从"墙"到流水线' },
+        { f: '01-git-deep-dive.md', t: '01 · Git 深入：对象模型、分支本质与救命操作' },
+        { f: '02-gitlab-ci.md', t: '02 · GitLab CI：从 pipeline 概念到多环境交付' },
+        { f: '03-jenkins-and-github-actions.md', t: '03 · Jenkins 与 GitHub Actions：存量读写与云端流水线' },
+        { f: '04-argocd-gitops.md', t: '04 · ArgoCD 与 GitOps：拉模式交付' },
+        { f: '05-ansible.md', t: '05 · Ansible：无 agent 的配置管理' },
+        { f: '06-terraform.md', t: '06 · Terraform：有状态的资源编排' },
+        { f: '07-kustomize.md', t: '07 · Kustomize：无模板的多环境 Manifest 管理' },
+        { f: '08-helm.md', t: '08 · Helm：Chart 打包、Release 生命周期与生产纪律' }
+      ],
+      labs: [
+        { p: 'labs/01-gitlab-ci-pipeline', t: 'Lab 01 · GitLab CI 流水线：lint → build → test → 镜像构建' },
+        { p: 'labs/02-argocd-gitops', t: 'Lab 02 · ArgoCD GitOps：自动同步与漂移自愈' },
+        { p: 'labs/03-ansible-playbook', t: 'Lab 03 · Ansible Playbook：批量部署 nginx + 站点配置 + 健康检查' }
+      ]
+    },
+    {
+      id: 'cks', nav: 'CKS', name: 'CKS 备考专篇', dir: '07-cks',
+      desc: '集群与系统加固、微服务漏洞最小化、供应链安全、审计与运行时检测，配 10 个安全 lab。',
+      chapters: [
+        { f: '00-exam-overview.md', t: '00 · CKS 考试概览与备考策略' },
+        { f: '01-cluster-hardening.md', t: '01 · 集群加固：CIS 基准与控制面组件参数' },
+        { f: '02-system-hardening.md', t: '02 · 系统加固：seccomp、AppArmor、沙箱运行时与内核参数' },
+        { f: '03-microservice-vulnerabilities.md', t: '03 · 微服务漏洞最小化：PSA、RBAC 收权、SA token 与 NetworkPolicy 分层' },
+        { f: '04-supply-chain-security.md', t: '04 · 供应链安全：trivy、digest 固定、cosign 与准入控制全链路' },
+        { f: '05-monitoring-auditing-runtime.md', t: '05 · 监控、审计与运行时安全：audit log、Falco 与容器逃逸检测' },
+        { f: '06-secret-encryption.md', t: '06 · Secret 静态加密：EncryptionConfiguration 落地、密钥轮换与验证' }
+      ],
+      labs: [
+        { p: 'labs/01-trivy-scan-admission', t: 'Lab 01 · Trivy 镜像扫描与高危镜像阻断' },
+        { p: 'labs/02-psa-levels', t: 'Lab 02 · Pod Security Admission 三级模式实验' },
+        { p: 'labs/03-apparmor-profile', t: 'Lab 03 · AppArmor Profile 限制 Nginx 文件写入' },
+        { p: 'labs/04-seccomp-profile', t: 'Lab 04 · Seccomp：RuntimeDefault 与自定义 profile 阻断 syscall' },
+        { p: 'labs/05-runtimeclass', t: 'Lab 05 · RuntimeClass：把 Pod 交给 gVisor 沙箱运行' },
+        { p: 'labs/06-audit-policy', t: 'Lab 06 · Audit Policy：让 apiserver 记下谁动了什么' },
+        { p: 'labs/07-falco-detection', t: 'Lab 07 · Falco：运行时检测读 /etc/shadow 的容器' },
+        { p: 'labs/08-encryption-at-rest', t: 'Lab 08 · EncryptionConfiguration：Secret 落盘加密全流程' },
+        { p: 'labs/09-imagepolicy-webhook', t: 'Lab 09 · ImagePolicyWebhook：镜像准入后端模拟' },
+        { p: 'labs/10-network-segmentation', t: 'Lab 10 · Namespace 间网络分段：默认拒绝 + 按需放开端口' }
+      ]
+    },
+    {
+      id: 'pca', nav: 'PCA', name: 'PCA 备考专篇', dir: '08-pca',
+      desc: 'Prometheus 全链路：可观测性概念、架构、PromQL、埋点与 Exporter、告警与 Grafana，附练习题集。',
+      chapters: [
+        { f: '00-exam-overview.md', t: '00 · PCA 考试概览与备考策略' },
+        { f: '01-observability-concepts.md', t: '01 · 可观测性概念：三支柱、SLI/SLO 与高基数' },
+        { f: '02-prometheus-architecture.md', t: '02 · Prometheus 架构：组件、服务发现、relabel 与 TSDB' },
+        { f: '03-promql-guide.md', t: '03 · PromQL 指南：数据模型、函数辨析与 histogram 数学' },
+        { f: '04-instrumentation-exporters.md', t: '04 · 埋点与 Exporter：指标类型选型、三大采集器与 Pushgateway' },
+        { f: '05-alerting-alertmanager.md', t: '05 · 告警：alerting rules 状态机与 Alertmanager 路由' },
+        { f: '06-grafana-dashboards.md', t: '06 · Grafana：数据源、变量模板与面板选型' }
+      ],
+      labs: [
+        { p: 'labs/promql-exercises.md', t: 'PromQL 练习题 60 道' },
+        { p: 'labs/alertmanager-exercises.md', t: 'Alertmanager 练习题 15 道' }
+      ]
+    },
+    {
+      id: 'otel', nav: 'OTel', name: 'OpenTelemetry 可观测', dir: '09-otel',
+      desc: '三大信号与上下文传播、埋点与采样、Collector 架构与部署模式、K8s 落地与 Astronomy Shop 实战。',
+      chapters: [
+        { f: '00-otel-overview.md', t: '00 · OpenTelemetry 概览：可观测性的行业事实标准' },
+        { f: '01-signals-and-context-propagation.md', t: '01 · 三大信号与上下文传播' },
+        { f: '02-instrumentation.md', t: '02 · 埋点：手动 SDK、自动注入与采样' },
+        { f: '03-collector.md', t: '03 · Collector：架构、部署模式与经典配方' },
+        { f: '04-k8s-deployment-and-operator.md', t: '04 · Kubernetes 部署与 OTel Operator' },
+        { f: '05-otel-demo-astronomy-shop.md', t: '05 · Astronomy Shop：OpenTelemetry Demo 实战' }
+      ],
+      labs: [
+        { p: 'labs/01-collector-first-pipeline', t: 'Lab 01 · 最小 Collector 管道：OTLP 进、文件出' },
+        { p: 'labs/02-auto-instrumentation', t: 'Lab 02 · OTel Operator 自动插桩：零代码接入 Python 应用' },
+        { p: 'labs/03-demo-fault-tracing', t: 'Lab 03 · Astronomy Shop 故障注入与根因定位' }
+      ]
+    },
+    {
+      id: 'logging', nav: '日志', name: '日志体系：ELK 与 Loki', dir: '10-logging',
+      desc: '日志概念与结构化实践、Elasticsearch 原理与 ELK 管道、Loki 栈与 LogQL、Kubernetes 日志路径与采集模式。',
+      chapters: [
+        { f: '01-logging-concepts.md', t: '01 · 日志概念：可观测三支柱的日志腿' },
+        { f: '02-elk-stack.md', t: '02 · ELK 栈：Elasticsearch 原理与日志管道' },
+        { f: '03-loki-stack.md', t: '03 · Loki 栈：只索引标签的日志系统' },
+        { f: '04-k8s-logging.md', t: '04 · Kubernetes 日志：路径、采集模式与管道衔接' }
+      ],
+      labs: [
+        { p: 'labs/01-loki-pipeline', t: 'Lab 01 · Loki 日志管道：采集、入库与 LogQL 查询' }
+      ]
+    },
+    {
+      id: 'middleware', nav: '中间件', name: '中间件：Nginx / MySQL / Redis / MongoDB', dir: '11-middleware',
+      desc: 'Nginx 架构与排障、MySQL InnoDB 与复制、Redis 数据结构与高可用缓存、MongoDB 副本集与分片，各按子目录组织。',
+      chapters: [
+        { f: 'nginx/01-architecture-and-process-model.md', t: 'Nginx 01 · 架构与进程模型' },
+        { f: 'nginx/02-proxy-lb-and-core-config.md', t: 'Nginx 02 · 反向代理与负载均衡：核心配置' },
+        { f: 'nginx/03-performance-troubleshooting.md', t: 'Nginx 03 · 性能调优与故障定位' },
+        { f: 'mysql/01-innodb-fundamentals.md', t: 'MySQL 01 · 架构与 InnoDB 核心机制' },
+        { f: 'mysql/02-backup-replication.md', t: 'MySQL 02 · 备份恢复与主从复制' },
+        { f: 'mysql/03-tuning-troubleshooting.md', t: 'MySQL 03 · 调优与排障手册' },
+        { f: 'redis/01-data-structures-and-memory.md', t: 'Redis 01 · 数据结构与内存：编码转换、碎片率与 bigkey 治理' },
+        { f: 'redis/02-persistence-and-ha.md', t: 'Redis 02 · 持久化与高可用：RDB/AOF、主从、哨兵与 Cluster' },
+        { f: 'redis/03-caching-patterns-troubleshooting.md', t: 'Redis 03 · 缓存模式与线上排障：穿透击穿雪崩、一致性与监控' },
+        { f: 'mongodb/01-document-model-wiredtiger.md', t: 'MongoDB 01 · 文档模型与 WiredTiger 存储引擎' },
+        { f: 'mongodb/02-replicaset-and-sharding.md', t: 'MongoDB 02 · 副本集与分片' },
+        { f: 'mongodb/03-operations-troubleshooting.md', t: 'MongoDB 03 · 运维与排障' }
+      ],
+      labs: [
+        { p: 'nginx/labs/01-reverse-proxy-ha', t: 'Nginx Lab 01 · 反向代理高可用：加权轮询、故障转移与 location 陷阱' },
+        { p: 'mysql/labs/01-replication-rescue', t: 'MySQL Lab 01 · 主从复制搭建、断连追平与 binlog 误删恢复' },
+        { p: 'redis/labs/01-sentinel-failover', t: 'Redis Lab 01 · 哨兵故障转移实战：一主二从三哨兵' },
+        { p: 'mongodb/labs/01-replicaset-deploy', t: 'MongoDB Lab 01 · 副本集部署、故障转移与断连追平' }
+      ]
+    },
+    {
+      id: 'datastream', nav: '数据流', name: '数据流：Kafka / Flink', dir: '12-data-streaming',
+      desc: 'Kafka 日志模型、副本与 ISR、运维与性能；Flink 流处理时间语义、部署与 exactly-once，按子目录组织。',
+      chapters: [
+        { f: 'kafka/01-log-model-and-architecture.md', t: 'Kafka 01 · 日志模型与架构：分区、顺序 IO 与零拷贝' },
+        { f: 'kafka/02-replication-and-reliability.md', t: 'Kafka 02 · 副本与可靠性：ISR、HW/LEO 与 leader epoch' },
+        { f: 'kafka/03-operations-and-performance.md', t: 'Kafka 03 · 运维与性能：容量规划、retention、lag 监控与 Strimzi' },
+        { f: 'flink/01-stream-processing-model.md', t: 'Flink 01 · 流处理模型：时间、水位线、窗口与状态' },
+        { f: 'flink/02-deployment-and-exactly-once.md', t: 'Flink 02 · 部署架构与 Exactly-once：从 slot 到两阶段提交' }
+      ],
+      labs: [
+        { p: 'kafka/labs/01-strimzi-cluster', t: 'Kafka Lab 01 · Strimzi 起三 broker 集群：建 topic、验生产消费、看 lag 与扩容分布' },
+        { p: 'flink/labs/01-flink-on-k8s', t: 'Flink Lab 01 · Flink Operator 跑作业：checkpoint、反压与 savepoint 恢复' }
+      ]
+    },
+    {
+      id: 'sre', nav: 'SRE 方法论', name: 'SRE 方法论', dir: '13-sre-methodology',
+      desc: 'SRE 基础、SLI/SLO 与错误预算、On-call 与事件管理、无责复盘与 Runbook、混沌工程。',
+      chapters: [
+        { f: '01-sre-fundamentals.md', t: '01 · SRE 基础：把运维当软件问题来解' },
+        { f: '02-sli-slo-error-budget.md', t: '02 · SLI/SLO 与错误预算：给可靠性定价' },
+        { f: '03-oncall-incident-management.md', t: '03 · On-call 与事件管理：让半夜的 page 变得可承受' },
+        { f: '04-postmortem-runbook.md', t: '04 · 无责复盘与 Runbook：把故障变成资产' },
+        { f: '05-chaos-engineering.md', t: '05 · 混沌工程：用可控的故障换取韧性' }
+      ],
+      labs: [
+        { p: 'labs/01-slo-workshop', t: 'Lab 01 · SLO Workshop：定义 SLI/SLO 并落地燃烧率告警' },
+        { p: 'labs/02-chaos-drill', t: 'Lab 02 · Chaos Drill：一次完整的混沌演练与无责复盘' }
+      ]
+    },
+    {
+      id: 'cloud', nav: '云计算', name: '云计算：阿里云与 AWS', dir: '14-cloud',
+      desc: '云基础与共享责任模型、阿里云实操（VPC/SLB/ESS/RDS）、AWS 对照与认证路径。',
+      chapters: [
+        { f: '01-cloud-fundamentals.md', t: '01 · 云基础：从自建机房到公有云' },
+        { f: '02-aliyun-practice.md', t: '02 · 阿里云实操：把一套小业务搬上云' },
+        { f: '03-aws-mapping-and-certs.md', t: '03 · AWS 对照与认证：一套技能、两朵云' }
+      ],
+      labs: [
+        { p: 'labs/01-vpc-design', t: 'Lab 01 · 电商业务三层 VPC 设计（纸面 + 可选实操）' }
+      ]
+    },
+    {
+      id: 'aiops', nav: 'AIOps/LLM', name: 'AIOps 与 LLM 辅助运维', dir: '15-aiops-llm',
+      desc: 'AIOps 全景与 LLM 的真实位置、LLM 辅助排障方法论、运维知识库与 RAG、Agent 与 Runbook 自动化。',
+      chapters: [
+        { f: '01-aiops-landscape.md', t: '01 · AIOps 全景与 LLM 的真实位置' },
+        { f: '02-llm-assisted-troubleshooting.md', t: '02 · LLM 辅助排障方法论' },
+        { f: '03-knowledge-base-and-rag.md', t: '03 · 运维知识库与 RAG' },
+        { f: '04-agent-runbook-automation.md', t: '04 · Agent 与 Runbook 自动化' }
+      ],
+      labs: [
+        { p: 'labs/01-llm-troubleshoot-drill', t: 'Lab 01 · LLM 辅助排障实战演练' }
+      ]
+    }
+  ];
+
+  function modById(id) {
+    for (var a = 0; a < MODULES.length; a++) { if (MODULES[a].id === id) { return MODULES[a]; } }
+    return null;
+  }
+  function modByDir(dir) {
+    for (var a = 0; a < MODULES.length; a++) { if (MODULES[a].dir === dir) { return MODULES[a]; } }
+    return null;
+  }
+
+  /* ================= 学习进度（localStorage 键 hub-progress） ================= */
+  var PKEY = 'hub-progress';
+  function loadProg() {
+    try {
+      var v = JSON.parse(localStorage.getItem(PKEY) || '{}');
+      return (v && typeof v === 'object') ? v : {};
+    } catch (e) { return {}; }
+  }
+  function saveProg(p) {
+    try { localStorage.setItem(PKEY, JSON.stringify(p)); } catch (e) {}
+  }
+  function modItems(m) {
+    var ids = [];
+    for (var a = 0; a < m.chapters.length; a++) { ids.push(m.dir + '/' + m.chapters[a].f); }
+    for (var b = 0; b < m.labs.length; b++) { ids.push(m.dir + '/' + m.labs[b].p); }
+    return ids;
+  }
+  function modStats(m) {
+    var p = loadProg(), ids = modItems(m), done = 0;
+    for (var a = 0; a < ids.length; a++) { if (p[ids[a]]) { done++; } }
+    return { done: done, total: ids.length };
+  }
+  function setBar(key, st) {
+    var pct = st.total ? Math.floor(st.done * 100 / st.total) : 0;
+    var bars = document.querySelectorAll('[data-bar="' + key + '"]');
+    for (var a = 0; a < bars.length; a++) { bars[a].style.width = pct + '%'; }
+    var nums = document.querySelectorAll('[data-num="' + key + '"]');
+    for (var b = 0; b < nums.length; b++) { nums[b].textContent = st.done + ' / ' + st.total + ' 已完成 · ' + pct + '%'; }
+  }
+  function refreshBars() {
+    var all = { done: 0, total: 0 };
+    for (var a = 0; a < MODULES.length; a++) {
+      var st = modStats(MODULES[a]);
+      all.done += st.done; all.total += st.total;
+      setBar(MODULES[a].id, st);
+      var pct = st.total ? Math.floor(st.done * 100 / st.total) : 0;
+      var els = document.querySelectorAll('[data-navpct="' + MODULES[a].id + '"]');
+      for (var b = 0; b < els.length; b++) { els[b].textContent = pct + '%'; }
+    }
+    setBar('__all__', all);
+    for (var c = 0; c < PILLARS.length; c++) {
+      setBar('pillar' + c, pillarStats(PILLARS[c].ids));
+    }
+  }
+
+  /* ================= 迷你 Markdown 渲染器 =================
+     支持：标题 / 有序无序列表（含任务列表与两层缩进）/ 表格 / 围栏代码块（标注语言，不做语法高亮）/
+     粗体、斜体、行内代码 / 链接 / 引用 / 分隔线 / details 折叠块。 */
+  var PH_C = 'x-placeholder-code-x';
+  var PH_P = 'x-placeholder-pipe-x';
+  function inlineMd(s) {
+    var codes = [];
+    s = String(s === null || s === undefined ? '' : s).replace(/`([^`]+)`/g, function (m, c) {
+      codes.push(c);
+      return PH_C + (codes.length - 1) + PH_C;
+    });
+    s = esc(s);
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, t, u) {
+      return '<a href="' + safeHref(u) + '" target="_blank" rel="noopener">' + t + '</a>';
+    });
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^\w\*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    s = s.replace(new RegExp(PH_C + '([0-9]+)' + PH_C, 'g'), function (m, i) {
+      return '<code>' + esc(codes[+i]) + '</code>';
+    });
+    return s;
+  }
+  function taskListItem(text) {
+    var m = String(text).match(/^\[( |x|X)\]\s+(.*)$/);
+    if (!m) { return inlineMd(text); }
+    var checked = m[1].toLowerCase() === 'x' ? ' checked' : '';
+    return '<span class="taskbox"><input type="checkbox" disabled' + checked + '></span> ' + inlineMd(m[2]);
+  }
+  function isSepRow(l) {
+    return /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/.test(l) && l.indexOf('-') >= 0;
+  }
+  function isTableStart(lines, i) {
+    return lines[i].indexOf('|') >= 0 && i + 1 < lines.length && isSepRow(lines[i + 1]);
+  }
+  function splitRow(l) {
+    l = l.trim().replace(/\\\|/g, PH_P);
+    if (l.charAt(0) === '|') { l = l.slice(1); }
+    if (l.charAt(l.length - 1) === '|') { l = l.slice(0, -1); }
+    var parts = l.split('|');
+    for (var a = 0; a < parts.length; a++) { parts[a] = parts[a].split(PH_P).join('|').trim(); }
+    return parts;
+  }
+  function buildList(items, ordered) {
+    var tag = ordered ? 'ol' : 'ul';
+    var html = '<' + tag + '>', cur = 0, inLi = false;
+    for (var a = 0; a < items.length; a++) {
+      var it = items[a];
+      if (it.lvl > cur) {
+        html += ordered ? '<ol>' : '<ul>';
+        cur = it.lvl; inLi = false;
+      } else if (it.lvl < cur) {
+        html += '</li>' + (ordered ? '</ol>' : '</ul>');
+        cur = it.lvl; inLi = true;
+      }
+      if (inLi) { html += '</li>'; }
+      html += '<li>' + taskListItem(it.text);
+      inLi = true;
+    }
+    while (cur > 0) { html += '</li>' + (ordered ? '</ol>' : '</ul>'); cur--; }
+    return html + '</li></' + tag + '>';
+  }
+  function detailsHtml(buf) {
+    var raw = buf.join('\n');
+    var sm = raw.match(/<summary>([\s\S]*?)<\/summary>/i);
+    var sum = sm ? sm[1].trim() : '展开查看';
+    var inner = raw
+      .replace(/^\s*<details[^>]*>/i, '')
+      .replace(/<summary>[\s\S]*?<\/summary>/i, '')
+      .replace(/<\/details>\s*$/i, '');
+    return '<details class="md-details"><summary>' + inlineMd(sum) + '</summary><div class="md-details-body">' + mdParse(inner, null) + '</div></details>';
+  }
+  function mdParse(src, toc) {
+    var lines = String(src || '').replace(/\r\n?/g, '\n').split('\n');
+    var out = [], i = 0, n = lines.length;
+    function blank(s) { return /^\s*$/.test(s); }
+
+    while (i < n) {
+      var line = lines[i];
+
+      var fm = line.match(/^```+\s*([\w#+.-]*)\s*$/);
+      if (fm) {
+        var lang = (fm[1] || '').trim();
+        var buf = [];
+        i++;
+        while (i < n && !/^```/.test(lines[i])) { buf.push(lines[i]); i++; }
+        if (i < n) { i++; }
+        out.push(codeBlock(lang, buf.join('\n')));
+        continue;
+      }
+
+      if (/^\s*<details\b/i.test(line)) {
+        var dbuf = [];
+        while (i < n && !/<\/details>/i.test(lines[i])) { dbuf.push(lines[i]); i++; }
+        if (i < n) { dbuf.push(lines[i]); i++; }
+        out.push(detailsHtml(dbuf));
+        continue;
+      }
+
+      var hm = line.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/);
+      if (hm) {
+        var lvl = hm[1].length, txt = hm[2];
+        if (lvl === 2 && toc) {
+          var hid = 'sec-' + (toc.length + 1);
+          toc.push({ id: hid, title: txt });
+          out.push('<h2 id="' + hid + '">' + inlineMd(txt) + '</h2>');
+        } else {
+          out.push('<h' + lvl + '>' + inlineMd(txt) + '</h' + lvl + '>');
+        }
+        i++;
+        continue;
+      }
+
+      if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+
+      if (/^\s*>/.test(line)) {
+        var qb = [];
+        while (i < n && /^\s*>/.test(lines[i])) { qb.push(lines[i].replace(/^\s*>\s?/, '')); i++; }
+        out.push('<blockquote>' + mdParse(qb.join('\n'), null) + '</blockquote>');
+        continue;
+      }
+
+      if (isTableStart(lines, i)) {
+        var head = splitRow(line);
+        i += 2;
+        var body = [];
+        while (i < n && lines[i].indexOf('|') >= 0 && !blank(lines[i])) {
+          body.push(splitRow(lines[i])); i++;
+        }
+        var th = '<div class="twrap"><table><thead><tr>';
+        for (var c1 = 0; c1 < head.length; c1++) { th += '<th>' + inlineMd(head[c1]) + '</th>'; }
+        th += '</tr></thead><tbody>';
+        for (var r1 = 0; r1 < body.length; r1++) {
+          th += '<tr>';
+          for (var c2 = 0; c2 < head.length; c2++) { th += '<td>' + inlineMd(body[r1][c2] || '') + '</td>'; }
+          th += '</tr>';
+        }
+        out.push(th + '</tbody></table></div>');
+        continue;
+      }
+
+      var ulm = line.match(/^(\s*)[-*+]\s+(.*)$/);
+      var olm = line.match(/^(\s*)(\d+)[.)]\s+(.*)$/);
+      if (ulm || olm) {
+        var ordered = !!olm;
+        var items = [];
+        while (i < n) {
+          var mm = lines[i].match(ordered ? /^(\s*)(\d+)[.)]\s+(.*)$/ : /^(\s*)[-*+]\s+(.*)$/);
+          if (mm) {
+            var ind = mm[1].replace(/\t/g, '  ').length;
+            items.push({ lvl: ind >= 2 ? 1 : 0, text: ordered ? mm[3] : mm[2] });
+            i++;
+          } else if (!blank(lines[i]) && /^\s{2,}\S/.test(lines[i]) && items.length) {
+            items[items.length - 1].text += ' ' + lines[i].trim();
+            i++;
+          } else {
+            break;
+          }
+        }
+        out.push(buildList(items, ordered));
+        continue;
+      }
+
+      if (blank(line)) { i++; continue; }
+
+      var para = [line]; i++;
+      while (i < n && !blank(lines[i]) &&
+        !/^```/.test(lines[i]) &&
+        !/^\s*<details\b/i.test(lines[i]) &&
+        !/^#{1,6}\s/.test(lines[i]) &&
+        !/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(lines[i]) &&
+        !/^\s*>/.test(lines[i]) &&
+        !/^\s*[-*+]\s+/.test(lines[i]) &&
+        !/^\s*\d+[.)]\s+/.test(lines[i]) &&
+        !isTableStart(lines, i)) {
+        para.push(lines[i]); i++;
+      }
+      out.push('<p>' + inlineMd(para.join(' ')) + '</p>');
+    }
+    return out.join('\n');
+  }
+  function mdToHtml(src) {
+    var toc = [];
+    return { html: mdParse(src, toc), toc: toc };
+  }
+
+  /* ================= 侧栏与路由 ================= */
+  var NAV_TOOLS = [
+    { h: '#/quiz', t: '自测题库' },
+    { h: '#/practice', t: '练习平台' },
+    { h: '#/cheat', t: '速查手册' },
+    { h: '#/scenarios', t: '场景速查', src: 'SCENARIOS.md' },
+    { h: '#/timer', t: '考试计时器' }
+  ];
+  /* 学习阶段分组：侧栏按阶段组织 15 个模块；未列入分组的模块自动归入「其他」，避免漏项。 */
+  var STAGES = [
+    { cap: '地基', ids: ['linux', 'programming'] },
+    { cap: '容器', ids: ['docker'] },
+    { cap: '编排', ids: ['k8s', 'cka'] },
+    { cap: '工程化', ids: ['cicd'] },
+    { cap: '安全', ids: ['cks'] },
+    { cap: '可观测', ids: ['pca', 'otel', 'logging'] },
+    { cap: '数据组件', ids: ['middleware', 'datastream'] },
+    { cap: '方法论', ids: ['sre'] },
+    { cap: '云', ids: ['cloud'] },
+    { cap: '差异化', ids: ['aiops'] }
+  ];
+  function stageOf(id) {
+    for (var a = 0; a < STAGES.length; a++) {
+      for (var b = 0; b < STAGES[a].ids.length; b++) {
+        if (STAGES[a].ids[b] === id) { return STAGES[a].cap; }
+      }
+    }
+    return '其他';
+  }
+
+  /* ================= 能力支柱视图 =================
+     与根目录 README.md 的「能力支柱视图」表保持一致：编号 = 学习顺序，支柱 = 能力画像。
+     完成度为纯静态计算：把支柱内各模块的章节 + lab 勾选（hub-progress）汇总，不引入新存储。 */
+  var PILLARS = [
+    {
+      name: '云原生平台域', role: '岗位画像：云原生运维 / 容器平台工程师',
+      one: '以容器为中心的平台栈：从内核底座到数据面组件',
+      ids: ['linux', 'programming', 'docker', 'k8s', 'cka', 'cks', 'middleware', 'datastream', 'cloud'],
+      extra: null
+    },
+    {
+      name: 'DevOps 工程域', role: '岗位画像：DevOps 工程师 / 交付效率方向',
+      one: '优化软件交付流程：流动、反馈、持续学习（三步工作法）',
+      ids: ['cicd'],
+      extra: null
+    },
+    {
+      name: '可观测与 SRE 域', role: '岗位画像：SRE / 稳定性方向',
+      one: '优化系统可用性：指标/日志/追踪 + SLO/错误预算/混沌',
+      ids: ['pca', 'otel', 'logging', 'sre'],
+      extra: null
+    },
+    {
+      name: 'AIOps 智能域（增值）', role: '岗位画像：智能运维 / AIOps 工程师',
+      one: '用 LLM 增强判断：辅助排障、RAG 知识库、Agent 护栏',
+      ids: ['aiops'],
+      extra: { t: '靶场', nav: '#/practice' }
+    }
+  ];
+  function pillarStats(ids) {
+    var done = 0, total = 0;
+    for (var a = 0; a < ids.length; a++) {
+      var m = modById(ids[a]);
+      if (!m) { continue; }
+      var st = modStats(m);
+      done += st.done; total += st.total;
+    }
+    return { done: done, total: total };
+  }
+  function buildSidebar() {
+    var h = '<div class="brand"><div class="t1">SRE 学习中心</div><div class="t2">15 个模块 · Linux 到 AIOps</div></div>';
+    h += '<div class="nav-group"><div class="nav-cap">导航</div>';
+    h += '<button class="nav-item" data-nav="#/overview">总览</button></div>';
+    var staged = {};
+    for (var s = 0; s < STAGES.length; s++) {
+      h += '<div class="nav-group"><div class="nav-cap">' + STAGES[s].cap + '</div>';
+      for (var t = 0; t < STAGES[s].ids.length; t++) {
+        var sm = modById(STAGES[s].ids[t]);
+        if (sm) {
+          staged[sm.id] = 1;
+          h += '<button class="nav-item" data-nav="#/m/' + sm.id + '">' + sm.nav + '<span class="nav-pct" data-navpct="' + sm.id + '"></span></button>';
+        }
+      }
+      h += '</div>';
+    }
+    var rest = [];
+    for (var a = 0; a < MODULES.length; a++) { if (!staged[MODULES[a].id]) { rest.push(MODULES[a]); } }
+    if (rest.length) {
+      h += '<div class="nav-group"><div class="nav-cap">其他</div>';
+      for (var r = 0; r < rest.length; r++) {
+        h += '<button class="nav-item" data-nav="#/m/' + rest[r].id + '">' + rest[r].nav + '<span class="nav-pct" data-navpct="' + rest[r].id + '"></span></button>';
+      }
+      h += '</div>';
+    }
+    h += '<div class="nav-group"><div class="nav-cap">工具</div>';
+    for (var b = 0; b < NAV_TOOLS.length; b++) {
+      h += '<button class="nav-item" data-nav="' + NAV_TOOLS[b].h + '">' + NAV_TOOLS[b].t +
+        (NAV_TOOLS[b].src ? '<span class="nav-pct">' + esc(NAV_TOOLS[b].src) + '</span>' : '') + '</button>';
+    }
+    h += '</div>';
+    h += '<div class="side-foot">学习进度保存在本机浏览器<br>localStorage 键：hub-progress</div>';
+    document.getElementById('sidebar').innerHTML = h;
+  }
+  function updateActiveNav() {
+    var h = location.hash || '#/overview';
+    var btns = document.querySelectorAll('.nav-item');
+    for (var a = 0; a < btns.length; a++) {
+      var nav = btns[a].getAttribute('data-nav');
+      var active = (nav === h) ||
+        (h.indexOf('#/read/') === 0 && nav.indexOf('#/m/') === 0 && routeReaderModule(h) === nav.slice(4)) ||
+        (nav === '#/overview' && (h === '' || h === '#' || h === '#/'));
+      btns[a].classList.toggle('active', active);
+    }
+  }
+  function routeReaderModule(h) {
+    var m = modByDir(decodeURIComponent(h.slice(7)).split('/')[0]);
+    return m ? m.id : '';
+  }
+  function route() {
+    var h = location.hash || '';
+    if (h.indexOf('#/') !== 0) { return; }
+    if (h === '#/' || h === '#/overview') { renderOverview(); }
+    else if (h.indexOf('#/m/') === 0) { renderModule(h.slice(4)); }
+    else if (h.indexOf('#/read/') === 0) { renderReader(decodeURIComponent(h.slice(7))); }
+    else if (h.indexOf('#/quiz') === 0) { renderQuiz(); }
+    else if (h.indexOf('#/practice') === 0) { renderPractice(); }
+    else if (h.indexOf('#/cheat') === 0) { renderCheat(); }
+    else if (h.indexOf('#/scenarios') === 0) { renderScenarios(); }
+    else if (h.indexOf('#/timer') === 0) { renderTimer(); }
+    else { renderOverview(); }
+    updateActiveNav();
+    window.scrollTo(0, 0);
+  }
+
+  /* ================= 总览 ================= */
+  function hasContent() {
+    var HC = window.HUB_CONTENT;
+    if (!HC || typeof HC !== 'object') { return false; }
+    for (var k in HC) { if (Object.prototype.hasOwnProperty.call(HC, k)) { return true; } }
+    return false;
+  }
+  function toolCard(hash, name, desc) {
+    return '<div class="card modcard" data-nav="' + hash + '"><h3>' + name + '</h3><div class="mc-desc">' + desc + '</div><div class="mc-meta">点击进入</div></div>';
+  }
+  function renderOverview() {
+    var totalCh = 0, totalLab = 0;
+    for (var a = 0; a < MODULES.length; a++) {
+      totalCh += MODULES[a].chapters.length;
+      totalLab += MODULES[a].labs.length;
+    }
+    var h = '<h1 class="pg">总览</h1><div class="sub">15 个模块按学习阶段推进：地基打底，容器与编排铺面，工程化与安全加深，可观测、数据组件、方法论、云与 AIOps 补全；CKA / CKS / PCA 三证逐个击破。逐项勾选自动保存进度。</div>';
+
+    if (!hasContent()) {
+      h += '<div class="hintbox"><b>内置阅读器尚未就绪：</b>未检测到同目录 content.js。运行 portal/build-content.ps1 生成（在 portal 目录执行 ';
+      h += '<code>powershell -ExecutionPolicy Bypass -File ./build-content.ps1</code>）后刷新本页。清单勾选、测验、计时器、速查等功能不受影响。</div>';
+    }
+
+    h += '<div class="card"><h3>整体进度</h3>';
+    h += '<div class="pbar"><span data-bar="__all__" style="width:0%"></span></div>';
+    h += '<div class="pnum" data-num="__all__"></div>';
+    h += '<div class="pnum" style="margin-top:6px">共 ' + totalCh + ' 章教程 · ' + totalLab + ' 个 lab · 进度存于 localStorage（键 hub-progress）</div></div>';
+
+    h += '<h2 class="sec">能力支柱视图</h2><div class="card">';
+    h += '<div class="list-note" style="padding:0 0 4px">同一套 15 个模块的另一种看法：编号 = 学习顺序，支柱 = 能力画像（与根目录 README.md 的「能力支柱视图」表一致）。支柱完成度 = 支柱内各模块章节 + lab 勾选的汇总。</div>';
+    for (var p0 = 0; p0 < PILLARS.length; p0++) {
+      var pl = PILLARS[p0];
+      h += '<div class="pillar-row">';
+      h += '<div class="pr-head"><span class="pr-name">' + esc(pl.name) + '</span><span class="pr-pct" data-num="pillar' + p0 + '"></span></div>';
+      h += '<div class="pr-role">' + esc(pl.role) + '</div>';
+      h += '<div class="pr-one">' + esc(pl.one) + '</div>';
+      h += '<div class="pr-chips">';
+      for (var p1 = 0; p1 < pl.ids.length; p1++) {
+        var pm = modById(pl.ids[p1]);
+        if (pm) {
+          h += '<button class="pchip" data-nav="#/m/' + pm.id + '" title="' + esc(pm.nav + ' · ' + pm.name) + '">' + pm.dir.slice(0, 2) + '</button>';
+        }
+      }
+      if (pl.extra) {
+        h += '<button class="pchip alt" data-nav="' + pl.extra.nav + '">' + esc(pl.extra.t) + '</button>';
+      }
+      h += '</div>';
+      h += '<div class="pbar"><span data-bar="pillar' + p0 + '" style="width:0%"></span></div>';
+      h += '</div>';
+    }
+    h += '<div class="list-note" style="padding:8px 0 0">三支柱的关系（也是面试的标准答法）：DevOps 优化<b>工程流程</b>，SRE 优化<b>系统可用性</b>，云原生是两者的<b>平台底座</b>，AIOps 是叠加在三者上的<b>能力倍增器</b>。排障速查见侧栏「场景速查」。</div></div>';
+
+    h += '<h2 class="sec">全部模块完成度</h2><div class="grid">';
+    for (var b = 0; b < MODULES.length; b++) {
+      var m = MODULES[b];
+      h += '<div class="card modcard" data-nav="#/m/' + m.id + '">';
+      h += '<h3>' + m.nav + ' · ' + m.name + '</h3>';
+      h += '<div class="mc-desc">' + m.desc + '</div>';
+      h += '<div class="pbar"><span data-bar="' + m.id + '" style="width:0%"></span></div>';
+      h += '<div class="pnum" data-num="' + m.id + '"></div>';
+      h += '<div class="mc-meta">阶段：' + stageOf(m.id) + ' · ' + m.chapters.length + ' 章 · ' + m.labs.length + ' labs</div></div>';
+    }
+    h += '</div>';
+
+    h += '<h2 class="sec">备考工具</h2><div class="grid">';
+    h += toolCard('#/timer', '考试计时器', '120 分钟倒计时 + 17 题勾选追踪，模拟 CKA 节奏');
+    h += toolCard('#/quiz', '自测题库', '共 ' + quizBanks().length + ' 个题库（自动发现 quiz-data.js 中的全部题库），逐题作答、交卷看解析');
+    h += toolCard('#/cheat', '速查手册', 'kubectl / vim / PromQL 考场速查表');
+    h += toolCard('#/practice', '练习平台', '练习集群环境说明、lab 判分脚本与故障注入用法');
+    h += '</div>';
+
+    h += '<h2 class="sec">三证速览</h2>';
+    h += tbl(['认证', '定位', '建议顺序'], [
+      ['<b>CKA</b>', 'Kubernetes 管理：安装升级、网络、存储、RBAC、排错。考试 120 分钟 17 题，66% 及格', '先考'],
+      ['<b>CKS</b>', 'Kubernetes 安全：集群/系统加固、供应链、运行时检测。报考需先持有有效 CKA', 'CKA 之后'],
+      ['<b>PCA</b>', 'Prometheus 可观测性：概念、架构、PromQL、告警与可视化', '可与 CKS 并行']
+    ]);
+    h += '<div class="pnum">考试时长、题型与及格线以官方页面为准：<a href="https://training.linuxfoundation.org/certifications/" target="_blank" rel="noopener">training.linuxfoundation.org</a>；文档参考 <a href="https://kubernetes.io/zh-cn/docs/home/" target="_blank" rel="noopener">kubernetes.io 中文文档</a>。</div>';
+
+    document.getElementById('page').innerHTML = h;
+    refreshBars();
+  }
+
+  /* ================= 模块页 ================= */
+  function renderModule(id) {
+    var m = modById(id);
+    if (!m) { renderOverview(); return; }
+    var p = loadProg();
+    var h = '<h1 class="pg">' + m.nav + ' · ' + m.name + '</h1><div class="sub">' + m.desc + '</div>';
+
+    h += '<div class="card"><h3>模块进度</h3>';
+    h += '<div class="pbar"><span data-bar="' + m.id + '" style="width:0%"></span></div>';
+    h += '<div class="pnum" data-num="' + m.id + '"></div>';
+    h += '<div style="margin-top:10px"><button class="btn danger" data-reset="' + m.id + '">清空本模块进度</button></div></div>';
+
+    h += '<h2 class="sec">章节（' + m.chapters.length + '）</h2><div class="card listcard">';
+    for (var a = 0; a < m.chapters.length; a++) {
+      var c = m.chapters[a];
+      var key = m.dir + '/' + c.f;
+      h += '<div class="item-row' + (p[key] ? ' done' : '') + '">';
+      h += '<input type="checkbox" data-prog="' + key + '"' + (p[key] ? ' checked' : '') + '>';
+      h += '<span class="item-title"><a href="#/read/' + key + '">' + esc(c.t) + '</a><a class="mini" href="../' + key + '" target="_blank" rel="noopener">源文件</a></span>';
+      h += '<button class="mini" data-nav="#/read/' + key + '">阅读</button>';
+      h += '<span class="item-path">' + key + '</span></div>';
+    }
+    h += '</div>';
+
+    h += '<h2 class="sec">Labs（' + m.labs.length + '）</h2>';
+    if (!m.labs.length) {
+      h += '<div class="card"><div class="list-note">本模块为纯教程模块，练习已并入 CKA / CKS 模块的 lab 与自测题库。</div></div>';
+    } else {
+      h += '<div class="card listcard"><div class="list-note">完成一个 lab 后勾选一项。标题新标签打开 task.md；卡住再看“题解”（solution.md）。</div>';
+      for (var b = 0; b < m.labs.length; b++) {
+        var l = m.labs[b];
+        var lkey = m.dir + '/' + l.p;
+        var isFile = /\.md$/.test(l.p);
+        var taskPath = isFile ? l.p : l.p + '/task.md';
+        var solPath = isFile ? null : l.p + '/solution.md';
+        h += '<div class="item-row' + (p[lkey] ? ' done' : '') + '">';
+        h += '<input type="checkbox" data-prog="' + lkey + '"' + (p[lkey] ? ' checked' : '') + '>';
+        h += '<span class="item-title"><a href="#/read/' + m.dir + '/' + taskPath + '">' + esc(l.t) + '</a><a class="mini" href="../' + m.dir + '/' + taskPath + '" target="_blank" rel="noopener">源文件</a></span>';
+        if (solPath) {
+          h += '<a class="mini" href="#/read/' + m.dir + '/' + solPath + '">题解</a>';
+        }
+        h += '<button class="mini accent" data-nav="#/read/' + m.dir + '/' + taskPath + '">阅读</button>';
+        h += '<span class="item-path">' + lkey + '</span></div>';
+      }
+      h += '</div>';
+    }
+    document.getElementById('page').innerHTML = h;
+    refreshBars();
+  }
+
+  /* ================= 内置阅读器 ================= */
+  function renderReader(path) {
+    var HC = window.HUB_CONTENT;
+    var m = modByDir(String(path).split('/')[0]);
+    var h = '<div class="reader-bar">';
+    h += '<button class="btn" data-nav="' + (m ? '#/m/' + m.id : '#/overview') + '">返回 ' + (m ? m.nav : '总览') + '</button>';
+    h += '<span class="reader-path">' + esc(path) + '</span>';
+    h += '<a class="btn" href="../' + esc(path) + '" target="_blank" rel="noopener">源文件</a></div>';
+
+    var body;
+    if (HC && typeof HC === 'object' && typeof HC[path] === 'string') {
+      var r = mdToHtml(HC[path]);
+      body = '';
+      if (r.toc.length > 1) {
+        body += '<div class="toc"><div class="toc-t">本页目录</div>';
+        for (var a = 0; a < r.toc.length; a++) {
+          body += '<a href="#' + r.toc[a].id + '">' + inlineMd(r.toc[a].title) + '</a>';
+        }
+        body += '</div>';
+      }
+      body += '<article class="md">' + r.html + '</article>';
+    } else if (HC && typeof HC === 'object') {
+      body = '<div class="hintbox"><b>这篇文档不在 content.js 里。</b>可能是生成 content.js 之后新增的文件：重跑一次 build-content.ps1 再刷新本页。也可以点上方“源文件”直接查看 Markdown 原文。</div>';
+    } else {
+      body = '<div class="hintbox"><b>阅读器暂无内容。</b>未检测到同目录 content.js。运行 portal/build-content.ps1 生成后刷新本页；也可以点上方“源文件”直接查看 Markdown 原文。</div>';
+      body += '<div class="card"><h3>生成 content.js</h3>';
+      body += '<p>在 <code>portal</code> 目录执行（Windows PowerShell 5.1 即可）：</p>';
+      body += codeBlock('powershell · [本地Windows]', 'cd <learning-hub>/portal\npowershell -ExecutionPolicy Bypass -File ./build-content.ps1');
+      body += '<p>脚本会递归收集 learning-hub 根目录下全部 15 个模块目录（01-linux 至 15-aiops-llm）的所有 .md（含 labs 的 task.md 与 solution.md，以及 11-middleware / 12-data-streaming 的子目录），并打包根目录的 SCENARIOS.md / README.md / ROADMAP.md，生成同目录 content.js（键为相对 learning-hub 根的正斜杠路径）。生成后回到本页刷新即可。</p></div>';
+    }
+    document.getElementById('page').innerHTML = h + '<div class="card reader-card">' + body + '</div>';
+  }
+
+  /* ================= 自测题库 ================= */
+  /* 题库展示名与推荐顺序：题库本身从 window.QUIZ_DATA 动态枚举，
+     之后在 quiz-data.js 里新增题库无需再改本页；未登记展示名的题库以 id 原样显示。 */
+  var QUIZ_BANK_META = {
+    pca: 'PCA · Prometheus 认证',
+    cka: 'CKA · Kubernetes 管理员',
+    cks: 'CKS · Kubernetes 安全',
+    basics: '基础 · 容器与 K8s 通用',
+    linux: 'Linux · 底座与性能',
+    programming: '编程 · Shell / Python / Go',
+    cicd: 'CI/CD · Git、流水线与 GitOps',
+    otel: 'OTel · OpenTelemetry',
+    logging: '日志 · ELK 与 Loki',
+    middleware: '中间件 · Nginx / MySQL / Redis / MongoDB',
+    datastream: '数据流 · Kafka / Flink',
+    sre: 'SRE · 方法论与实践',
+    cloud: '云计算 · 阿里云与 AWS',
+    aiops: 'AIOps · LLM 辅助运维'
+  };
+  var QUIZ_BANK_ORDER = ['pca', 'cka', 'cks', 'basics', 'linux', 'programming', 'cicd', 'otel', 'logging', 'middleware', 'datastream', 'sre', 'cloud', 'aiops'];
+  var quizState = { bank: null, idx: 0, answers: [], finished: false };
+
+  function bankName(id) {
+    return Object.prototype.hasOwnProperty.call(QUIZ_BANK_META, id) ? QUIZ_BANK_META[id] : id;
+  }
+  function quizBanks() {
+    var qd = window.QUIZ_DATA, out = [], seen = {};
+    if (!qd || typeof qd !== 'object') { return out; }
+    function pushBank(id) {
+      if (seen[id]) { return; }
+      seen[id] = 1;
+      if (Array.isArray(qd[id]) && qd[id].length > 0) { out.push({ id: id, name: bankName(id) }); }
+    }
+    for (var a = 0; a < QUIZ_BANK_ORDER.length; a++) { pushBank(QUIZ_BANK_ORDER[a]); }
+    for (var k in qd) { if (Object.prototype.hasOwnProperty.call(qd, k)) { pushBank(k); } }
+    return out;
+  }
+  function optText(opts, i) {
+    return (i >= 0 && opts && opts[i] !== undefined) ? String.fromCharCode(65 + i) + '. ' + esc(opts[i]) : '（未作答）';
+  }
+  function quizPickHtml(qd, banks) {
+    var h = '<div class="grid">';
+    for (var a = 0; a < banks.length; a++) {
+      var b = banks[a];
+      h += '<div class="card modcard" data-quiz-start="' + b.id + '">';
+      h += '<h3>' + esc(b.name) + '</h3>';
+      h += '<div class="mc-desc">' + qd[b.id].length + ' 道单选题，点击开始。</div>';
+      h += '<div class="mc-meta">逐题作答 · 交卷判分 · 可重做</div></div>';
+    }
+    h += '</div>';
+    h += '<div class="card"><h3>答题规则</h3><ul>';
+    h += '<li>点击选项即提交本题并自动进入下一题，提交后不可回改。</li>';
+    h += '<li>全部作答后显示得分、错题与解析。</li>';
+    h += '<li>同一题库可反复重做，建议隔几天刷一次加深记忆。</li></ul></div>';
+    return h;
+  }
+  function quizQuestionHtml(arr) {
+    var i = quizState.idx;
+    var q = arr[i] || {};
+    var opts = Array.isArray(q.options) ? q.options : [];
+    var h = '<div class="quiz-top">';
+    h += '<button class="btn" data-quiz-back>← 换题库</button>';
+    h += '<span class="quiz-meta">' + esc(bankName(quizState.bank)) + ' · 第 ' + (i + 1) + ' / ' + arr.length + ' 题</span>';
+    h += '<span class="quiz-meta">已作答 ' + quizState.answers.length + ' 题</span></div>';
+    h += '<div class="card quiz-card"><div class="quiz-q">' + esc(q.q || '（题干缺失）') + '</div><div class="quiz-opts">';
+    for (var a = 0; a < opts.length; a++) {
+      h += '<button class="quiz-opt" data-quiz-opt="' + a + '">';
+      h += '<span class="qo-key">' + String.fromCharCode(65 + a) + '</span>';
+      h += '<span class="qo-text">' + esc(opts[a]) + '</span></button>';
+    }
+    h += '</div></div>';
+    h += '<div class="pbar"><span style="width:' + Math.floor(quizState.idx * 100 / arr.length) + '%"></span></div>';
+    return h;
+  }
+  function quizResultHtml(arr) {
+    var ans = quizState.answers, score = 0, wrong = [];
+    for (var a = 0; a < arr.length; a++) {
+      var q = arr[a] || {};
+      var right = typeof q.answer === 'number' ? q.answer : -1;
+      var picked = typeof ans[a] === 'number' ? ans[a] : -1;
+      if (right >= 0 && picked === right) { score++; }
+      else { wrong.push({ k: a, q: q, picked: picked, right: right }); }
+    }
+    var pct = arr.length ? Math.floor(score * 100 / arr.length) : 0;
+    var h = '<div class="quiz-top">';
+    h += '<button class="btn" data-quiz-back>← 换题库</button>';
+    h += '<span class="quiz-meta">' + esc(bankName(quizState.bank)) + ' · 成绩单</span></div>';
+    h += '<div class="card" style="text-align:center"><div class="score-big">' + score + ' / ' + arr.length + '</div>';
+    h += '<div class="pbar"><span style="width:' + pct + '%"></span></div>';
+    h += '<div class="pnum">正确率 ' + pct + '%</div>';
+    h += '<div style="margin-top:12px"><button class="btn primary" data-quiz-redo>重做本题库</button></div></div>';
+    if (!wrong.length) {
+      h += '<div class="card"><h3>全对。换下一个题库继续。</h3></div>';
+    } else {
+      h += '<h2 class="sec">错题回顾（' + wrong.length + '）</h2>';
+      for (var b = 0; b < wrong.length; b++) {
+        var w = wrong[b];
+        var opts = Array.isArray(w.q.options) ? w.q.options : [];
+        h += '<div class="card"><div class="quiz-q">' + (w.k + 1) + '. ' + esc(w.q.q || '') + '</div>';
+        h += '<div class="wr-row bad">你的答案：' + optText(opts, w.picked) + '</div>';
+        h += '<div class="wr-row good">正确答案：' + optText(opts, w.right) + '</div>';
+        h += '<div class="wr-explain"><b>解析</b>：' + esc(w.q.explain || '（无解析）') + '</div></div>';
+      }
+    }
+    return h;
+  }
+  function renderQuiz() {
+    var qd = window.QUIZ_DATA;
+    var h = '<h1 class="pg">自测题库</h1><div class="sub">逐题作答，交卷即判分并给出错题解析。</div>';
+    if (!qd || typeof qd !== 'object') {
+      h += '<div class="hintbox">未检测到题库数据（window.QUIZ_DATA 为空）。请确认 portal 目录下存在 quiz-data.js，且与本页同目录加载。</div>';
+      document.getElementById('page').innerHTML = h;
+      return;
+    }
+    var banks = quizBanks();
+    if (!banks.length) {
+      h += '<div class="hintbox">quiz-data.js 已加载，但 window.QUIZ_DATA 里没有非空数组形式的题库。</div>';
+      document.getElementById('page').innerHTML = h;
+      return;
+    }
+    if (quizState.bank) {
+      var arr = qd[quizState.bank];
+      if (!Array.isArray(arr) || !arr.length) { quizState.bank = null; }
+    }
+    if (!quizState.bank) {
+      h += quizPickHtml(qd, banks);
+    } else if (quizState.finished) {
+      h += quizResultHtml(qd[quizState.bank]);
+    } else {
+      h += quizQuestionHtml(qd[quizState.bank]);
+    }
+    document.getElementById('page').innerHTML = h;
+  }
+
+  /* ================= 考试计时器 ================= */
+  var BASE_TITLE = document.title;
+  var timerState = { totalSec: 120 * 60, leftSec: 120 * 60, running: false, iv: null, warned: false };
+  var EKEY = 'hub-exam-sim';
+  var EXAM_QUESTIONS = 17;
+
+  function pad2(x) { return x < 10 ? '0' + x : '' + x; }
+  function fmtTime(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    return pad2(Math.floor(sec / 3600)) + ':' + pad2(Math.floor((sec % 3600) / 60)) + ':' + pad2(sec % 60);
+  }
+  function loadExamSim() {
+    var v = [];
+    try {
+      var raw = JSON.parse(localStorage.getItem(EKEY) || '[]');
+      if (Array.isArray(raw)) { v = raw; }
+    } catch (e) { v = []; }
+    while (v.length < EXAM_QUESTIONS) { v.push(0); }
+    v.length = EXAM_QUESTIONS;
+    return v;
+  }
+  function saveExamSim(arr) {
+    try { localStorage.setItem(EKEY, JSON.stringify(arr)); } catch (e) {}
+  }
+  function updateExamCount() {
+    var el = document.getElementById('examDone');
+    if (!el) { return; }
+    var sim = loadExamSim(), c = 0;
+    for (var a = 0; a < sim.length; a++) { if (sim[a]) { c++; } }
+    el.textContent = String(c);
+  }
+  function updateTimerDisplay() {
+    var d = document.getElementById('timerDisp');
+    if (!d) { return; }
+    d.textContent = fmtTime(timerState.leftSec);
+    d.className = 'timer-disp' +
+      (timerState.leftSec === 0 ? ' over' : (timerState.leftSec <= 300 ? ' warn' : ''));
+  }
+  function updateTimerButtons() {
+    var b = document.getElementById('timerToggle');
+    if (!b) { return; }
+    b.textContent = timerState.running ? '暂停' : (timerState.leftSec < timerState.totalSec ? '继续' : '开始');
+    b.setAttribute('data-timer', timerState.running ? 'pause' : 'start');
+    b.disabled = !timerState.running && timerState.leftSec <= 0;
+  }
+  function showTimerMsg(text, danger) {
+    var el = document.getElementById('timerMsg');
+    if (!el) { return; }
+    el.textContent = text;
+    el.className = 'timer-msg show' + (danger ? ' danger' : '');
+  }
+  function hideTimerMsg() {
+    var el = document.getElementById('timerMsg');
+    if (el) { el.className = 'timer-msg'; }
+  }
+  function startTimer() {
+    if (timerState.leftSec <= 0) { return; }
+    timerState.running = true;
+    if (!timerState.iv) { timerState.iv = setInterval(timerTick, 1000); }
+    updateTimerButtons();
+  }
+  function pauseTimer() {
+    timerState.running = false;
+    if (timerState.iv) { clearInterval(timerState.iv); timerState.iv = null; }
+    updateTimerButtons();
+  }
+  function resetTimer(sec) {
+    pauseTimer();
+    timerState.totalSec = sec || timerState.totalSec;
+    timerState.leftSec = timerState.totalSec;
+    timerState.warned = false;
+    hideTimerMsg();
+    document.title = BASE_TITLE;
+    updateTimerDisplay();
+    updateTimerButtons();
+  }
+  function timerTick() {
+    if (!timerState.running) { return; }
+    timerState.leftSec--;
+    if (timerState.leftSec <= 0) {
+      timerState.leftSec = 0;
+      pauseTimer();
+      updateTimerDisplay();
+      showTimerMsg('时间到！考试结束，请停止作答并检查提交。', true);
+      document.title = '[时间到] ' + BASE_TITLE;
+      try { window.alert('时间到！120 分钟模拟考试结束。'); } catch (e) {}
+      return;
+    }
+    if (timerState.leftSec <= 15 * 60 && !timerState.warned) {
+      timerState.warned = true;
+      showTimerMsg('剩余 15 分钟：抓紧收尾，先保证已做题目的终态验证。', false);
+    }
+    updateTimerDisplay();
+  }
+  function renderTimer() {
+    var sim = loadExamSim();
+    var doneN = 0;
+    for (var a = 0; a < sim.length; a++) { if (sim[a]) { doneN++; } }
+
+    var h = '<h1 class="pg">考试计时器</h1><div class="sub">默认按 CKA 节奏：120 分钟 · 17 题 · 66% 及格。倒计时与题目勾选相互独立。</div>';
+
+    h += '<div class="card timer-card"><div class="timer-disp" id="timerDisp">' + fmtTime(timerState.leftSec) + '</div>';
+    h += '<div class="timer-msg" id="timerMsg"></div>';
+    h += '<div class="timer-btns">';
+    h += '<button class="btn primary" id="timerToggle" data-timer="start">开始</button>';
+    h += '<button class="btn danger" data-timer="reset">重置</button></div>';
+    h += '<div class="pnum">时长预设（分钟，点击即重置）：';
+    h += '<button class="mini" data-timer="preset" data-min="120">120</button> ';
+    h += '<button class="mini" data-timer="preset" data-min="90">90</button> ';
+    h += '<button class="mini" data-timer="preset" data-min="60">60</button></div>';
+    h += '<div class="pnum" style="margin-top:6px">切换到其他页面计时不会中断；到 0 弹窗提醒并在本页红字提示；剩余 15 分钟黄条提醒一次。</div></div>';
+
+    h += '<div class="card"><h3>题目勾选（CKA 模拟 17 题）</h3>';
+    h += '<div class="pnum" style="margin-bottom:8px">已完成 <b id="examDone">' + doneN + '</b> / ' + EXAM_QUESTIONS + '（勾选存于 localStorage）</div>';
+    h += '<div class="exam-grid">';
+    for (var q = 0; q < EXAM_QUESTIONS; q++) {
+      h += '<label class="exam-item' + (sim[q] ? ' done' : '') + '">';
+      h += '<input type="checkbox" data-examq="' + q + '"' + (sim[q] ? ' checked' : '') + '>第 ' + (q + 1) + ' 题</label>';
+    }
+    h += '</div>';
+    h += '<div style="margin-top:10px"><button class="btn danger" data-exam-clear>清空勾选</button></div></div>';
+
+    h += '<div class="card"><h3>考场节奏建议</h3><ul>';
+    h += '<li>开考先用 2~3 分钟通读全部题目，先易后难，把分数密度高的题先拿满。</li>';
+    h += '<li>单题超过 8 分钟先跳过，在上方勾选区留痕，最后回头补。</li>';
+    h += '<li>每题做完立即用 kubectl get/describe 验证终态，别把验证留到最后。</li>';
+    h += '<li>预留最后 10 分钟：检查命名空间、资源名拼写与未完成的跳选题。</li></ul></div>';
+
+    document.getElementById('page').innerHTML = h;
+    updateTimerDisplay();
+    updateTimerButtons();
+  }
+
+  /* ================= 练习平台 ================= */
+  function renderPractice() {
+    var h = '<h1 class="pg">练习平台</h1><div class="sub">所有 lab 的标准运行环境、判分脚本 check.sh 与故障注入的使用方法。</div>';
+
+    h += '<h2 class="sec">标准环境</h2><div class="card"><p>教程与 lab 默认在以下两种环境之一验证，每个 lab 的 task.md 开头都会注明运行位置：</p>';
+    h += tbl(['环境', '说明'], [
+      ['kubeadm 集群', '干净的 Ubuntu 22.04/24.04，单 master（多节点实验可加 worker），CNI 为 Calico，kubeadm 原生部署，控制面组件为静态 Pod'],
+      ['Docker VM', '装有 Docker Engine 的 Ubuntu 22.04/24.04，用于 03-docker 模块的全部实验']
+    ]);
+    h += codeBlock('bash · [任意有 kubeconfig 的节点]', '# 环境自检：节点 Ready、Calico 与 CoreDNS 正常\nkubectl get nodes -o wide\nkubectl -n kube-system get pods | grep -E "calico|coredns"');
+    h += '<p>Docker 相关 lab 直接在 Docker VM 上跑；K8s 相关 lab 在 master 上完成，涉及 drain、NodePort、NetworkPolicy 的 lab 会用到 worker 节点。</p></div>';
+
+    h += '<h2 class="sec">lab 目录约定</h2><div class="card">';
+    h += tbl(['文件', '作用'], [
+      ['<code>task.md</code>', '场景、任务清单、验收标准与提示（卡住再看）'],
+      ['<code>check.sh</code>', '只读判分脚本：逐项 PASS/FAIL，最后输出 <code>SCORE: X/Y</code>；全部通过 exit 0'],
+      ['<code>solution.md</code>', '逐步讲解：每步做什么、为什么、验证输出；做完再看']
+    ]);
+    h += '<div class="list-note">check.sh 可独立运行（helper 内嵌），不依赖仓库其他文件；只做 kubectl 查询比对，不修改集群。08-pca 的题库文件是三件套的豁免形态，按文件内的“如何验证你的答案”一节自验。</div></div>';
+
+    h += '<h2 class="sec">标准流程（以 CKA Lab 05 为例）</h2><div class="card">';
+    h += codeBlock('bash · [本地Windows]', '# 把整个 lab 目录拷到 master（换成你的跳板用户与主机名）\nscp -r 05-cka/labs/05-networkpolicy-isolate cka000001:~');
+    h += codeBlock('bash · [master]', 'cd ~/05-networkpolicy-isolate\nless task.md          # 读题：场景 + 任务清单 + 验收标准\n# ……按题目动手操作……\nchmod +x check.sh     # 首次运行前加执行权限（或始终 bash check.sh）\n./check.sh            # 可重复运行，随时判分\n# 输出逐项 PASS/FAIL 与 SCORE: X/Y；全对时 exit 0：\necho $?               # 0 表示全部通过');
+    h += '<p>卡住超过 15 分钟再看 task.md 底部的提示；仍卡住再开 <code>solution.md</code> 对照思路，看完必须自己重新敲一遍并在集群上验证。</p></div>';
+
+    h += '<h2 class="sec">故障注入（排查类练习）</h2><div class="card"><p><code>scripts/faults/</code> 下的一组脚本会往集群里注入单点故障，用来练排错；修完对照 <code>scripts/faults/FIXES.md</code> 复盘。</p>';
+    h += codeBlock('bash · [master]', '# 注入一个 DNS 类故障（在仓库根目录执行）\nbash scripts/faults/break-coredns.sh\n\n# 按 04-k8s-fundamentals/14-observability.md 的方法论排查\nkubectl -n kube-system get pods | grep coredns\nkubectl -n kube-system describe pod -l k8s-app=kube-dns | less\n\n# 修复后对照官方修复说明复盘\nless scripts/faults/FIXES.md');
+    h += '<div class="list-note">每个注入脚本只做一件事；建议一次只注入一个故障，修完再注入下一个，保持变量单一。</div></div>';
+
+    h += '<h2 class="sec">集群重置</h2><div class="card"><p>实验做乱了的兜底手段：重置 kubeadm 集群并重新初始化（会清掉所有工作负载）。</p>';
+    h += codeBlock('bash · [master]', 'cd <learning-hub>\nbash scripts/setup/reset-cluster.sh');
+    h += '<p>重置后按 lab 要求重建命名空间与资源；Docker VM 用 <code>docker system prune -af --volumes</code> 清理（确认无需保留的卷再执行）。</p></div>';
+
+    document.getElementById('page').innerHTML = h;
+  }
+
+  /* ================= 速查手册 ================= */
+  function renderCheat() {
+    var h = '<h1 class="pg">速查手册</h1><div class="sub">考场可用的 kubectl / vim / PromQL 速查。kubectl 命令默认在[任意有 kubeconfig 的节点]执行。</div>';
+
+    h += '<h2 class="sec">kubectl 常用命令</h2><div class="card cheat">';
+    h += tbl(['分类', '命令', '说明'], [
+      ['上下文', '<code>kubectl config get-contexts</code>', '列出全部上下文（星号为当前）'],
+      ['上下文', '<code>kubectl config current-context</code>', '看当前上下文'],
+      ['上下文', '<code>kubectl config use-context &lt;ctx&gt;</code>', '切换集群/用户'],
+      ['上下文', '<code>kubectl config set-context --current --namespace=cka</code>', '把默认命名空间固定为 cka，省掉每次 -n'],
+      ['资源发现', '<code>kubectl api-resources</code>', '资源类型、简写、是否带 ns；加 <code>| grep deploy</code> 过滤'],
+      ['资源发现', '<code>kubectl explain pod.spec.containers</code>', '查字段含义与类型，加 <code>--recursive</code> 看全树'],
+      ['查看', '<code>kubectl get pods -A -o wide</code>', '全命名空间 Pod，含 IP 与所在节点'],
+      ['查看', '<code>kubectl -n cka get deploy,rs,po,svc</code>', '一次看多类资源'],
+      ['查看', '<code>kubectl get pod --show-labels</code>', '连带标签；<code>-l app=web</code> 按标签过滤'],
+      ['查看', '<code>kubectl get pods --field-selector spec.nodeName=worker1</code>', '按节点过滤，不依赖标签'],
+      ['查看', '<code>kubectl describe pod &lt;po&gt;</code>', 'Events 是排错第一入口'],
+      ['查看', '<code>kubectl get events -A --sort-by=.lastTimestamp</code>', '按时间看事件'],
+      ['查看', '<code>kubectl top nodes</code> / <code>kubectl top pods -A</code>', '资源用量（需 metrics-server）'],
+      ['输出格式', '<code>-o yaml</code> / <code>-o json</code> / <code>-o name</code> / <code>-o wide</code>', '常用四种输出'],
+      ['输出格式', "<code>-o jsonpath='{.items[*].metadata.name}'</code>", '取字段；双引号内的单引号原样保留'],
+      ['输出格式', '<code>-o custom-columns=NAME:.metadata.name,NODE:.spec.nodeName</code>', '自定义列'],
+      ['输出格式', '<code>--dry-run=client -o yaml &gt; x.yaml</code>', '生成清单骨架再改，考场必用'],
+      ['创建', '<code>kubectl run nginx --image=nginx:1.27 --restart=Never</code>', '直接起一个 Pod'],
+      ['创建', '<code>kubectl create deploy web --image=nginx:1.27 --replicas=2</code>', '起 Deployment'],
+      ['创建', '<code>kubectl apply -f x.yaml</code>', '声明式应用；<code>delete -f x.yaml</code> 删除'],
+      ['创建', '<code>kubectl edit deploy web</code>', '线上改字段，保存即生效'],
+      ['发布', '<code>kubectl set image deploy/web nginx=nginx:1.28</code>', '换镜像触发滚动'],
+      ['发布', '<code>kubectl rollout status|history|undo deploy/web</code>', '看状态/历史/回滚；<code>undo --to-revision=2</code> 指定版本'],
+      ['发布', '<code>kubectl rollout restart deploy/web</code>', '原地重启全部 Pod'],
+      ['伸缩', '<code>kubectl scale deploy web --replicas=5</code>', '手动扩缩'],
+      ['伸缩', '<code>kubectl autoscale deploy web --min=2 --max=10 --cpu-percent=80</code>', '建 HPA'],
+      ['删除', '<code>kubectl delete po --all -n cka</code>', '清空命名空间内 Pod；<code>--force --grace-period=0</code> 仅卡死时用']
+    ]);
+    h += '</div>';
+    h += '<h2 class="sec">kubectl 场景命令（网络 / 存储 / RBAC / 节点 / 调试）</h2><div class="card cheat">';
+    h += tbl(['分类', '命令', '说明'], [
+      ['网络', '<code>kubectl expose deploy web --port=80 --target-port=8080 --type=NodePort</code>', '建 Service；NodePort 端口用 <code>-o jsonpath</code> 取'],
+      ['网络', '<code>kubectl get svc,ep -n cka</code>', 'endpoints 为空说明没有就绪的 Pod 被挂上'],
+      ['网络', '<code>kubectl get ingress</code> / <code>kubectl get networkpolicy -A</code>', '七层入口与网络策略'],
+      ['网络', '<code>kubectl run tmp --image=busybox:1.36 -it --rm --restart=Never -- sh</code>', '临时调试 Pod，退出即删；进 <code>nslookup svc</code> 验证 DNS'],
+      ['存储', '<code>kubectl get pv,pvc -A</code> / <code>kubectl get sc</code>', '三类存储对象一眼看全'],
+      ['存储', '<code>kubectl patch sc standard -p \'{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}\'</code>', '改默认 StorageClass（JSON 里的引号原样保留）'],
+      ['RBAC', '<code>kubectl create role r1 --verb=get,list --resource=pods -n cka</code>', '建 Role'],
+      ['RBAC', '<code>kubectl create rolebinding rb1 --role=r1 --serviceaccount=cka:app -n cka</code>', '绑定到 SA'],
+      ['RBAC', '<code>kubectl auth can-i list pods --as=system:serviceaccount:cka:app -n cka</code>', '验证某身份能不能做某事'],
+      ['RBAC', '<code>kubectl create sa app -n cka</code>', '建 ServiceAccount'],
+      ['节点', '<code>kubectl cordon &lt;node&gt;</code> / <code>kubectl uncordon &lt;node&gt;</code>', '禁止/恢复调度'],
+      ['节点', '<code>kubectl drain &lt;node&gt; --ignore-daemonsets --delete-emptydir-data</code>', '安全驱逐后维护；完事 uncordon'],
+      ['节点', '<code>kubectl taint node n1 key=val:NoSchedule</code>', '加污点；<code>key=val:NoSchedule-</code> 移除'],
+      ['节点', '<code>kubectl label node n1 disk=ssd</code>', '加标签供 nodeSelector/亲和使用'],
+      ['调试', '<code>kubectl logs &lt;po&gt; -c side --previous -f</code>', '看容器日志；--previous 看崩溃前那次'],
+      ['调试', '<code>kubectl exec -it &lt;po&gt; -c side -- sh</code>', '进入容器；-- 后面原样执行'],
+      ['调试', '<code>kubectl port-forward svc/web 8080:80</code>', '本地转发验证服务'],
+      ['调试', '<code>kubectl cp cka/pod:/path ./local</code>', '拷文件出来（tar 依赖容器内存在）']
+    ]);
+    h += '</div>';
+
+    h += '<h2 class="sec">vim 考场速查（考试终端无其他编辑器）</h2><div class="card cheat">';
+    h += tbl(['分类', '按键', '作用'], [
+      ['进入插入', '<code>i</code> / <code>a</code> / <code>o</code>', '光标前插入 / 光标后追加 / 下方新开一行；<code>I</code> 行首、<code>A</code> 行尾'],
+      ['返回普通', '<code>Esc</code>', '任何模式回普通模式'],
+      ['保存退出', '<code>:w</code> / <code>:q</code> / <code>:wq</code> / <code>:q!</code>', '保存 / 退出 / 保存并退出 / 不保存强退'],
+      ['编辑', '<code>x</code> / <code>dd</code> / <code>ndd</code>', '删字符 / 删整行 / 删 n 行'],
+      ['编辑', '<code>yy</code> / <code>p</code> / <code>u</code> / <code>Ctrl-r</code>', '复制行 / 粘贴 / 撤销 / 重做；<code>.</code> 重复上次修改'],
+      ['移动', '<code>gg</code> / <code>G</code> / <code>:42</code>', '文件头 / 文件尾 / 跳到 42 行'],
+      ['移动', '<code>0</code> / <code>^</code> / <code>$</code> / <code>w</code> / <code>b</code>', '行首 / 首个非空字符 / 行尾 / 下一个词 / 上一个词'],
+      ['查找替换', '<code>/err</code> / <code>n</code> / <code>N</code>', '查找 / 下一个 / 上一个'],
+      ['查找替换', '<code>:%s/old/new/g</code>', '全文替换；去掉 g 只换每行第一处，加 c 逐个确认'],
+      ['选择', '<code>v</code> / <code>V</code>', '字符选择 / 行选择；选中后 <code>y</code> 复制、<code>d</code> 剪切'],
+      ['考试专用', '<code>:set paste</code> 后再 <code>i</code> 粘贴', '关闭自动缩进，防止从题目复制的 YAML 错位'],
+      ['考试专用', '<code>:set nu</code> / <code>:e file</code>', '显示行号 / 编辑另一个文件']
+    ]);
+    h += '</div>';
+    h += '<h2 class="sec">PromQL 场景速查（PCA 高频）</h2><div class="card cheat">';
+    h += tbl(['场景', '查询', '要点'], [
+      ['总 QPS', '<code>sum(rate(http_requests_total[5m]))</code>', 'counter 必须先 rate，窗口至少 4 个采样点'],
+      ['按维度 QPS', '<code>sum by (job, handler) (rate(http_requests_total[5m]))</code>', 'by 决定保留哪些标签做分组'],
+      ['P95 延迟', '<code>histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))</code>', '<code>le</code> 必须出现在 by 里，否则分位数算不出'],
+      ['错误率', '<code>sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))</code>', '分子分母窗口一致；除法按标签集对齐'],
+      ['CPU 使用率', '<code>100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))</code>', 'node_exporter 经典写法'],
+      ['内存水位', '<code>1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes</code>', 'gauge 直接运算，不需要 rate'],
+      ['磁盘使用率', '<code>(1 - node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100</code>', '加 <code>{mountpoint="/"}</code> 只看根分区'],
+      ['磁盘满预测', '<code>predict_linear(node_filesystem_avail_bytes[1h], 4*3600) &lt; 0</code>', '按最近 1 小时斜率外推 4 小时'],
+      ['宕机检测', '<code>up == 0</code>', '抓取失败即触发；配合 <code>absent()</code> 处理整个 job 消失'],
+      ['目标缺失', '<code>absent(up{job="api"})</code>', '序列不存在时返回 1，专治“整个目标没了”'],
+      ['TopN', '<code>topk(5, rate(http_requests_total[5m]))</code>', '按序列取前 5；bottomk 取后 N'],
+      ['时段增量', '<code>increase(http_requests_total[1h])</code>', '窗口内总量增长，等价 rate×时长（带边界校正）'],
+      ['突发敏感', '<code>irate(...[5m])</code>', '只看最近两个点，画快速抖动用；告警仍建议 rate'],
+      ['同比环比', '<code>rate(...[5m]) offset 1d</code>', 'offset 平移取数窗口，做昨日同期对比']
+    ]);
+    h += '</div>';
+
+    h += '<h2 class="sec">PromQL 函数与匹配符速查</h2><div class="card cheat">';
+    h += tbl(['符号/函数', '作用'], [
+      ['<code>= != =~ !~</code>', '标签精确等/不等/正则匹配/正则排除；<code>__name__</code> 也能当标签过滤'],
+      ['<code>ignoring/on</code>', '二元运算时忽略/仅按指定标签对齐两侧序列'],
+      ['<code>group_left/group_right</code>', '多对一/一对多匹配，把 info 型标签带进结果'],
+      ['<code>sum avg min max</code>', '基础聚合，配 by()/without() 控制分组维度'],
+      ['<code>count / count_values</code>', '数序列个数 / 按值分桶数个数'],
+      ['<code>quantile stddev stdvar</code>', '聚合分位数与离散度（先组内后输出）'],
+      ['<code>rate / irate</code>', 'counter 秒级速率；irate 只用最后两点'],
+      ['<code>increase / delta / idelta</code>', '窗口增量；delta 用于 gauge，idelta 取最近两点差'],
+      ['<code>resets / changes</code>', 'counter 重置次数 / 值变化次数'],
+      ['<code>deriv / predict_linear</code>', 'gauge 斜率 / 线性外推预测'],
+      ['<code>histogram_quantile</code>', '从 bucket 累积分布算分位数，配 by (le)'],
+      ['<code>absent / absent_over_time</code>', '序列缺失检测，常用于“采集都没了”的告警'],
+      ['<code>ceil / floor / round / clamp / clamp_max</code>', '数值整形与上下限裁剪'],
+      ['<code>label_replace / label_join</code>', '改标签（正则捕获/拼接），常用作 join 桥'],
+      ['<code>avg_over_time / max_over_time / quantile_over_time</code>', '对单序列在时间维聚合；同族还有 sum/min/count/stddev_over_time'],
+      ['<code>time() / timestamp()</code>', '当前 Unix 时间 / 序列样本的时间戳']
+    ]);
+    h += '</div>';
+    document.getElementById('page').innerHTML = h;
+  }
+
+  /* ================= 场景速查 =================
+     数据逐条转录自 learning-hub 根目录 SCENARIOS.md（121 条，其中 12 条标【靶场】）。
+     每条数组：[0]=现象，[1]=先查，[2]=详见，[3]=1 表示靶场条目。
+     分类默认收起，点开时才渲染条目，避免一次挂 121 条拖慢页面。 */
+  var SCN_CATS = [
+    { t: '1 集群与控制面', sub: 'kubectl 不通 / 节点 NotReady / 组件挂 / 证书 / etcd / 升级', items: [
+      ['不知从哪下手排集群故障', '`kubectl get nodes` 通不通，按“五层定位法”选层（集群→对象→容器→节点服务→系统）', '05-cka/06-node-maintenance-troubleshooting.md#2. 排错决策树：五层定位法'],
+      ['十大高频故障想直接查表（NotReady/Pending/CrashLoop/drain 卡住…）', '`## 3` 速查表第一列对号入座', '05-cka/06-node-maintenance-troubleshooting.md#3. 十大高频故障现象速查表'],
+      ['kubectl 任意命令 connection refused，已有业务 Pod 正常', '`ss -lntp | grep -E \'6443|6444\'`——6444 有人听说明“端口飞了”', 'scripts/faults/FIXES.md#11. break-apiserver-port', 1],
+      ['kubectl 全 refused，且 apiserver 容器反复重启（crash loop）', '`crictl logs` 看崩溃容器连不上的地址', 'scripts/faults/FIXES.md#3. break-etcd-endpoint', 1],
+      ['某节点 40~60 秒变 NotReady，已有 Pod 继续跑但无法新建/删除', '`systemctl status kubelet` 是否 activating (auto-restart)', 'scripts/faults/FIXES.md#2. break-kubelet', 1],
+      ['节点约 1 分钟变 NotReady，Conditions 点名 NetworkPluginNotReady，新 Pod 卡 ContainerCreating', '`kubectl get ds -A | grep calico` 是否还有 agent', 'scripts/faults/FIXES.md#4. break-cni', 1],
+      ['节点 NotReady，kubelet 日志刷 `pleg is not healthy`', '`systemctl status containerd`（relist 超时）', '04-k8s-fundamentals/02-architecture-and-control-loop.md#常见坑'],
+      ['kube-scheduler Pod 直接消失（非 CrashLoop），新 Deployment 的 Pod 永远 Pending', '`ls -l /etc/kubernetes/manifests/` 少了谁', 'scripts/faults/FIXES.md#5. break-static-pod', 1],
+      ['所有组件同时失联，报 `x509: certificate has expired`', '`kubeadm certs check-expiration`，再按“症状→证书”表定位', '05-cka/05-secrets-and-cert-troubleshooting.md#5. 证书过期典型症状速查'],
+      ['`get pods` 正常但 logs/exec/top 报 401/403', 'apiserver-kubelet-client 证书过期（六张证书用途表）', '05-cka/05-secrets-and-cert-troubleshooting.md#3. kubeadm 证书体系：六张 apiserver 相关证书'],
+      ['`certs renew all` 后症状没变 / kubectl 仍报证书过期', '静态 Pod 没重启（需 `crictl stop` 重建）+ kubeconfig 里是旧证书副本需重拷 admin.conf', '04-k8s-fundamentals/13-cluster-admin-and-etcd.md#常见坑'],
+      ['集群只读、大面积超时，etcd 日志 `alarm NOSPACE`', '`etcdctl alarm list`（backend 配额打满）', '04-k8s-fundamentals/13-cluster-admin-and-etcd.md#常见坑'],
+      ['etcdctl snapshot 报 command not found / connection refused / certificate is valid for', '`ETCDCTL_API=3` + client 口 2379（非 2380）+ etcd 自己的 CA 三件套', '05-cka/04-etcd-backup-restore.md#常见坑'],
+      ['kube-system 控制 Pod 删了又出现、edit 被改回，或 apiserver 反复重启（manifest 改坏）', '静态 Pod 只认 `/etc/kubernetes/manifests/` 下的文件，恢复备份 + `crictl logs` 看退出原因', '04-k8s-fundamentals/13-cluster-admin-and-etcd.md#常见坑（另见 07-cks/01-cluster-hardening.md#常见坑）'],
+      ['drain 卡住不动 / init 后节点 NotReady / join 报 token 过期', '`--ignore-daemonsets --delete-emptydir-data`；CNI cidr 是否与 pod-network-cidr 一致；master 上 `kubeadm token create --print-join-command`', '05-cka/03-kubeadm-install-upgrade.md#常见坑'],
+      ['kubectl 连不上 apiserver，想先确认服务本身死活', 'master 上 `curl 127.0.0.1:6443/healthz` + `crictl ps` 查 apiserver', '04-k8s-fundamentals/14-observability.md#4. kubectl 排障命令矩阵']
+    ] },
+    { t: '2 网络与 DNS', sub: 'Pod 不通 / Service 无后端 / 域名解析 / 502 / 504', items: [
+      ['全集群 Pod `nslookup baidu.com` SERVFAIL，业务日志大量 `lookup xxx ... no such host`', '`kubectl -n kube-system logs deploy/coredns` 看 forward 报错（FQDN 还能解析别被误导）', 'scripts/faults/FIXES.md#1. break-coredns', 1],
+      ['只有某个 namespace 的 Pod 解析失败，其他正常', '`kubectl exec <pod> -- cat /etc/resolv.conf` 是否缺集群 DNS', 'scripts/faults/FIXES.md#12. break-dns-config', 1],
+      ['Service VIP 不通，后端 Pod 全 Running 且 Pod IP 直访是通的', '`kubectl get endpoints <svc>` 是否 `<none>`', 'scripts/faults/FIXES.md#7. break-endpoints', 1],
+      ['本节点 Pod 出网/跨节点全超时，节点互 ping 与 SSH 正常（“半边瘫”）', '`sysctl net.ipv4.ip_forward` 必须为 1', 'scripts/faults/FIXES.md#8. break-ipforward', 1],
+      ['Endpoints 为 `<none>`、curl 超时，要一套标准动作序', '五步法——describe svc → get pods -l → 比对 labels → 查 Ready → 查 targetPort 语义', '04-k8s-fundamentals/05-service-and-dns.md#5. Endpoints / EndpointSlice 与“五步排错法”'],
+      ['ping ClusterIP 不通但 curl 通 / 外部域名解析偶发秒级延迟 / LB Service 一直 `<pending>`', 'iptables 模式只对端口生效（ping 不通是预期）；ndots:5 search 展开；裸金属装 MetalLB', '04-k8s-fundamentals/05-service-and-dns.md#常见坑'],
+      ['Ingress 创建成功但 ADDRESS 空、不通；或 HTTPRoute 不生效', '`kubectl get ingressclass` / `spec.ingressClassName`；HTTPRoute 看 status.parents.conditions', '04-k8s-fundamentals/06-ingress-and-gateway-api.md#常见坑'],
+      ['TLS 握手拿到 Fake Certificate（默认证书回退）', '`openssl s_client -servername` 复现，核对 tls.hosts 与同 ns 的 secretName', '04-k8s-fundamentals/06-ingress-and-gateway-api.md#常见坑'],
+      ['装了 flannel 后 NetworkPolicy 完全不生效；或 default-deny 后 DNS 全挂', 'flannel 未实现 NetworkPolicy；egress 白名单要放行 kube-dns 53 UDP/TCP', '04-k8s-fundamentals/10-cni-and-pod-networking.md#常见坑'],
+      ['Pod 跨节点互 ping 不通但节点间正常', 'underlay 防火墙是否拦 VXLAN UDP 4789 / IPIP 协议 4', '04-k8s-fundamentals/10-cni-and-pod-networking.md#常见坑'],
+      ['小包能通、大包或页面卡死', '`ping -M do -s` 定界 MTU（overlay 有 50 字节开销）', '04-k8s-fundamentals/10-cni-and-pod-networking.md#常见坑'],
+      ['Calico 多网卡 VM 节点间不通', 'IP_AUTODETECTION_METHOD 是否选错网卡', '04-k8s-fundamentals/10-cni-and-pod-networking.md#常见坑'],
+      ['endpoints 有值、Pod Running，但 Service 仍 curl 不通', '换层查——直连 Pod IP 二分定位 CNI/NetworkPolicy/目标端口', '05-cka/06-node-maintenance-troubleshooting.md#常见坑'],
+      ['nginx 报 502 / 504 / 499，要一套定位流程', '三板斧——error.log 同时间戳原文 → access_log 看 ua/urt → nginx 机上直接 curl 后端复现', '11-middleware/nginx/03-performance-troubleshooting.md#3. 502 / 504 / 499：链路定位决策树'],
+      ['高并发下报 `Cannot assign requested address` / `nf_conntrack: table full`', 'ephemeral 端口与 conntrack 表容量（TIME_WAIT 本身不是故障）', '01-linux/05-network-stack-internals.md#常见坑'],
+      ['CLOSE_WAIT 持续堆积', '应用收 FIN 后不 close，改代码而非调内核参数', '01-linux/05-network-stack-internals.md#常见坑'],
+      ['云上 SLB 健康检查一直 failed / 同 VPC 子网间 ping 不通', '安全组放行 100.64.0.0/10 与 ICMP；服务是否只听 127.0.0.1', '14-cloud/02-aliyun-practice.md#常见坑（另见 14-cloud/01-cloud-fundamentals.md#常见坑）']
+    ] },
+    { t: '3 工作负载', sub: 'Pending / CrashLoop / ImagePullBackOff / 滚动更新卡住', items: [
+      ['新 Pod ErrImagePull → ImagePullBackOff 按退避节奏反复重试', '`kubectl describe pod` 的 Events，区分 not found / authentication required / i/o timeout 三类', 'scripts/faults/FIXES.md#10. break-imagepull', 1],
+      ['新 Pod 一直 Pending，事件 `FailedScheduling ... Insufficient cpu`，节点 Ready、组件正常', '`kubectl describe node | grep -A8 "Allocated resources"`，找吃 CPU 的大户', 'scripts/faults/FIXES.md#9. break-scheduler-pod', 1],
+      ['RESTARTS 涨、CrashLoopBackOff，分不清应用退出/探针过严/OOM', '三连——`kubectl logs --previous` → `describe`（exit 137=OOM）→ `get events --sort-by`', '04-k8s-fundamentals/03-pods-deep-dive.md#6. restartPolicy 与 CrashLoopBackOff'],
+      ['滚动更新瞬间 5xx / 容器收 SIGTERM 不退 / Pod 删除等 30s 才停', 'readinessProbe + preStop sleep；启动命令用 exec 形式别用 sh -c 包裹', '04-k8s-fundamentals/03-pods-deep-dive.md#常见坑'],
+      ['init 失败 Pod 卡 Pending；同 Pod 两容器抢 80 端口', '`kubectl logs -c <init容器>`；共享 network namespace 端口空间唯一', '04-k8s-fundamentals/03-pods-deep-dive.md#常见坑'],
+      ['HPA TARGETS 显示 `<unknown>`；或手动 scale 后副本数又变回去', 'metrics-server 是否装好（`get --raw` 验证聚合 API）；replicas 被 HPA 周期性重算', '04-k8s-fundamentals/04-workload-controllers.md#常见坑'],
+      ['StatefulSet Pod 卡 Pending/ContainerCreating；DaemonSet 在 master 无副本', '无默认 StorageClass 导致 PVC 未绑定；DS 未容忍 control-plane 污点', '04-k8s-fundamentals/04-workload-controllers.md#常见坑'],
+      ['Job 一直不 Complete / CronJob 不触发 / rollout undo 说没有历史', '退出码与 sidecar；时区与 LastScheduleTime；revisionHistoryLimit', '04-k8s-fundamentals/04-workload-controllers.md#常见坑'],
+      ['单节点集群 Pod 全 Pending（untolerated taint control-plane）；或扩容后部分副本永久 Pending', '污点需 toleration；required 反亲和/spread 超过节点数改 preferred', '04-k8s-fundamentals/08-scheduling.md#常见坑'],
+      ['分不清“调度失败”还是“被驱逐”', 'FailedScheduling 事件=没地方去（看 scheduler）；Evicted=待不下去了（看节点 kubelet 日志）', '04-k8s-fundamentals/08-scheduling.md#6. 调度失败 vs 驱逐：两个不同组件的两种失败'],
+      ['delete pod 后又冒新的；Namespace/PVC 长期 Terminating；apply 成功但服务没起', '删控制器别跟 Pod 较劲；查 finalizer；apply 只写期望，rollout status + describe 看后续', '04-k8s-fundamentals/01-why-kubernetes.md#常见坑'],
+      ['Pod 卡 CreateContainerConfigError；改了 ConfigMap 容器内没变', '引用的 CM/Secret/key 是否存在；env 注入不热更，卷挂载或 rollout restart', '04-k8s-fundamentals/09-configmap-and-secret.md#常见坑'],
+      ['Deployment YAML 有两处独立问题，修好第一处才暴露第二处（排障练习）', '先 Events 定位镜像层故障，再排查第二处', '05-cka/labs/18-crashloop-triage/task.md'],
+      ['Pod 不 Ready 但看不出原因，需要完整 DNS/Service 链路排查演练', 'dnsutils 调试 Pod 逐层验证 Service 名/FQDN/CoreDNS', '05-cka/labs/17-dns-debugging/task.md（速查见同目录 solution.md 的"DNS 故障速查"节）']
+    ] },
+    { t: '4 存储与中间件', sub: 'PVC Pending / 主从延迟 / 哨兵切换 / 连接打满', items: [
+      ['PVC 一直 Pending / 有 SC 也绑不上', '`kubectl get sc` + `describe pvc` 看 Events；storageClassName 的 `""` 与省略语义不同；WFFC 要先建 Pod', '04-k8s-fundamentals/07-storage.md#常见坑'],
+      ['Pod 卡 ContainerCreating 报 Multi-Attach error；Retain 的 PV 一直 Released；PVC 扩容报错', 'RWO 卷未 detach（失联节点可强删 volumeattachment）；Released 需清 claimRef；SC 开 allowVolumeExpansion 且只升不降', '04-k8s-fundamentals/07-storage.md#常见坑'],
+      ['MySQL 报 1040 Too many connections、CPU 100% 或 metadata lock 排队', '`SHOW PROCESSLIST` 分型（连接池泄漏/DNS 反解析/慢 SQL 并发/DDL 阻塞），先留证据再 KILL', '11-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（连接打满）'],
+      ['MySQL 所在盘 `No space left on device`', 'df → du 找大头 → `PURGE BINARY LOGS`（严禁 rm 物理文件，ibdata/undo 删了实例即毁）', '11-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（磁盘满）'],
+      ['MySQL 主从延迟（Seconds_Behind_Source 增长），或复制中断报 1062/1032', '延迟先判型（平稳=单线程重放慢 / 阶梯=大事务）；1062/1032 用 GTID 空事务跳过，不一致重搭', '11-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（主从延迟）；11-middleware/mysql/02-backup-replication.md#常见坑'],
+      ['MySQL EXPLAIN 看着没问题但就是慢；加了索引不走', 'EXPLAIN ANALYZE 看真实耗时；统计信息过期/隐式类型转换/列上函数', '11-middleware/mysql/03-tuning-troubleshooting.md#常见坑'],
+      ['Redis 磁盘满后所有写报错；或每分钟固定点延迟尖刺', '`stop-writes-on-bgsave-error` 是保护先修磁盘；`latest_fork_usec` 监控 fork 耗时', '11-middleware/redis/02-persistence-and-ha.md#常见坑'],
+      ['Redis replica 闪断一次就全量同步；三哨兵挂俩不切换', 'repl-backlog-size 按断线时长×写流量调大；哨兵需 ≥3 且奇数凑 majority', '11-middleware/redis/02-persistence-and-ha.md#常见坑'],
+      ['Redis 突发超时但 SLOWLOG 是空的', '四类元凶按序过筛——慢命令 → fork 卡顿 → swap（碎片率<1）→ AOF fsync 慢', '11-middleware/redis/03-caching-patterns-troubleshooting.md#3. 阻塞点排查：单线程模型下的四类元凶'],
+      ['配了 volatile-lru 仍报 OOM；Redis 容器频繁 OOMKilled', '没有 key 带 TTL 则 volatile 系无候选；limit 未给 fork COW 留余量（≥1.5×maxmemory）', '11-middleware/redis/03-caching-patterns-troubleshooting.md#常见坑'],
+      ['MongoDB 两节点副本集挂一个，另一个不能写', '剩 1/2 不够多数派（防脑裂），至少 3 个投票成员', '11-middleware/mongodb/02-replicaset-and-sharding.md#常见坑'],
+      ['MongoDB 慢/超时，不知从哪查起', '四类对号入座——个别接口慢（索引）/整体抬升（cache）/qw 堆积（tickets）/连接暴涨（连接风暴）', '11-middleware/mongodb/03-operations-troubleshooting.md#3. 排障套路：四类问题对号入座'],
+      ['MongoDB 一天多次无故切主（选举震荡）；连接数瞬间打满', '`rs.status()` 看心跳超时成因（网络/资源打满）；maxPoolSize 收敛与重连风暴', '11-middleware/mongodb/03-operations-troubleshooting.md#常见坑'],
+      ['Kafka 消费组频繁 rebalance / broker 磁盘满写入失败 / under-replicated 副本掉线', '三大排障表按日志关键词对号（max.poll.interval 超时、手动 rm segment、fetch 追不上）', '12-data-streaming/kafka/03-operations-and-performance.md#5. 三大高频故障排障表'],
+      ['Kafka 大量 NotEnoughReplicasException 写入失败', 'ISR 收缩到 min.insync.replicas 以下——先救 ISR，别调小 min.insync', '12-data-streaming/kafka/02-replication-and-reliability.md#常见坑'],
+      ['Flink checkpoint 一直 timeout/failed，反压面板全红找不到瓶颈', '反压让 barrier 走不动；找第一个 busy≈1000 的算子（受害者不背锅）', '12-data-streaming/flink/02-deployment-and-exactly-once.md#6. 反压：原理与定位'],
+      ['Flink Pod 重建后作业状态全丢；savepoint 恢复报 cannot map', '状态目录别指向容器内 file:///tmp；算子要固定 .uid()', '12-data-streaming/flink/02-deployment-and-exactly-once.md#常见坑']
+    ] },
+    { t: '5 性能与资源', sub: 'CPU 高 / 内存涨 / OOM / 磁盘满 / 限流', items: [
+      ['CPU 高，不知下一步看什么', 'top 的 %Cpu(s) 行先分支——us/sy/wa/st 四路走法（用户态火焰图/内核态上下文切换/IO 等待/虚拟化窃取）', '01-linux/06-performance-analysis.md#5. "CPU 高"完整排查决策树'],
+      ['load 很高但 CPU 大量 idle；kill -9 杀不死进程', 'load 含 D 状态任务，`ps` 分 R/D 状态再下结论，/proc/PID/stack 看等待点', '01-linux/04-processes-and-cfs.md#常见坑'],
+      ['容器 CPU 使用率不高但响应周期性卡顿', 'cgroup CFS 节流，看 cpu.stat 的 nr_throttled，提高 limit', '04-k8s-fundamentals/11-resources-and-qos.md#常见坑'],
+      ['Pod 被 OOMKilled（exit code 137）；或按 100M 申请内存仍 OOM', '对照 working_set_bytes 与 limit；M 是 10^6 比 Mi 少 4.9%，全集群统一 Mi/Gi', '04-k8s-fundamentals/11-resources-and-qos.md#常见坑'],
+      ['Pod 被 Evicted；节点空闲却报 Insufficient cpu', 'evictionHard 阈值（nodefs/内存）；调度只看 Σrequests，查 Allocated resources 清僵尸负载', '04-k8s-fundamentals/11-resources-and-qos.md#常见坑'],
+      ['Go/Java 应用在 limit 1 核的容器里线程池开太大、周期性卡顿', '旧运行时读节点 CPU 数而非 cgroup 配额，显式设 GOMAXPROCS/automaxprocs', '04-k8s-fundamentals/11-resources-and-qos.md#常见坑'],
+      ['df -h 有空间但报 No space；或 df 满、du 找不到大文件', 'inode 耗尽用 df -i；被 rm 但进程仍打开用 `lsof +L1`', '01-linux/02-filesystem-and-io.md#常见坑'],
+      ['free 很少被当内存不足告警', 'buff/cache 可回收，看 available 列才是真实余量', '01-linux/03-memory-deep-dive.md#常见坑'],
+      ['iowait 低就排除 IO 问题；SSD %util 100% 当满载；VM 里 st 高调优无果', 'CPU 一忙 wa 被挤掉，配 iostat await；%util 不度量并行度；st 高找宿主机资源方', '01-linux/06-performance-analysis.md#常见坑'],
+      ['kubelet 报 running with swap on；磁盘满后服务行为诡异', 'swapoff -a 并注释 fstab；journald 写满 /var/log 用 --vacuum-size + SystemMaxUse', '01-linux/01-boot-and-systemd.md#常见坑'],
+      ['nginx 报 Too many open files / worker_connections are not enough', 'worker_rlimit_nofile 与 systemd LimitNOFILE；反代每请求占 2 个连接槽', '11-middleware/nginx/01-architecture-and-process-model.md#常见坑'],
+      ['压测偶发 502 且报 Cannot assign requested address；调大 somaxconn 无效', 'upstream 未配 keepalive 致源端口耗尽；listen backlog 默认 511 更小', '11-middleware/nginx/03-performance-troubleshooting.md#常见坑']
+    ] },
+    { t: '6 交付流水线', sub: 'CI 挂了 / ArgoCD 不同步 / 漂移 / Terraform state 锁', items: [
+      ['git push 被拒 non-fast-forward；detached HEAD 上的提交切分支后不见', '先 `pull --rebase`；`git reflog` 找回 hash，慌的时候先 reflog 别乱 reset', '06-cicd-iac-gitops/01-git-deep-dive.md#常见坑（救命操作见同文件 #5. 救命操作：stash 与 reflog）'],
+      ['GitLab CI job 一直 pending 提示 no runner；docker build 连不上 daemon', 'job tags 与 runner 标签匹配、`gitlab-runner verify`；dind 设 `DOCKER_TLS_CERTDIR=""` 或挂 socket', '06-cicd-iac-gitops/02-gitlab-ci.md#常见坑'],
+      ['deploy-prod 阶段拿不到密码变量', '变量设了 protected 而 tag 不在 Protected tags', '06-cicd-iac-gitops/02-gitlab-ci.md#常见坑'],
+      ['Jenkins agent 一直离线；job 排队不执行', 'JNLP 50000 端口与 NTP；agent label 匹配与 executor 数', '06-cicd-iac-gitops/03-jenkins-and-github-actions.md#常见坑'],
+      ['ArgoCD 一直 OutOfSync 但资源看着一样；改了 Git 半天不生效', '`argocd app diff` 看默认值差异配 ignoreDifferences；默认 3 分钟才 refresh，配 webhook', '06-cicd-iac-gitops/04-argocd-gitops.md#常见坑'],
+      ['手动 kubectl 改动后 ArgoCD 不回滚（漂移）', 'selfHeal 未开——sync 只管“Git 变了”，selfHeal 才管“集群被手改”', '06-cicd-iac-gitops/04-argocd-gitops.md#常见坑'],
+      ['Ansible 报 UNREACHABLE Permission denied；handler 没触发；command 模块每次都 changed', 'ssh-copy-id 打通免密；notify 与 handler 名一致；command 天然不幂等换专用模块', '06-cicd-iac-gitops/05-ansible.md#常见坑'],
+      ['Terraform plan 显示 -/+ 要重建资源', '改了不可更新字段（cidr/镜像），评估停机或分批迁移', '06-cicd-iac-gitops/06-terraform.md#常见坑'],
+      ['apply 时卡在 Acquiring state lock', '上次 apply 异常退出未释放锁，确认无 apply 在跑后 force-unlock', '06-cicd-iac-gitops/06-terraform.md#常见坑'],
+      ['怀疑有人绕过 IaC 手改了云资源', '`terraform plan -detailed-exitcode`（exit 2=有漂移），nightly 跑 CI 告警', '06-cicd-iac-gitops/06-terraform.md#5. 漂移检测：state 说的和云上不一致'],
+      ['CI 里 kubectl/命令行为和本地不一样（cron/runner 环境）', 'cron 与 CI 的 PATH 极简，脚本内绝对路径或重设 PATH', '02-programming/01-shell-fundamentals.md#常见坑'],
+      ['批量 ssh 脚本卡死在某台机器', '`-o ConnectTimeout=5 BatchMode=yes`（TCP 黑洞无超时）', '02-programming/02-shell-ops-patterns.md#常见坑']
+    ] },
+    { t: '7 可观测', sub: '指标缺失 / 告警风暴 / 日志查不到 / trace 断链', items: [
+      ['不知道这个 K8s 故障该用什么命令查', 'kubectl 排障命令矩阵——按“现象 | 第一入口 | 深挖命令”三列对号', '04-k8s-fundamentals/14-observability.md#4. kubectl 排障命令矩阵'],
+      ['kubectl top 报 Metrics API not available；metrics-server 日志报 x509；部分节点无指标', 'metrics-server Pod 与 apiservice；实验集群加 --kubelet-insecure-tls；到 kubelet:10250 的连通性', '04-k8s-fundamentals/14-observability.md#常见坑'],
+      ['排障时证据拿不到——2 小时前的 Events 空了、logs --previous not found', '--event-ttl 默认 1 小时；旧容器日志已被 GC，历史靠中心化采集', '04-k8s-fundamentals/14-observability.md#常见坑'],
+      ['PromQL 报 expected type range vector；正则 `=~"5"` 匹配不到 5xx', 'rate/over_time 要补 [5m] 窗口；正则全锚定需写 `5..`', '08-pca/03-promql-guide.md#常见坑'],
+      ['histogram_quantile 输出怪值 / P99 曲线不动 / summary 多实例 avg 当整体 P99', '聚合别丢 le 标签；P99 落在过宽桶要埋点加窄桶；分位数不可平均改 histogram', '08-pca/03-promql-guide.md#常见坑'],
+      ['告警一直 pending 不 firing；PrometheusRule 死活不生效', 'for 太长或 expr 抖动（窗口≥4×抓取间隔）；规则缺 release 标签或放错 namespace', '08-pca/05-alerting-alertmanager.md#常见坑'],
+      ['告警风暴一屏同种告警；同一故障收到两封；silence 了还收到', 'group_by 加关键维度、group_wait 给足；规则重复定义；amtool silence ls 核对 matcher', '08-pca/05-alerting-alertmanager.md#常见坑'],
+      ['blackbox 探测一切正常但目标明明挂了', '看的是 up 而非 probe_success，告警应盯 `probe_success == 0`', '08-pca/04-instrumentation-exporters.md#常见坑'],
+      ['备份任务“永远成功”；Pushgateway 序列数持续增长', '指标不衰减的两大陷阱——监控 time() - push_time_seconds；grouping key 带随机成分', '08-pca/04-instrumentation-exporters.md#5.2 两大陷阱'],
+      ['链路在某跳断成两截（trace 断链）', '对账 traceparent——该跳没装 propagator/代理剥头/异步丢 context', '09-otel/01-signals-and-context-propagation.md#常见坑（断链高发区见同文件 #3.4 三种载体与断链高发区）'],
+      ['加了采样后链路断半截；Jaeger 里 service 名是 unknown_service', '采样器用 parentbased 系列跟随根决策；显式设 OTEL_SERVICE_NAME', '09-otel/02-instrumentation.md#常见坑'],
+      ['Collector 被 OOMKilled；改组件配置毫无变化', 'memory_limiter 放 pipelines 首位且低于容器 limit 约 20%；组件需被 service.pipelines 引用', '09-otel/03-collector.md#常见坑'],
+      ['有 trace 但不会用它定位根因', '六步法（指标定层→trace 定点→属性定因→日志定据→K8s 验证→修复回归）+ 故障形态指纹表', '09-otel/05-otel-demo-astronomy-shop.md#实战演练三：故障注入与"从 trace 定位根因"'],
+      ['日志明明写入了 Kibana 搜不到；ES 磁盘 85% 后索引变只读', '手动 _refresh 排除、data view 时间窗；flood_stage 水位保护，清理后删 read_only 块', '10-logging/02-elk-stack.md#常见坑'],
+      ['Loki push 返回 429 / entry too far behind；`{job="app"}` 查询永远慢', '高基数标签撞每流速率限制；标签太宽扫的 chunk 太多，补收窄标签', '10-logging/03-loki-stack.md#常见坑'],
+      ['采集器抓不到某 Pod 日志；Pod 重建后日志从头再收', '应用写文件而非 stdout（加 sidecar）；positions 文件在容器可写层要挂 hostPath', '10-logging/04-k8s-logging.md#常见坑'],
+      ['每班十几个 page 团队麻木；半夜 page 没人响应', '不可操作告警删或降级；时限驱动的升级阶梯（T+5 secondary、T+15 manager）', '13-sre-methodology/03-oncall-incident-management.md#2. 告警分级与升级路径'],
+      ['面板查无数据（No data）；缩放时间范围后 rate 断点', '数据源 URL 别用 localhost；窗口 <4×抓取间隔会断，用 $__rate_interval', '08-pca/06-grafana-dashboards.md#常见坑']
+    ] },
+    { t: '8 安全', sub: 'PSA 拒绝 / 证书过期 / 镜像高危 / 权限 403', items: [
+      ['业务 Pod Running 但日志持续刷 Forbidden：SA cannot list pods', '`kubectl auth can-i list pods --as=<报错里的 User>`，再查 Role 与 Binding 谁没了', 'scripts/faults/FIXES.md#6. break-rbac', 1],
+      ['Pod 内调 API 报 403；1.24 后拿不到 SA 的 token Secret', 'default SA 零权限，专用 SA + RoleBinding；token 用 `kubectl create token`（短时）', '04-k8s-fundamentals/12-rbac-and-service-accounts.md#常见坑'],
+      ['有 pods 读权限但 kubectl logs Forbidden；RoleBinding 绑 ClusterRole 却只在一个 ns 生效', 'logs 走 pods/log 子资源；作用域由 Binding 决定，全集群要 ClusterRoleBinding', '04-k8s-fundamentals/12-rbac-and-service-accounts.md#常见坑'],
+      ['PSA label 打了不生效；enforce=restricted 后大量 Pod 被拒', 'label 必须打在 namespace 上；镜像默认 root，加 runAsNonRoot 与非 0 runAsUser', '07-cks/03-microservice-vulnerabilities.md#常见坑'],
+      ['NetworkPolicy 似乎完全无效；改 automount 后 Pod 里还有 token', 'CNI 未就绪/不支持或 podSelector 不匹配；旧 Pod 滚动重启，删 Pod 级显式 true', '07-cks/03-microservice-vulnerabilities.md#常见坑'],
+      ['CI 里 trivy --exit-code 1 全线打红；离线环境扫描卡住', '--ignore-unfixed 加 .trivyignore；预热度缓存或 --skip-db-update 配离线库', '07-cks/04-supply-chain-security.md#常见坑'],
+      ['配了 admission webhook 后全集群建不了 Pod，甚至 apiserver 起不来', 'fail-closed 后端不可达——先 patch failurePolicy: Ignore 降级再排障，事后回滚', '07-cks/04-supply-chain-security.md#常见坑'],
+      ['distroless Pod CrashLoop 无从排查（exec 报无 sh）', 'kubectl debug 临时容器注入排障现场', '07-cks/04-supply-chain-security.md#常见坑'],
+      ['audit.log 一直是空文件；审计日志量爆炸打满磁盘', 'policy 文件 flag + volumeMount 缺一不可；watch 用 None、Secret 记 Metadata 三限位', '07-cks/05-monitoring-auditing-runtime.md#常见坑'],
+      ['Falco 装完服务 failed；自定义规则不生效；k8s.pod.name 字段为空', '驱动不可用改 modern_eBPF；falco --validate 校验；只读挂 containerd.sock', '07-cks/05-monitoring-auditing-runtime.md#常见坑'],
+      ['readOnlyRootFilesystem 后应用崩', '应用要写 /tmp、/var/log，emptyDir 挂必写路径，别回退只读', '07-cks/05-monitoring-auditing-runtime.md#常见坑'],
+      ['开启 Secret 加密后 apiserver CrashLoop；轮换后部分 Secret 解不开', '缩进/非 base64/key 非 32 字节；旧 key 删早了只能 etcd 快照恢复，按重写→验前缀→再删流程', '07-cks/06-secret-encryption.md#常见坑'],
+      ['开启加密后老 Secret 在 etcd 里仍明文', '加密只对新写入生效，全量重写（get -o json | replace），按 ns 分批', '07-cks/06-secret-encryption.md#常见坑'],
+      ['--cap-drop ALL 后 nginx 起不来；非 root 写 volume 报拒绝', '监听 80 需 NET_BIND_SERVICE（或改 8080）；卷初拷属主是 root，chown 后降权', '03-docker/06-security-best-practices.md#常见坑'],
+      ['seccomp/AppArmor/gVisor/Kata Pod 起不来（profile not found / cannot load / runsc 未注册）', 'profile 路径与节点放置；annotation 容器名精确匹配；RuntimeClass 键名与 handler 一致', '07-cks/02-system-hardening.md#常见坑']
+    ] }
+  ];
+
+  function scnRefHtml(ref) {
+    var parts = String(ref || '').split('；'), out = [];
+    for (var a = 0; a < parts.length; a++) {
+      var s = parts[a].trim();
+      if (!s) { continue; }
+      var m = s.match(/^([\w./-]+\.md)([#（(].*)?$/);
+      if (m) {
+        var path = m[1];
+        if (path.indexOf('scripts/') === 0) {
+          out.push('<a href="../' + path + '" target="_blank" rel="noopener">' + esc(s) + '</a>');
+        } else {
+          out.push('<button class="scn-link" data-nav="#/read/' + path + '">' + esc(s) + '</button>');
+        }
+      } else {
+        out.push(esc(s));
+      }
+    }
+    return out.join('；');
+  }
+  function scnCatBody(cat) {
+    var h = '';
+    for (var a = 0; a < cat.items.length; a++) {
+      var it = cat.items[a];
+      h += '<div class="scn-item">';
+      h += '<div class="scn-phe">' + (it[3] ? '<span class="scn-badge">靶场</span>' : '') + inlineMd(it[0]) + '</div>';
+      h += '<div class="scn-meta"><b>先查</b>：' + inlineMd(it[1]) + '</div>';
+      h += '<div class="scn-meta"><b>详见</b>：' + scnRefHtml(it[2]) + '</div>';
+      h += '</div>';
+    }
+    return h;
+  }
+  function scnFill(dl) {
+    var body = dl ? dl.querySelector('.scn-body') : null;
+    if (body && !body.innerHTML) {
+      var idx = parseInt(body.getAttribute('data-cat'), 10);
+      if (SCN_CATS[idx]) { body.innerHTML = scnCatBody(SCN_CATS[idx]); }
+    }
+  }
+  function renderScenarios() {
+    var total = 0, drills = 0;
+    for (var a = 0; a < SCN_CATS.length; a++) {
+      for (var b = 0; b < SCN_CATS[a].items.length; b++) {
+        total++;
+        if (SCN_CATS[a].items[b][3]) { drills++; }
+      }
+    }
+    var h = '<h1 class="pg">场景速查</h1>';
+    h += '<div class="sub">按故障现象组织的排障索引：出事时从「现象」进门，先执行「先查」的命令再决定下一步，「详见」直达对应章节。共 ' + total + ' 条 · 其中 ' + drills + ' 条标 <span class="scn-badge">靶场</span>（对应 scripts/faults 故障注入脚本，可配合做限时演练）。与 ROADMAP（按学习顺序）互补：ROADMAP 回答「接下来学什么」，本页回答「现在挂了去哪查」。</div>';
+    h += '<div class="scn-src">数据来源：learning-hub 根目录 <code>SCENARIOS.md</code> · <a href="../SCENARIOS.md" target="_blank" rel="noopener">原文</a> · <button class="mini" data-nav="#/read/SCENARIOS.md">阅读器打开</button></div>';
+    h += '<div class="scn-ops"><button class="mini" data-scn="expand">展开全部</button><button class="mini" data-scn="collapse">收起全部</button><span>分类默认收起，点开才渲染条目，121 条也不拖慢页面</span></div>';
+    for (var c = 0; c < SCN_CATS.length; c++) {
+      var cat = SCN_CATS[c];
+      var dn = 0;
+      for (var d = 0; d < cat.items.length; d++) { if (cat.items[d][3]) { dn++; } }
+      h += '<details class="scn-cat"' + (c === 0 ? ' open' : '') + '><summary>';
+      h += '<span class="scn-t">' + esc(cat.t) + '</span><span class="scn-sub">' + esc(cat.sub) + '</span>';
+      h += '<span class="scn-count">' + cat.items.length + ' 条' + (dn ? ' · 靶场 ' + dn : '') + '</span></summary>';
+      h += '<div class="scn-body" data-cat="' + c + '"></div></details>';
+    }
+    document.getElementById('page').innerHTML = h;
+    var dls = document.querySelectorAll('.scn-cat');
+    for (var e = 0; e < dls.length; e++) {
+      (function (dl) {
+        dl.addEventListener('toggle', function () { if (dl.open) { scnFill(dl); } });
+        if (dl.open) { scnFill(dl); }
+      })(dls[e]);
+    }
+  }
+
+  /* ================= 事件与初始化 ================= */
+  function closestAttr(t, name) {
+    while (t && t !== document) {
+      if (t.getAttribute && t.getAttribute(name) !== null) { return t; }
+      t = t.parentNode;
+    }
+    return null;
+  }
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    if (!t || !t.parentNode) { return; }
+
+    var nav = closestAttr(t, 'data-nav');
+    if (nav) {
+      var href = nav.getAttribute('data-nav');
+      if (href && href.indexOf('#/') === 0) {
+        location.hash = href;
+        ev.preventDefault();
+      }
+      return;
+    }
+
+    var rst = closestAttr(t, 'data-reset');
+    if (rst) {
+      var rm = modById(rst.getAttribute('data-reset'));
+      if (rm && window.confirm('确定清空「' + rm.nav + '」模块的全部勾选记录？')) {
+        var p = loadProg();
+        var ids = modItems(rm);
+        for (var a = 0; a < ids.length; a++) { delete p[ids[a]]; }
+        saveProg(p);
+        route();
+      }
+      return;
+    }
+
+    var qs = closestAttr(t, 'data-quiz-start');
+    if (qs) {
+      quizState.bank = qs.getAttribute('data-quiz-start');
+      quizState.idx = 0; quizState.answers = []; quizState.finished = false;
+      renderQuiz();
+      return;
+    }
+
+    var qo = closestAttr(t, 'data-quiz-opt');
+    if (qo) {
+      var qd0 = window.QUIZ_DATA;
+      var arr = (qd0 && typeof qd0 === 'object') ? qd0[quizState.bank] : null;
+      if (Array.isArray(arr) && quizState.idx < arr.length) {
+        quizState.answers[quizState.idx] = parseInt(qo.getAttribute('data-quiz-opt'), 10);
+        quizState.idx++;
+        if (quizState.idx >= arr.length) { quizState.finished = true; }
+      }
+      renderQuiz();
+      return;
+    }
+
+    var qr = closestAttr(t, 'data-quiz-redo');
+    if (qr) {
+      quizState.idx = 0; quizState.answers = []; quizState.finished = false;
+      renderQuiz();
+      return;
+    }
+
+    var qb = closestAttr(t, 'data-quiz-back');
+    if (qb) {
+      quizState.bank = null; quizState.idx = 0; quizState.answers = []; quizState.finished = false;
+      renderQuiz();
+      return;
+    }
+
+    var tt = closestAttr(t, 'data-timer');
+    if (tt) {
+      var act = tt.getAttribute('data-timer');
+      if (act === 'start') { startTimer(); }
+      else if (act === 'pause') { pauseTimer(); }
+      else if (act === 'reset') { resetTimer(); }
+      else if (act === 'preset') { resetTimer(parseInt(tt.getAttribute('data-min'), 10) * 60); }
+      return;
+    }
+
+    var se = closestAttr(t, 'data-scn');
+    if (se) {
+      var act2 = se.getAttribute('data-scn');
+      var cats = document.querySelectorAll('.scn-cat');
+      for (var s2 = 0; s2 < cats.length; s2++) {
+        if (act2 === 'expand') { cats[s2].open = true; scnFill(cats[s2]); }
+        else { cats[s2].open = false; }
+      }
+      return;
+    }
+
+    var ec = closestAttr(t, 'data-exam-clear');
+    if (ec) {
+      if (window.confirm('确定清空 17 题的勾选记录？')) {
+        saveExamSim([]);
+        renderTimer();
+      }
+    }
+  });
+
+  document.addEventListener('change', function (ev) {
+    var t = ev.target;
+    if (!t || !t.getAttribute) { return; }
+
+    if (t.getAttribute('data-prog') !== null) {
+      var id = t.getAttribute('data-prog');
+      var p = loadProg();
+      if (t.checked) { p[id] = 1; } else { delete p[id]; }
+      saveProg(p);
+      var row = t.parentNode;
+      while (row && row !== document && (!row.className || String(row.className).indexOf('item-row') < 0)) { row = row.parentNode; }
+      if (row && row.classList) { row.classList.toggle('done', t.checked); }
+      refreshBars();
+      return;
+    }
+
+    if (t.getAttribute('data-examq') !== null) {
+      var qi = parseInt(t.getAttribute('data-examq'), 10);
+      var sim = loadExamSim();
+      sim[qi] = t.checked ? 1 : 0;
+      saveExamSim(sim);
+      updateExamCount();
+      var lab = t.parentNode;
+      if (lab && lab.classList) { lab.classList.toggle('done', t.checked); }
+    }
+  });
+
+  window.addEventListener('hashchange', route);
+
+  buildSidebar();
+  if (!location.hash) { location.hash = '#/overview'; }
+  route();
+  refreshBars();
+})();
+</script>
+</body>
+</html>

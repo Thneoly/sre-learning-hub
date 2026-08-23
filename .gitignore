@@ -1,0 +1,20 @@
+# ===== 版权与内部资料（不入库）=====
+# 题库手册来自付费资料，请自行放置到该路径
+05-cka/question-bank-manual-v1.35.md
+# 付费教材 PDF 的衍生文本
+_meta/ref-pdfs/
+# 内部实测简报（含环境凭据）
+_meta/labtest-brief.md
+
+# ===== 生成产物 =====
+portal/content.js
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+node_modules/
+
+# ===== 运行残留 =====
+scripts/setup/backup-*/
+**/backup-*/
+*.log
+.DS_Store
+Thumbs.db
