@@ -58,6 +58,8 @@
 - **containerd**：容器生命周期管理、镜像分发、snapshotter（把镜像层组织成 overlay2）。自带 CRI 插件，是 Kubernetes 的标准运行时。
 - **dockerd**：面向开发者的产品层——REST API、`docker build`（BuildKit）、volume、CNM 网络模型、认证。它自己不创建容器进程，只是 containerd 的客户端。
 
+> **架构推论（嵌套视角）**：CLI 与 daemon 的分离正是"容器里跑 docker"两种形态的根源——socket 复用 = 客户端进容器、daemon 留宿主（产物是兄弟容器）；DinD = 容器里再造一个 daemon（需要 privileged）。原理辨析见 01 章 §2.8，CI 构建场景的选型见 02 章 §4.4。
+
 在 Docker VM 上亲眼看到这条链：
 
 ```bash

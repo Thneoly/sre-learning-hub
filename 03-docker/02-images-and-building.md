@@ -224,35 +224,26 @@ entrypoint 脚本结尾必然是 `exec "$@"`：先做初始化（模板渲染、
 2. **镜像里装 tini/dumb-init**：`ENTRYPOINT ["/sbin/tini","--","java","-jar","app.jar"]`。tini（30KB 静态 C 程序）转发信号给直接子进程 + 收割僵尸 + 透传退出码；dumb-init（Yelp）默认把信号广播给整个进程组，适合 app 自己不做信号分发的场景（`--single-child` 可切回 tini 行为）。**K8s 没有原生 init 开关，把 tini 打进镜像是标准做法**（`shareProcessNamespace: true` 让 pause 当 PID 1 也能收割，但 delete pod 的信号语义会变，慎用）
 3. **最常见的真凶其实不需要 tini**：shell 形式 ENTRYPOINT 让 `/bin/sh` 当了 1 号。排障口诀——容器里 `ps -f 1` 看一眼，1 号是 sh 就改 exec 形式；app 确实 fork 短命子进程（zombie 风险）再上 tini
 
-### 4.4 Docker 里跑 Docker：真嵌套与假嵌套
+### 4.4 构建场景的 Docker 嵌套：dind 与 socket
 
-**DinD（Docker-in-Docker，真嵌套）**——容器里跑完整内层 dockerd（自己的 containerd/镜像库/再造容器）：
+真嵌套/假嵌套的原理辨析（privileged 的递归本质、"兄弟容器"认知、socket 的架构根源）见 01 章 §2.8。本节只回答：**CI 里要 build 镜像，选哪条路、踩哪些坑**。
 
-```
-┌ 宿主机 ─────────────────────────┐
-│ ┌ 外层容器（--privileged）───┐ │
-│ │ dockerd（内层）            │ │
-│ │  ├─ nginx（孙容器）        │ │
-│ │  └─ redis（孙容器）        │ │
-│ └───────────────────────────┘ │
-└────────────────────────────────┘
-```
+| 方案 | 做法 | 适合 | 实测坑 |
+|---|---|---|---|
+| **dind sidecar** | GitLab CI `services: [docker:27-dind]`，job 里 docker CLI 连 `tcp://docker:2375` | 需要隔离的构建环境 | 内层 daemon 需 privileged；镜像缓存独立（每次冷拉） |
+| **socket 挂载** | 挂 `/var/run/docker.sock` + `DOCKER_HOST=unix:///var/run/docker.sock` | 简单优先、复用宿主缓存 | `docker:27-cli` 默认 context 指向 `tcp://docker:2375`（为 dind 预设），必须显式覆盖（本仓 gitlab-ci lab 实测踩过）；`-v ./code:/src` 路径按**宿主机**解析 |
+| **kaniko/buildkit** | 无守护进程，直接拼镜像推 registry | K8s 原生 CI、安全优先 | 无 docker 命令语义，学一套新参数 |
 
-必须 `--privileged`：造容器要动 namespace/cgroup/mount，普通容器被裁掉的权限内层 dockerd 全都要（"在 VR 眼镜里再造 VR 眼镜，先得拿管理员权限"）。典型用户：GitLab CI 的 `docker:27-dind` service、**kind**（Kubernetes-in-Docker，容器套整套 K8s）。隔离好，但镜像缓存独立、体积大。
+典型形态（本仓 lab 的实测配置）：
 
-**socket 复用（DooD，假嵌套）**——容器里只有 docker 客户端，挂宿主机 `/var/run/docker.sock`，命令发宿主机 dockerd：
-
-```
-宿主机 dockerd ←─ socket ─┐
- ├─ 容器 A（你的"外层"容器）│
- └─ 容器 B（A 里 run 出来的）← A 的兄弟，不是孩子！
+```yaml
+# [文件 .gitlab-ci.yml 片段] socket 方案的关键三行
+variables:
+  DOCKER_HOST: unix:///var/run/docker.sock     # 覆盖镜像预设的 tcp://docker:2375
+# 运行时：--volume /var/run/docker.sock:/var/run/docker.sock
 ```
 
-关键认知：**不是嵌套，是兄弟**。由此三个经典 CI 坑：`docker ps` 看到的是宿主机容器；`-v ./code:/src` 的路径按**宿主机**文件系统解析；好处是镜像缓存与宿主机共享、零开销。gitlab-ci lab 实测踩过的坑同源：`docker:27-cli` 默认 context 指向不存在的 `tcp://docker:2375`（为 dind 预设），挂 socket 必须显式 `DOCKER_HOST=unix:///var/run/docker.sock`。
-
-第三条路：**kaniko/buildkit** 无守护进程构建，进程直接拼镜像推仓库——K8s 原生 CI 主流。选型：CI 简单优先挂 socket；K8s 原生/安全优先 kaniko；要隔离的一次性环境用真 DinD。
-
-**安全警告（CKS 级）**：`docker.sock` ≈ 宿主机 root——拿到 socket 就能 `docker run -v /:/host --privileged` 改宿主机任意文件。绝不可挂给不可信容器；需要时考虑 rootless docker / podman socket 降权。
+选型口诀：**CI 简单优先挂 socket；K8s 原生/安全优先 kaniko；要隔离的一次性环境用真 DinD**（kind 起整套试验 K8s 也是 DinD 思想）。安全红线再强调：`docker.sock` ≈ 宿主机 root，不可挂给不可信任务。
 
 ## 5. Registry 协议与 tag/digest
 

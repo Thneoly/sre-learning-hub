@@ -101,6 +101,38 @@ PID 4833  nginx worker   ⇔   PID 8   nginx worker
 - `kill -9 <宿主PID>`：从宿主机强杀容器进程，对容器内 PID 1 同样有效（SIGKILL 从父 namespace 打下来是内核强制的例外；SIGTERM 若无 handler 则无效——PID 1 的内核特判）
 - 反面推论：共享内核 ⇒ 内核漏洞（Dirty Pipe 类）一次打穿宿主机上**所有**容器——"隔离是内核策略级"这句话的由来，也是 CKS 整个模块的存在理由
 
+### 2.8 嵌套的容器：容器里再造容器
+
+容器里的 app 想自己 `docker run`/`docker build`（典型：CI 构建器），行不行？行，且有真假两条路——辨析它们是对本章概念的总检验：
+
+**真嵌套（DinD）**——容器里跑一个完整的内层 dockerd，它有自己的 containerd、镜像库，再造出"孙容器"：
+
+```
+┌ 宿主机 ─────────────────────────┐
+│ ┌ 外层容器（--privileged）───┐ │
+│ │ dockerd（内层守护进程）     │ │
+│ │  ├─ nginx（孙容器）        │ │
+│ │  └─ redis（孙容器）        │ │
+│ └───────────────────────────┘ │
+└────────────────────────────────┘
+```
+
+为什么必须 `--privileged`：创建容器要动 namespace/cgroup/mount，而外层容器恰恰被裁掉了这些权限——**想在被隔离的世界里再造隔离，得先拿回管理员权限**（VR 眼镜里再造 VR 眼镜的递归）。这是 §2 全部知识的直接推论。
+
+**假嵌套（socket 复用 / DooD）**——容器里只放 docker 客户端，把宿主机的 `/var/run/docker.sock` 挂进去，命令实际发给了**宿主机的 dockerd**：
+
+```
+宿主机 dockerd ←─ socket ─┐
+ ├─ 容器 A（你的"外层"容器）│
+ └─ 容器 B（A 里 run 出来的）← A 的兄弟，不是孩子
+```
+
+关键认知：**不是嵌套，是兄弟**——B 直接生在宿主机上。这个形态成立的根源是 docker 的客户端/服务端架构（CLI 只是个会发 REST 请求的普通程序，见 07 章 §1）。推论：`docker ps` 看到的是宿主机容器、volume 路径按宿主机文件系统解析、镜像缓存与宿主机共享。
+
+**安全红线**：`docker.sock` ≈ 宿主机 root（`docker run -v /:/host --privileged` 即可接管宿主），绝不可挂给不可信容器。
+
+构建场景怎么选（dind sidecar / kanako / CI 实战坑）见 02 章 §4.4。
+
 ### 2.7 动手：用 lsns / nsenter / unshare 亲手摸 namespace
 
 ```bash
