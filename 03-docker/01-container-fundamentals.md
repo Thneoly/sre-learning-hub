@@ -50,6 +50,12 @@
 | USER | `CLONE_NEWUSER` | UID/GID 映射 | 容器内 root ≡ 宿主机普通用户 |
 | CGROUP（第七个） | `CLONE_NEWCGROUP` | cgroup 根路径视图 | 容器内 /proc/self/cgroup 看到的是相对路径 |
 
+> **为什么恰好是这六种？** 推导一遍胜过死记：进程要"相信自己独占一台机器"，得骗过它的全部感官——**我是谁**（UTS 主机名、USER 身份、PID 进程号）、**我有什么**（MNT 文件系统、NET 网络栈）、**我能和谁通信**（IPC）。六个维度恰好穷尽一个进程对"环境"的全部感知。
+>
+> 内核实际有 **8 种** namespace，另两个为何不入列：**cgroup ns**（4.6）只改 `/proc/self/cgroup` 的显示视图，**不做任何资源限制**——真正限资源的是 cgroups 本身（容器配方的另一半，与 namespace 是并列关系）；**time ns**（5.6）只能隔离单调时钟，改不了墙上时间（分布式系统要求钟面全局一致），runc 默认不用。这 6 个在 2013 年 Docker 诞生时刚好全部可用（user ns 于 3.8 成熟）——"六大"是容器起点的完整配方。
+>
+> **方向修正（易误解点）**：namespace 不是把进程"伪装给外界看"——宿主机 `ps` 里它们就是普通进程，毫无遮掩。它改变的是进程**向内看**的视野（`getpid`/`hostname`/`ip addr`/`ls /` 的答案被裁剪）。推论：**namespace 限制"看见什么" ≠ 权限边界**，容器逃逸攻的就是这个差别（CKS 核心话题）。
+
 ### 2.1 UTS：最简单的一个
 
 隔离的只有 hostname 这两个字符串（实现在 `kernel/utsname.c`，结构体里就是 nodename 和 domainname）。`docker run --hostname web1` 就是在创建时设置新 UTS namespace 的 nodename。
@@ -73,6 +79,27 @@ PID namespace 是**树形嵌套**的：子 namespace 里的进程在父 namespac
 ### 2.6 USER：容器内 root ≠ 宿主机 root
 
 USER namespace 建立 UID 映射：容器内的 UID 0 映射到宿主机的某个非特权 UID（如 100000，run as `--userns-remap=default` 时 Docker 自动生成映射区间）。效果：容器内进程名义上 root，能 chown/chroot，但发出的 syscall 到达内核时用的是宿主机 UID 100000 的权限——拿不到真实特权。代价是某些操作（挂载某些文件系统、`mknod`）在映射后不可用。没有 USER namespace 时，容器内 root 与宿主机 root 是同一个 UID 0，只是被 capability 裁剪了权限——CKS 中 `securityContext.runAsNonRoot` 就是防这个。
+
+### 2.7 宿主机视角：一个进程，两套 PID
+
+每个容器进程在内核里是同一个 `task_struct`，但记着两个编号：**全局 PID**（宿主机视角）+ 所在 pid namespace 的**局部 PID**。`getpid()` 返回哪个，取决于调用者自己站在哪个 namespace 里：
+
+```
+宿主机 ps -ef:                 容器内 ps:
+PID 4821  nginx master   ⇔   PID 1   nginx master
+PID 4832  nginx worker   ⇔   PID 7   nginx worker
+PID 4833  nginx worker   ⇔   PID 8   nginx worker
+        同一批进程，两套编号系统
+```
+
+共享与隔离的精确边界：内核/调度器/系统调用通道**完全共享**（容器进程与宿主机进程在同一张 CFS 桌子上抢 CPU）；隔离的只是"各看各的视野"（PID 树/网卡/挂载点/主机名）；cgroups 再发"粮票"限制用量。
+
+运维价值——**宿主机是终极逃生口**：
+
+- `docker top <容器>`：两套编号的映射表。容器内只看到 PID 7，宿主机用映射后的号直接 `strace -p`、`cat /proc/<宿主PID>/status`
+- `nsenter -t <宿主PID> -n/-m/-p -- bash`：不经过 docker exec/kubectl 直接钻进容器排障——exec 通道全挂时的最后手段
+- `kill -9 <宿主PID>`：从宿主机强杀容器进程，对容器内 PID 1 同样有效（SIGKILL 从父 namespace 打下来是内核强制的例外；SIGTERM 若无 handler 则无效——PID 1 的内核特判）
+- 反面推论：共享内核 ⇒ 内核漏洞（Dirty Pipe 类）一次打穿宿主机上**所有**容器——"隔离是内核策略级"这句话的由来，也是 CKS 整个模块的存在理由
 
 ### 2.7 动手：用 lsns / nsenter / unshare 亲手摸 namespace
 

@@ -182,6 +182,78 @@ CKS 视角：镜像越小，攻击面越小（没有 shell、没有包管理器�
 | `ENTRYPOINT ["a"]` + `CMD ["b"]` | `a b`；传 arg 则 `a arg`（CMD 作为默认参数） | 最常用模式 |
 | shell 形式 `ENTRYPOINT a b` | `/bin/sh -c "a b"`，**收不到信号** | 避免，PID 1 问题见第 1 章 |
 
+心智模型一句话：**ENTRYPOINT 是句子的"动词"（容器存在的目的，固定），CMD 是"默认宾语"（可整体替换）**。`docker run img <args>` 只干一件事：顶掉 CMD、保留 ENTRYPOINT。
+
+**三套覆盖手段与 K8s 映射**（高频面试题）：
+
+| 手段 | 覆盖谁 | 例子 |
+|---|---|---|
+| `docker run img <args>` | CMD | `docker run img -t`（默认参数让位） |
+| `docker run --entrypoint <cmd> img` | ENTRYPOINT | `docker run --entrypoint sh img`（瞬变调试容器） |
+| K8s Pod 字段 | **`command` ↔ ENTRYPOINT，`args` ↔ CMD** | `command: ["nginx"]` + `args: ["-t"]` |
+
+K8s 命名反直觉（它的 `command` 对应 Docker 的 ENTRYPOINT 而非 CMD），记"command=动词，args=宾语"。大坑：**Pod 里只写 `args` 不写 `command`，镜像 ENTRYPOINT 保留、CMD 被换**——很多人以为行为会全变，其实入口没动。
+
+**exec 形式 vs shell 形式深挖**（接第 1 章 PID 1 一课）：
+
+| 写法 | 实际执行 | PID 1 是谁 | 信号到 app？ |
+|---|---|---|---|
+| `["nginx","-g","daemon off;"]` | 直接 exec | **nginx** | ✅ |
+| `nginx -g "daemon off;"` | `/bin/sh -c '...'` | **/bin/sh** | ❌（SIGTERM 被 sh 吞掉，10 秒后 SIGKILL 强杀） |
+
+shell 形式唯一诱人处是变量展开，正确写法是显式包一层并 `exec`：
+
+```dockerfile
+# [文件 Dockerfile]
+ENTRYPOINT ["sh", "-c", "exec java -jar app.jar --port=${PORT:-8080}"]
+#                              ↑↑↑↑ exec 让 java 顶替 sh 成为 PID 1
+```
+
+**官方 nginx 的三层设计**（ENTRYPOINT + CMD 配合的教科书）：
+
+```dockerfile
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+entrypoint 脚本结尾必然是 `exec "$@"`：先做初始化（模板渲染、环境变量注入），再把自己替换成 CMD 的内容——初始化必跑 + PID 1 正确移交 + 默认参数可覆盖，三件事各归其位。
+
+**PID 1 的两个"不配做"与三种补救**：容器入口进程当了 PID 1，但内核给它特权待遇——**未注册 handler 的信号（含默认致命信号）对它一律无效**，且它该负责收割僵尸、转发信号，业务 app 通常不会做。补救：
+
+1. **`init: true` / `docker run --init`**：Docker 1.13+ 内置 tini（`/usr/bin/docker-init`）自动垫成 PID 1，镜像零改动（compose 里就写 `init: true`）
+2. **镜像里装 tini/dumb-init**：`ENTRYPOINT ["/sbin/tini","--","java","-jar","app.jar"]`。tini（30KB 静态 C 程序）转发信号给直接子进程 + 收割僵尸 + 透传退出码；dumb-init（Yelp）默认把信号广播给整个进程组，适合 app 自己不做信号分发的场景（`--single-child` 可切回 tini 行为）。**K8s 没有原生 init 开关，把 tini 打进镜像是标准做法**（`shareProcessNamespace: true` 让 pause 当 PID 1 也能收割，但 delete pod 的信号语义会变，慎用）
+3. **最常见的真凶其实不需要 tini**：shell 形式 ENTRYPOINT 让 `/bin/sh` 当了 1 号。排障口诀——容器里 `ps -f 1` 看一眼，1 号是 sh 就改 exec 形式；app 确实 fork 短命子进程（zombie 风险）再上 tini
+
+### 4.4 Docker 里跑 Docker：真嵌套与假嵌套
+
+**DinD（Docker-in-Docker，真嵌套）**——容器里跑完整内层 dockerd（自己的 containerd/镜像库/再造容器）：
+
+```
+┌ 宿主机 ─────────────────────────┐
+│ ┌ 外层容器（--privileged）───┐ │
+│ │ dockerd（内层）            │ │
+│ │  ├─ nginx（孙容器）        │ │
+│ │  └─ redis（孙容器）        │ │
+│ └───────────────────────────┘ │
+└────────────────────────────────┘
+```
+
+必须 `--privileged`：造容器要动 namespace/cgroup/mount，普通容器被裁掉的权限内层 dockerd 全都要（"在 VR 眼镜里再造 VR 眼镜，先得拿管理员权限"）。典型用户：GitLab CI 的 `docker:27-dind` service、**kind**（Kubernetes-in-Docker，容器套整套 K8s）。隔离好，但镜像缓存独立、体积大。
+
+**socket 复用（DooD，假嵌套）**——容器里只有 docker 客户端，挂宿主机 `/var/run/docker.sock`，命令发宿主机 dockerd：
+
+```
+宿主机 dockerd ←─ socket ─┐
+ ├─ 容器 A（你的"外层"容器）│
+ └─ 容器 B（A 里 run 出来的）← A 的兄弟，不是孩子！
+```
+
+关键认知：**不是嵌套，是兄弟**。由此三个经典 CI 坑：`docker ps` 看到的是宿主机容器；`-v ./code:/src` 的路径按**宿主机**文件系统解析；好处是镜像缓存与宿主机共享、零开销。gitlab-ci lab 实测踩过的坑同源：`docker:27-cli` 默认 context 指向不存在的 `tcp://docker:2375`（为 dind 预设），挂 socket 必须显式 `DOCKER_HOST=unix:///var/run/docker.sock`。
+
+第三条路：**kaniko/buildkit** 无守护进程构建，进程直接拼镜像推仓库——K8s 原生 CI 主流。选型：CI 简单优先挂 socket；K8s 原生/安全优先 kaniko；要隔离的一次性环境用真 DinD。
+
+**安全警告（CKS 级）**：`docker.sock` ≈ 宿主机 root——拿到 socket 就能 `docker run -v /:/host --privileged` 改宿主机任意文件。绝不可挂给不可信容器；需要时考虑 rootless docker / podman socket 降权。
+
 ## 5. Registry 协议与 tag/digest
 
 ### 5.1 push/pull 时发生了什么（OCI Distribution Spec）
