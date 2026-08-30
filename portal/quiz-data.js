@@ -2,14 +2,15 @@
 // 结构：window.QUIZ_DATA = { pca: [...], cka: [...], cks: [...], basics: [...],
 //   linux: [...], programming: [...], cicd: [...], otel: [...], logging: [...],
 //   middleware: [...], datastream: [...], sre: [...], cloud: [...], aiops: [...],
-//   bigdata: [...] }
+//   bigdata: [...], distributed: [...] }
 // 每题对象：q(题干) / options(四选项) / answer(正确索引 0-3) / explain(解析)
 // PCA 对齐五域权重：可观测概念 4 题、Prometheus 基础 8 题、PromQL 13 题、
 // 插桩与 Exporter 6 题、架构与运维 9 题；CKA/CKS 按官方大纲五域分布。
 // 其余模块按各自章节主线命题：basics 20 题（Docker 10 + K8s 10）、linux 15 题、
 // programming 12 题、cicd 20 题、otel 12 题、logging 11 题、middleware 10 题、datastream 10 题、
-// sre 10 题、cloud 10 题、aiops 10 题、bigdata 15 题（HDFS 4 / YARN 3 / Hive 2 /
-// Spark 3 / Doris 2 / ZooKeeper 1）。
+// sre 10 题、cloud 10 题、aiops 10 题、bigdata 20 题（HDFS 4 / YARN 3 / Hive 2 /
+// Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓表格式 5）、distributed 15 题（CAP 与一致性 3 /
+// 共识与 Raft 4 / 分布式事务与幂等 3 / 分片再平衡 2 / Gossip 故障检测与脑裂防护 3）。
 
 window.QUIZ_DATA = {
 
@@ -2849,9 +2850,253 @@ window.QUIZ_DATA = {
       ],
       "answer": 2,
       "explain": "临时 + 顺序节点是锁与选主的基石：临时节点把持有权与会话绑定（进程崩溃/断连即自动删除，无需人工清理），顺序节点由 ZK 保证分布式单调递增。等待链上“各 watch 自己的前驱”把唤醒做成链式，避免羊群效应。另注意 watch 是一次性的：触发即失效，收到事件后必须“重注册 + 全量读一次”处理丢失窗口；会话过期后所有 watch 与临时节点全部作废——这是大量“监听莫名失效”问题的根因。"
+    },
+
+    // --- 湖仓表格式（5 题，07 章）---
+
+    {
+      "q": "直接把 Parquet 文件堆在对象存储上当表用（不加表格式层），会撞上的四个问题是什么？",
+      "options": [
+        "读放大、写放大、小文件、compaction 积压",
+        "无事务（并发写读者可能看到写了一半的文件集合）、不能 upsert（没有原地修改，改一行只能整文件重写）、无 schema 保护（上游改列下游读到一半才炸）、改数据只能整文件重写或整目录覆盖（对象存储连原子 rename 都没有）",
+        "没有 SQL 接口、不支持分区、不支持索引、不支持压缩",
+        "延迟高、成本高、一致性弱、运维复杂"
+      ],
+      "answer": 1,
+      "explain": "存储本身只给了你“一堆不可变文件 + 目录前缀”。表格式（table format）把这层语义标准化、引擎无关化：ACID 事务、snapshot 隔离、schema 演进、增量读取、time travel、不可变小文件元数据。对 SRE 的关键认知：这一层没有常驻进程——状态全部落在存储上的元数据文件与 catalog 里，运维对象是文件（元数据膨胀）+ 作业（compaction 类后台任务）+ catalog（提交与寻址的原子性）。"
+    },
+    {
+      "q": "Iceberg 一次 snapshot 提交的原子性来自哪里？对应的元数据树自上而下是哪四层？",
+      "options": [
+        "catalog 原子交换指针（HMS 表级锁 / REST catalog 服务端 CAS）指向新版本的 metadata.json；树为 metadata.json → manifest list → manifest → 数据文件",
+        "对象存储的多对象事务，保证 metadata.json 与数据文件一起原子生效；树为 manifest → manifest list → metadata.json → 数据文件",
+        "数据文件的原子 rename；树为数据文件 → manifest → manifest list → metadata.json",
+        "Flink checkpoint 的两阶段提交；树为 snapshot → manifest → data file → schema"
+      ],
+      "answer": 0,
+      "explain": "对象存储只保证单个对象的原子 PUT，没有“原子交换指针/条件更新”原语（S3 连 rename 都没有），而一次提交的本质是把表的 current 指针从 metadata.json vN 换到 vN+1——这跳必须由 catalog 仲裁。查询计划沿树剪枝：metadata.json 按 current-snapshot-id 取当前快照 → manifest list 的分区范围摘要跳过无关 manifest → manifest 的列统计（min/max）跳过无关文件 → 只扫命中文件。catalog 挂 = 写全部阻塞（湖链路里等级等同 NameNode 的单点），读看引擎元数据缓存能撑多久。运维四连：expire_snapshots 释放被历史快照钉住的空间、rewrite_data_files 治小文件、rewrite_manifests 治清单碎片、remove_orphan_files 清孤儿。"
+    },
+    {
+      "q": "同一张订单表从 Hudi 的 COW 换成 MOR，写放大与读放大各怎么变？什么时候值得做这个切换？",
+      "options": [
+        "写放大上升（每次更新重写整个 base file），读放大下降（只读列存 base）——适合 CDC 高频 upsert 场景",
+        "写放大与读放大都下降，只是数据新鲜度变差",
+        "写放大不变，读放大上升，查询延迟更稳定",
+        "写放大下降（更新从“重写受影响文件组的整个 base file”变成“追加 log 文件”），读放大上升（snapshot 查询要现场归并 base + log，且依赖 compaction 节奏）；写入 QPS 高、更新行占比大、要分钟级新鲜度时值得换，反之一天几批、读很重的宽表加工留在 COW 更值钱"
+      ],
+      "answer": 3,
+      "explain": "与 Doris Unique 模型的 MoW/MoR 同构：合并成本放写路径还是读路径。COW：读无合并、延迟低且稳定，适合读多写少、批式回刷；MOR：append-only 写入、秒级可见，但读要合并且依赖 compaction，read_optimized 查询只读 base（快但旧）。排障口诀：MOR 查询越来越慢先看 compaction 积压（timeline 上 requested 长期未执行），增量消费断流先看 cleaning 是否把保留窗口（hoodie.cleaner.commits.retained）清得太狠。"
+    },
+    {
+      "q": "关于 Paimon 主键表的结构与 changelog-producer 的取舍，哪组说法是对的？",
+      "options": [
+        "主键表按哈希分桶后只追加文件、没有合并语义；changelog 默认用 full_compaction 生成，延迟最低",
+        "主键表 bucket 内是 B+ 树；changelog-producer=input 要求上游必须是完整 CDC 流，lookup 最便宜",
+        "主键表 bucket 内是一棵 LSM 树（写缓冲 → flush 成 L0 SST → 后台 compaction 逐层合并、同 key 去重，每次 checkpoint 提交一个 snapshot）；changelog 三种方式 input/lookup/full_compaction 逐级用延迟或吞吐换正确性——能 input 不 lookup、能 lookup 不 full_compaction，上游只有 insert 流时选 none",
+        "主键表的 snapshot 过期必须靠外部定时作业跑 procedure；changelog 文件由 Spark 批任务离线生成"
+      ],
+      "answer": 2,
+      "explain": "Paimon 主键表一个 bucket = 一棵 LSM（与 RocksDB/ClickHouse MergeTree 同族），读路径是各层 SST 归并读；每次 checkpoint 提交一个 snapshot，snapshot 引用 manifest、manifest 指向 SST——与 Iceberg 的 manifest list/manifest 层同构；snapshot 过期是写路径内置的（snapshot.num-retained.max 自动裁剪），比 Iceberg 手动 procedure 省事。changelog：input 认为输入已是完整 CDC 流原样透传（最便宜，但源不是 Debezium/Flink CDC 就丢前像）；lookup 写入时回查存量数据补前像（写路径多一次查找，吞吐下降）；full_compaction 全量合并时对比新旧版本（正确性最强，延迟=合并周期）。上游只有 insert 时根本不存在更新，为不存在的更新付成本是纯浪费。"
+    },
+    {
+      "q": "Flink 写湖表（Iceberg/Paimon）的 sink 提交语义与 checkpoint 的关系，正确的是？",
+      "options": [
+        "数据文件在 checkpoint 触发时才开始写入存储，提交动作与 checkpoint 无关",
+        "checkpoint N 触发写阶段（数据文件已落存储、未被任何 snapshot 引用，对读者不可见），notifyCheckpointComplete(N) 到达后才进入提交阶段：生成新 snapshot 并经 catalog 原子交换指针（Iceberg 的 FilesCommitter / Paimon 的 snapshot-N 与 checkpoint 对应，恢复时回滚到上一个 snapshot）；三个格式的 exactly-once 全绑在 checkpoint 上，为省开销关掉它换来的是重复数据",
+        "提交由 sink 算子按固定时间间隔自动执行，checkpoint 只负责状态恢复",
+        "checkpoint 超时说明对象存储带宽不足，与湖 commit 和 catalog 无关"
+      ],
+      "answer": 1,
+      "explain": "湖表 sink 的“两阶段”与 Doris Stream Load 2PC 同构，幂等键从 label 变成“文件不可变 + 指针原子交换”：checkpoint 未完成就崩溃 → source 重放 → 重写文件 → 重新提交，重复落盘的 data file 没被任何 snapshot 引用、成为孤儿，由 remove_orphan_files（Iceberg）或 Paimon 的过期机制清掉。两个运维落点：checkpoint 超时的第一嫌疑人常常是湖 commit（对象存储慢、catalog 锁竞争），用 12 模块的反压定位法追过来；以及千万别关 checkpoint。"
+    }
+  ],
+
+  // ========== 分布式理论（15 题）==========
+
+  distributed: [
+
+    // --- CAP 与一致性模型（3 题）---
+
+    {
+      "q": "关于 CAP 定理，下面哪种说法是正确的？",
+      "options": [
+        "CAP 是三选二的选择题，单机 MySQL 就是典型的 CA 系统",
+        "分区期间保 C 的系统一定比保 A 的系统慢，无分区时也是",
+        "P 不是选项而是前提：只要数据分布在用网络连接的多台机器上分区就可能发生，取舍只发生在分区期间，且同一系统里不同操作可以有不同的取舍（etcd 写路径保 C、读可 --consistency=s 降级）",
+        "最终一致在 CAP 框架之外，与分区期间的选择无关"
+      ],
+      "answer": 2,
+      "explain": "C 是线性一致（不是 ACID 的 C，也不是“数据不丢”）；A 是非故障节点必须应答；P 是消息可达性没有保证。“CA 系统”错在两层：单机没有分区问题、谈不上在 CAP 里注册；无分区时 C/A 兼得描述的是常态而非分区时的取舍。无分区时的权衡其实是延迟 vs 一致性（PACELC 的洞见）——etcd 的串行读/线性读就是明码标价的开关，Kafka 的 acks/min.insync.replicas 是把这笔账交给业务逐主题配置。“系统 X 是 CP”这类整体标签粒度粗到只能当聊天的开场白。"
+    },
+    {
+      "q": "客户端 C1 的 PUT x=1 已应答成功，实时上后开始的 C2 的 GET x 仍返回旧值 0。对这一判例的判断哪个正确？",
+      "options": [
+        "既违反线性一致也违反顺序一致，两种模型都要求读到新值",
+        "不违反顺序一致（它只认程序序、可无视实时序，把全序排成 [C2 的 GET, C1 的 PUT] 即合法），但违反线性一致——线性一致要求操作在调用与应答之间原子生效且尊重真实时间，写已应答后任何客户端读都必须见到这次写或更晚的写",
+        "违反顺序一致但不违反线性一致，因为线性一致本来就允许读到旧值",
+        "两者都没违约，任何模型下读旧值都是正常履约"
+      ],
+      "answer": 1,
+      "explain": "阶梯是包含式的：线性一致 ⊃ 顺序一致 ⊃ 因果一致 ⊃ 最终一致，关键差异只在“实时序”。顺序一致的已学样本是 ZK 默认本地读（follower 内存可能落后，写应答后另一客户端在 follower 上读到旧值不算违约）；线性一致的样本是 etcd 默认读（ReadIndex 与多数派确认“我还是当前 leader、视图不落后”），多付的代价是每读一轮往返，可用 --consistency=s 降为串行读。"
+    },
+    {
+      "q": "Kafka 说“分区内 FIFO”。它的一致性落位与 HW 的作用，正确的是？",
+      "options": [
+        "单分区读写都走唯一 leader，给出的是顺序一致（全体认同一个全序），但不承诺跨分区/跨消费者的实时序，所以不是线性一致；HW 是可见性边界——消费者只能读 ISR 集体确认过的位置，防止读到随 leader 切换被截断而消失的消息（挡住分布式版脏读）",
+        "单分区是线性一致，因为 leader 唯一；HW 用于消费者的限流配额",
+        "单分区是最终一致，HW 决定消息的保留时长",
+        "跨分区也有全局序；HW 是副本同步进度号，与消费者无关"
+      ],
+      "answer": 0,
+      "explain": "单领导者 + 分区内 FIFO = “先让所有人同意顺序”；跨分区/跨 topic 没有全局序，要全局序只能单分区或按 key 分区（牺牲并行度）。HW 与线性一致是两件事：它补的是可见性边界。unclean.leader.election 允许落后副本上位 = 用丢数据换可用（CAP 的 A 侧），此时消费者可能读到先多后少的截断数据——这是真故障（查 ISR 收缩记录），不是一致性合同的正常履约。"
+    },
+
+    // --- 共识与 Raft（4 题）---
+
+    {
+      "q": "Raft 把选举超时随机化（etcd 默认 --election-timeout=1s、心跳 100ms），并会出现“拆票（split vote）”。对这套设计的理解哪个正确？",
+      "options": [
+        "随机化是为了防止恶意节点伪造心跳，与拆票无关",
+        "拆票是协议故障，需要人工介入重启 candidate",
+        "每个节点在一个任期内可以投多票，随机化只是让选票分布更均匀",
+        "随机化是为了“下次别再撞车”：两个 follower 同时超时、同时竞选会互相瓜分选票、谁都拿不到过半（拆票），各自等下一个随机超时重来即可自解；投票规则（每任期一票且持久化在 WAL、候选人日志至少和我一样新才投）保证当选者拥有全部已提交日志，数据落后的节点永远选不上"
+      ],
+      "answer": 3,
+      "explain": "任期 term 是逻辑时钟：单调递增，任一节点看到更高 term 的消息无条件退位为 follower——旧 leader 从长 GC/分区中恢复后“复活抢位”在协议层被直接否决。选举超时的语义是“不知道对方死活”而不是“对方死了”。运维含义：一次切换 1~3 秒正常；反复出现拆票/切换说明超时基数配得太小或磁盘 fsync 慢（心跳写 WAL 都来不及），对应“脑旋”治理：独立低延迟盘、控 GC、对 leader 变化告警。"
+    },
+    {
+      "q": "Raft 集群里某 follower 的日志中间缺了一段（日志空洞，典型于旧 leader 崩溃时未复制完）。需要人工修复吗？",
+      "options": [
+        "需要：用 etcdctl 手动 truncate 该成员的日志再重新加入集群",
+        "不需要：AppendEntries 携带 (prevLogIndex, prevLogTerm)，follower 校验不匹配就拒绝，leader 为每个 follower 维护 nextIndex、被拒就回退一格重试，直到找到双方一致的分界点，把缺失段落整段补发覆盖——补洞由协议自驱；运维只需保证 follower 别落后到超出日志保留范围（那会走 InstallSnapshot 整体追赶）",
+        "需要：把该 follower 移出集群再 member add 重新同步全量",
+        "不需要：follower 会主动向 leader 拉取缺失日志，Raft 是 pull 模型"
+      ],
+      "answer": 1,
+      "explain": "日志匹配性质的归纳表述：“若两份日志在某 index 的 term 相同，则该 index 之前全部相同”——这是“follower 落后太多会自动追”的机制本尊。快照是日志回收的另一面：把 lastApplied 之前的日志压缩成一个状态文件，落后太多的 follower 改用 InstallSnapshot 追赶（etcd 的 compact/defrag 是运维侧对应动作，compact 之后旧 revision 不可再读）。"
+    },
+    {
+      "q": "Raft 新 leader 上任后要先提交一条 no-op 空条目，为什么？",
+      "options": [
+        "提交规则只允许“当前任期的条目靠过半复制直接提交”，前任期的条目即使已复制到过半也不能据此推进 commitIndex（论文图 8 的反例：旧任期条目可能在后续选举中被覆盖）；追加并尽快提交一条 no-op 能把前任期全部条目“带过线”，缩短切换后的不可见窗口——所以刚切完主的 etcd 第一笔写延迟略高是正常现象",
+        "为了清空旧 leader 遗留的日志，释放磁盘空间",
+        "为了向客户端广播“leader 换人了”，是一种特殊的心跳",
+        "因为空条目能校验多数派的网络连通性，防止出现双主"
+      ],
+      "answer": 0,
+      "explain": "“提交 ≠ 应答”：客户端拿到成功 = 该条目已持久化在过半成员且已 apply 到状态机。旧任期条目只能随新任期条目一起被间接提交，这正是 no-op 存在的理由。同族运维知识：成员变更一次只加/删一个成员（etcd member add/remove，更安全的是先以 learner 加入再 promote），否则可能同时出现两个互不相交的多数派——双主。"
+    },
+    {
+      "q": "5 成员 etcd 挂了 3 台。关于“容错”这笔账，哪个说法是对的？",
+      "options": [
+        "5 节点容 2 台，挂 3 台等于超出容错上限，已提交数据必然丢失",
+        "挂 3 台后剩余 2 台仍凑得过半，集群变成只读，恢复任意一台即可",
+        "挂 2 台仍可读写（可用性容错 = N − quorum = 2）；挂 3 台凑不够 quorum=3、集群不可写，但已提交数据落在 ≥3 个副本上、大概率仍在（要丢已提交数据需要同时坏 ≥3 台）——所以失 quorum 的第一动作是抢修任一成员，而不是急着拿剩余成员重建集群",
+        "4 节点比 3 节点更稳：容错从 1 台升到 2 台"
+      ],
+      "answer": 2,
+      "explain": "两本账要分开算：可用性账（存活副本 ≥ quorum=⌊N/2⌋+1 才能服务）与持久性账（已提交数据落在 ≥ quorum 个副本上）。N=4 与 N=3 容错都是 1、确认成本反而更高——奇数原则的真正原因是“偶数不增加容错只增加确认成本”，扩容走 3→5 跳过 4。5 挂 3 后把剩下 2 台组成新集群继续写 = 人为制造双写，正确路径是 snapshot + 现存成员恢复原拓扑。"
+    },
+
+    // --- 分布式事务与幂等（3 题）---
+
+    {
+      "q": "2PC 里参与者 A、B 都已投 YES，协调者在写完决策日志之前崩溃。此时等待中的参与者能超时后自行提交吗？",
+      "options": [
+        "能：超时即视为全局 abort，回滚本地事务、释放行锁",
+        "能：投 YES 表示愿意提交，超时后按约定单方面提交",
+        "能，但需要先征得另一个参与者 B 的同意",
+        "不能安全地自行决定：投 YES 意味着交出了自决权，协调者的决策日志可能已是 commit（只是广播未送达）、也可能没写成功，此时无论提交还是回滚都可能与其他参与者不一致——只能抱着行锁等协调者恢复。这就是 2PC 的阻塞点：一个组件的故障被协议放大成所有参与者的锁堆积（上游超时、连接池打满、雪崩）"
+      ],
+      "answer": 3,
+      "explain": "两个结构性缺陷都集中在“中间那格”：参与者持锁阻塞 + 协调者单点（决策日志丢了，参与者永远等不到结论，人工介入是唯一出路）。3PC 试图用超时自决缓解，但多一轮 RTT、假设有界延迟，且分区下两侧可能做出相反决定——把阻塞换成不一致，对正确性优先的协议是更坏的交换，所以生产没有 3PC。工程出路是放弃数据库层强一致跨系统事务，转向柔性事务（TCC/Saga/本地消息表）+ 幂等。"
+    },
+    {
+      "q": "“exactly-once delivery（恰好一次投递）”在分布式系统里的工程真相是什么？",
+      "options": [
+        "Flink 的 checkpoint 机制能保证消息恰好投递一次，Kafka 事务保证跨会话不重复",
+        "恰好一次投递不存在：网络重试与崩溃恢复必然造成重复或丢失；能兑现的是 exactly-once effect（效果恰好一次）——上游可重放 + 下游原子提交或幂等吸收，让重复“不可见”。Flink 的实现是缩小版 2PC：checkpoint 是协调者的持久化决策日志，preCommit=barrier 对齐后 flush，notifyCheckpointComplete 到达后 sink 才真正 commit",
+        "at-most-once 是最安全的默认选择，配合重试即可达到恰好一次",
+        "只要 producer 开了幂等，端到端就是恰好一次，消费侧无需再做处理"
+      ],
+      "answer": 1,
+      "explain": "角色映射：协调者=JobManager 的 CheckpointCoordinator，决策日志=持久化的 checkpoint 本身，参与者=各算子尤其是 sink。它把 2PC 两大缺陷各缓解了一半：协调者崩溃可从 checkpoint 恢复；但 commit 通知丢失的窗口仍在——事务悬挂靠 transaction.timeout.ms 兜底，硬约束是它必须 > checkpoint 间隔 + 预期恢复时长、且 ≤ broker 的 transaction.max.timeout.ms。若 sink 只能按主键 upsert，退回 at-least-once + 幂等是正确选型而不是妥协。"
+    },
+    {
+      "q": "Kafka producer 已开 enable.idempotence=true，为什么跨会话（重启后）仍可能重复？",
+      "options": [
+        "幂等的去重键是 <PID, partition> 上的递增序列号，而 PID 是 producer 启动时从 broker 领的会话级标识——重启换 PID，broker 的去重窗口对新 PID 从零开始，崩溃前“已写入但未收到 ack”的那批重发无法被识别为重复；跨会话与跨分区要靠固定的 transactional.id：coordinator 用递增 epoch 绑定同一逻辑生产者，新会话顶掉旧 epoch、旧 PID 的僵尸写入被拒——正是 fencing token 思想在消息系统里的化身",
+        "因为 broker 会定期清理去重窗口，与 PID 是否变化无关",
+        "因为幂等只在 acks=all 时生效，重启后默认回到 acks=1",
+        "跨会话重复无法解决，只能靠消费端维护全量去重表"
+      ],
+      "answer": 0,
+      "explain": "三前提框架：source 可重放（Kafka offset 在 checkpoint）+ 算子状态随 checkpoint 持久化 + sink 事务性/幂等。消费侧同理：先处理后提交 = at-least-once，崩溃时重复消费，业务侧用幂等键（订单号、消息 UUID）兜底；下游还要开 isolation.level=read_committed 才读不到未提交事务——漏了等于自欺。"
+    },
+
+    // --- 分片与再平衡（2 题）---
+
+    {
+      "q": "一致性哈希与朴素取模 hash(key) mod N 的本质区别是什么？虚拟节点（vnode）又解决什么？",
+      "options": [
+        "一致性哈希让读写都更快；vnode 解决跨机房延迟问题",
+        "朴素取模扩容时迁移少、一致性哈希迁移多；vnode 是为了减少节点数量",
+        "取模把节点数 N 写进了归属函数（5→6 节点实测约 82.7% 的 key 换归属，等于全量迁移 + 缓存全失效）；一致性哈希把节点也哈希到环上、key 顺时针找第一个节点，新节点只截走约 1/N 的一段（最小迁移）；vnode 解决节点少时环上段长短悬殊的倾斜并支持按机器能力加权，代价是归属完全由哈希决定、冷热与倾斜无法人工干预",
+        "两者迁移量相同，区别只在一致性哈希支持虚拟集群部署"
+      ],
+      "answer": 2,
+      "explain": "实测数字（chapter 05 的 shard_sim.py）：朴素取模 5→6 迁移 82.7%；一致性哈希无 vnode 34.5% 且负载偏差可达数倍；160 vnode 约 15.7%（理论 1/6≈16.7%）、各节点 key 数偏差约 ±8%。节点故障摘除与下线是同一件事：摘掉全部 vnode，负载摊给所有幸存者。它的主场是 Cassandra/Dynamo 这类无中心元数据的对等系统；分工上：一致性哈希管“谁负责哪些 key”，quorum 才管“这些 key 的副本一致不一致”。"
+    },
+    {
+      "q": "Redis Cluster 用 16384 个槽而不是一致性哈希，核心原因与多付的代价是？",
+      "options": [
+        "CRC16 比 MD5 计算快，16384 是性能最优的经验值",
+        "一致性哈希在 Redis 上有实现复杂度问题，只能另起炉灶",
+        "16384 个槽让每个 key 的归属都可以人工指定，完全不需要计算",
+        "它买到了与一致性哈希同样的最小迁移（加减节点只动一部分 key），但把归属变成显式、可枚举的元数据：每节点 2KB 槽位 bitmap 随心跳传播，迁移单位是槽的集合——成段、可暂停、可回滚、可人工指定（hash tag 定向搬热点），倾斜可干预；多付的代价是集群要维护/传播槽位元数据、客户端要做 smart client（槽缓存 + MOVED/ASK 处理）、跨槽多 key 操作受限（必须同槽）"
+      ],
+      "answer": 3,
+      "explain": "横向规律：当分片单位可以是显式元数据时，没人愿意让哈希隐式决定一切。Kafka 分区到 broker 的映射同样是创建时写死的静态元数据（扩容后老分区纹丝不动，要 KafkaRebalance 提案 → 人工 approve 才搬）；HDFS 干脆物理切块、没有“键空间”。16384 是“2KB 位图 × 官方建议最大 1000 节点”的折中。迁移中间态用两个重定向语义兜住：MOVED（槽已永久易主、更新本地槽表）与 ASK（迁移中、仅本次去目标执行、不改槽表——记进槽表会造成重定向死循环）。"
+    },
+
+    // --- Gossip、故障检测与脑裂防护（3 题）---
+
+    {
+      "q": "旧 leader 从长 GC 中醒来，继续把手里基于旧状态的请求写下游（zombie writer）。quorum 为什么防不住？fencing 怎么解？",
+      "options": [
+        "quorum 可以防住：旧 leader 醒来后无法再获得过半 ACK，对下游的写自然失败",
+        "quorum 只保证它永远无法再提交共识日志（term 太旧、被立即降级），但它对下游系统（MySQL/Kafka/第三方接口）的写不经过共识协议、quorum 管不到；fencing 在下游一侧解：每次授权附单调递增令牌（term/epoch/zxid），下游记住见过的最大令牌、收到旧令牌的写直接拒绝——令牌的单调性由共识协议免费提供，成本几乎全在“下游肯校验”这一件事",
+        "把分布式锁的超时设得足够长就不会有 zombie writer，无需 fencing",
+        "fencing token 由客户端本地时钟生成，下游按时间戳比大小即可"
+      ],
+      "answer": 1,
+      "explain": "已学三处化身：HDFS NameNode HA 的 ZKFC 抢锁带 epoch、JournalNode 拒绝旧 epoch 的写；Kafka 事务 transactional.id 的递增 epoch（防僵尸 producer）；ZK 分布式锁的 version/czxid（下游校验要业务自己做）。同族问题：Redis SETNX 拿锁后直接 DEL 会误删别人的锁，正确姿势是 SET 带令牌 + Lua 比对再删；令牌必须来自“授权动作本身”而不是随手读的状态，且下游要有“只接受更大令牌”的原子校验（last_token 列 + 条件更新）。"
+    },
+    {
+      "q": "关于固定超时与 φ-accrual 两种故障检测，哪个说法是对的？",
+      "options": [
+        "φ-accrual 不给二元判决而给连续的怀疑度：为每个节点维护历史心跳间隔的分布，把当前等待时长代入算出“这么久没心跳有多反常”（φ=3 约 0.1% 可能是正常波动），且自适应——方差大的节点分布被撑宽、不轻易被误杀；etcd/Kafka 这类 3~7 成员的小仲裁反而选固定超时，因为心跳路径短可标定、选举时延必须可预期，而 φ 的“判定时刻不可预测”在共识选举里是缺点",
+        "φ-accrual 是更先进的技术，所有新系统都应该用它替换固定超时",
+        "固定超时的误杀率恒为零，φ-accrual 用机器学习预测故障",
+        "HDFS 判死 DataNode 之所以要约 10.5 分钟，正是因为用了 φ-accrual"
+      ],
+      "answer": 0,
+      "explain": "故障检测的本质是“误杀率 vs 检测延迟”的取舍：参与者越多、副本越冗余，越该往保守调（HDFS DataNode 判死约 10.5 分钟 = 2×300s recheck + 10×3s 心跳，误杀会引发无意义的补副本风暴）；小仲裁往灵敏调（etcd 1s，晚判的代价是控制面无主）。代表实现：Cassandra 的 PhiConvictor 与 Akka。常见坑：把 1s 的超时照抄到几千节点的集群——误杀率与集群规模、网络方差强相关。"
+    },
+    {
+      "q": "防脑裂的完整防线按“quorum / lease / fencing”三件套分工，正确的是？",
+      "options": [
+        "quorum 保证前任写不进去；lease 负责选举出唯一 leader；fencing 负责检测节点是否下线",
+        "三件套都由共识协议自动提供，业务侧无需做任何事",
+        "quorum 保证“至多一个现任”（防分区双主：少数派凑不齐过半 ACK，写卡死不提交，宁可停写不可双写）；lease 保证“过期即失效”（把僵尸窗口从永远压缩到一个 TTL，缩小而非清零）；fencing 保证“前任写不进去”（下游比对单调令牌、拒绝旧写）——只有第一件是协议自带的，后两件要设计者显式去做",
+        "Redis 主从自带 quorum，配了 min-replicas-to-write 之后脑裂就不可能发生"
+      ],
+      "answer": 2,
+      "explain": "见过太多系统做了 quorum 就宣布“不会脑裂”，死在旧主醒来写下游那一步。注意 Redis 的特殊性：数据面（主从复制）本身没有 quorum，防脑裂靠外挂的哨兵多数派（failover 授权要 majority，与 quorum 判定是两回事）；旧 master 在分区期间仍可能吞写、愈合后全丢——min-replicas-to-write + min-replicas-max-lag 只保证“旧主侧没有同步正常的 replica 时拒绝写”，官方语义明确是缩小损失窗口、不是消除脑裂。lease 还有两个残余问题：时钟依赖（要服务端统一计时或单调时钟）与 TTL 内的边界窗口。Mongo 副本集两节点挂一个不能写，就是“宁可停写不可双写”的日常表现。"
     }
   ]
 };
 
-// 共 245 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
-// cicd 20 + otel 12 + logging 11 + middleware/datastream/sre/cloud/aiops 各 10 + bigdata 15）
+// 共 265 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
+// cicd 20 + otel 12 + logging 11 + middleware/datastream/sre/cloud/aiops 各 10 +
+// bigdata 20（HDFS 4 / YARN 3 / Hive 2 / Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓 5）+ distributed 15）

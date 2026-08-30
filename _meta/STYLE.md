@@ -64,7 +64,11 @@
 `NN-slug/check.sh`：bash 判分脚本，Ubuntu 上运行。要求：
 - 开头 `#!/usr/bin/env bash` + `set -u`
 - 内嵌 helper（pass/fail 函数与计分），**不依赖本仓库其他文件**，可单独拷到机器上跑
-- 只读检查（kubectl get/deserve/jsonpath 查询比对），不修改集群
+- 只读检查（kubectl get/deserve/jsonpath 查询比对），不修改集群。
+  唯一例外：判分对象是**写入行为本身**（如 Lua 校验删除、failover 后可写性）、无法用只读查询
+  替代时，允许写**自清理的一次性探针**——键名带 `labcheck:`（或等价前缀）与脚本 PID、设 TTL
+  兜底、脚本结束前显式删除，且不得触碰实验数据键（先例：`11-middleware/redis/labs/01`
+  第 11 项、`17-distributed/labs/02` 第 4/5 项）。纯状态核查仍一律只读。
 - 结束输出 `SCORE: X/Y` 和逐项 PASS/FAIL；全部通过 exit 0
 - 对环境有假设处（如需要某 deployment 存在）在开头注释说明
 
