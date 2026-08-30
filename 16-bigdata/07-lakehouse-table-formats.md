@@ -328,31 +328,32 @@ notifyCheckpointComplete(N)
 
 ## 实战演练
 
-本章不部署（Flink 写入 Paimon 的完整部署在 `labs/04-lakehouse-flink-paimon`），只做**读法演示**：学会用文件/对象存储的视角看穿一张湖表。以下命令在 lab 04 的环境里执行，路径以该 lab 的 warehouse 实际配置为准（演示按 4.4 的建表例）。
+本章不部署（Flink 写入 Paimon 的完整部署在 `labs/04-lakehouse-flink-paimon`），只做**读法演示**：学会用文件/对象存储的视角看穿一张湖表。以下命令在 lab 04 的环境里执行，路径取该 lab 的实际配置（warehouse=`/opt/flink/warehouse`，表=`sre_lab.host_metrics`——即 4.4 建表例在 lab 里的落地形态）。
 
 ```bash
 # [任意节点]（lab 04 的 VM）第一层：Paimon warehouse 的整体骨架
-find /opt/paimon/warehouse -maxdepth 3 | sort
-# 预期骨架（对照 4.1 的图）：
-#   /opt/paimon/warehouse/demo.db/orders/{schema,snapshot,manifest,bucket-0}
+find /opt/flink/warehouse -maxdepth 3 | sort
+# 预期骨架（对照 4.1 的图；lab 04 建表 bucket=2，所以有 bucket-0/bucket-1 两个桶目录）：
+#   /opt/flink/warehouse/sre_lab.db/host_metrics/{schema,snapshot,manifest,bucket-0,bucket-1}
 ```
 
 ```bash
 # [任意节点] 第二层：读文本层——snapshot hint 与 schema 是能直接 cat 的
-cat /opt/paimon/warehouse/demo.db/orders/snapshot/LATEST
-# 预期：一个数字，如 17 —— 当前最新 snapshot 号（EARLIEST 是可消费起点）
-cat /opt/paimon/warehouse/demo.db/orders/snapshot/snapshot-17
+cat /opt/flink/warehouse/sre_lab.db/host_metrics/snapshot/LATEST
+# 预期：一个数字，如 17 —— 当前最新 snapshot 号（EARLIEST 是可消费起点；
+#      下面的 snapshot-17 请替换成你读到的这个号）
+cat /opt/flink/warehouse/sre_lab.db/host_metrics/snapshot/snapshot-17
 # 预期：JSON，含本次提交引用的 manifest 清单、commit identifier、记录数等字段
 #      （新版本可能把 snapshot 文件二进制化，看不了就只读 hint 文件，以官方文档为准）
-cat /opt/paimon/warehouse/demo.db/orders/schema/schema-0
+cat /opt/flink/warehouse/sre_lab.db/host_metrics/schema/schema-0
 # 预期：JSON：字段名/类型/主键。"表结构就是个文件"——6.3 的 schema 演进=元数据操作，实体长这样
 ```
 
 ```bash
 # [任意节点] 第三层：数文件，把 6.2 的巡检指标手工算一遍
-ls /opt/paimon/warehouse/demo.db/orders/snapshot | grep -c '^snapshot-'
+ls /opt/flink/warehouse/sre_lab.db/host_metrics/snapshot | grep -c '^snapshot-'
 # 预期：snapshot 总数（对照 snapshot.num-retained.max，验证过期在跑）
-ls -l /opt/paimon/warehouse/demo.db/orders/bucket-0 | head -6
+ls -l /opt/flink/warehouse/sre_lab.db/host_metrics/bucket-0 | head -6
 # 预期：SST 文件清单（data-*/changelog-*）——单文件几十 KB、数量上百 = 典型小文件病，该触发 compaction 了
 ```
 
@@ -360,10 +361,10 @@ ls -l /opt/paimon/warehouse/demo.db/orders/bucket-0 | head -6
 # [任意节点] 对象存储视角（可选延伸，lab 04 之外另搭环境：lab 04 的 warehouse 是 file:// 本地
 # 路径，不含 MinIO。想动手本块，需自行起 MinIO 并把 warehouse 配成 s3:// 后重建表；
 # 桶需允许匿名 list，仅演示环境）
-curl -s "http://127.0.0.1:9000/lakehouse/?list-type=2&prefix=warehouse/demo.db/orders/snapshot/" \
+curl -s "http://127.0.0.1:9000/lakehouse/?list-type=2&prefix=warehouse/sre_lab.db/host_metrics/snapshot/" \
   | sed 's/></>\n</g' | grep -A1 '<Key>' | head -12
 # 预期：ListObjectsV2 列出 snapshot-1..N 的 key。湖表在对象存储上没有"目录"，只有公共前缀——
-#      这就是小文件一多 listing 就慢的根因（05 章第 7 节第 2 点），也是 curl 看湖表"目录结构"的姿势
+#      这就是小文件一多 listing 就慢的根因（05 章第 7 节第 3 点），也是 curl 看湖表"目录结构"的姿势
 ```
 
 验证方法：不看正文能说出"LATEST 指向的 snapshot → manifest 清单 → SST 文件"这条引用链，并分清哪些是文本、哪些是二进制，即通过；数到的 snapshot/manifest/SST 数量记下来，作为 6.2 巡检脚本的第一份基线。

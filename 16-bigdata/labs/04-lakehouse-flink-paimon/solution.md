@@ -1,6 +1,6 @@
 # Lab 04 · 解答与讲解
 
-> 运行环境：Ubuntu 24.04 VM（`candidate@172.30.30.50`，docker-ce 含 compose 插件，内存 10G，磁盘余约 25G）。命令除特别标注外均在 `[任意节点]`（VM）执行。版本事实（2026-08-30 实查）：Docker Hub `apache/flink:1.19` 存在；Maven Central 上 `org.apache.paimon:paimon-flink-1.19` 已发布 0.8.0 ~ 2.0.0 全系列，`<latest>` 为 **2.0.0**，jar 约 55MB——**两者都以实查为准**（命令见第 2 步），本文不写死小版本号。另两个实测硬事实：该镜像跑 paimon 还需补一个 Hadoop shaded 包（第 2.5 步），且容器内 Flink 进程以 uid 9999 运行、sql-client 必须用 `-u flink` 调用（第 2.5 步拼图二）。
+> 运行环境：Ubuntu 24.04 VM（`user@172.30.30.50`，docker-ce 含 compose 插件，内存 10G，磁盘余约 25G）。命令除特别标注外均在 `[任意节点]`（VM）执行。版本事实（2026-08-30 实查）：Docker Hub `apache/flink:1.19` 存在；Maven Central 上 `org.apache.paimon:paimon-flink-1.19` 已发布 0.8.0 ~ 2.0.0 全系列，`<latest>` 为 **2.0.0**，jar 约 55MB——**两者都以实查为准**（命令见第 2 步），本文不写死小版本号。另两个实测硬事实：该镜像跑 paimon 还需补一个 Hadoop shaded 包（第 2.5 步），且容器内 Flink 进程以 uid 9999 运行、sql-client 必须用 `-u flink` 调用（第 2.5 步拼图二）。
 
 本 lab 的知识坐标：00 章 §2 的三巨头速览表说 Paimon 是"Flink 社区出品、流式湖存储"；07 章把这棵元数据树（snapshot → manifest → data file）画在纸上；05 章 §7 是下游视角（Doris/StarRocks 建个 catalog 直查湖表）。本 lab 补上上游视角和磁盘真相：**Flink 写进去的每一行，最终长成什么文件**。
 
@@ -118,7 +118,7 @@ docker restart flink-jm flink-tm && sleep 30
 `IOException: Mkdirs failed to create .../bucket-N`（很难一眼看出是权限）：
 
 1. 宿主机 `./warehouse` 目录要让容器内运行 Flink 的 `flink` 用户（uid 9999）可写——
-   candidate 家目录下默认 775（组外只读），先 `chmod 777 ~/paimon-lab/warehouse`；
+   用户家目录下默认 775（组外只读），先 `chmod 777 ~/paimon-lab/warehouse`；
 2. 所有 sql-client 调用加 `-u flink`。`docker exec` 默认以 **root** 进容器，而镜像
    entrypoint 把 JM/TM 进程降权成了 uid 9999：root 建出来的 `sre_lab.db/`、
    `host_metrics/` 目录是 root:755，TM（9999）在里面 `mkdir bucket-*` 直接失败。

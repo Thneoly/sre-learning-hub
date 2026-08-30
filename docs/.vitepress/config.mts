@@ -96,7 +96,7 @@ export default defineConfig({
   lang: 'zh-CN',
   title: 'Learning Hub · 云原生 SRE 学习中心',
   description:
-    '15 个模块的云原生 SRE 系统学习资料：Linux 底座、容器、Kubernetes、CI/CD 与 GitOps、可观测（Prometheus/OpenTelemetry/日志）、中间件、SRE 方法论与 AIOps，面向 CKA / CKS / PCA 三证。',
+    '17 个模块的云原生 SRE 系统学习资料：Linux 底座、容器、Kubernetes、CI/CD 与 GitOps、可观测（Prometheus/OpenTelemetry/日志）、中间件、大数据与分布式理论、SRE 方法论与 AIOps，面向 CKA / CKS / PCA 三证。',
 
   // GitHub Pages 项目页：<user>.github.io/sre-learning-hub/
   base: '/sre-learning-hub/',

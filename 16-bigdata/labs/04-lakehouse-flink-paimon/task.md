@@ -6,7 +6,7 @@
 
 你是数据平台组的 SRE，值班时收到需求：上游 Flink 作业要把主机指标写入湖表，替代"先落 HDFS 再补 Hive 表"的旧链路。00 章的三巨头速览表告诉你 Paimon 是"Flink 原生一体化"的那一个，05 章 §7 讲过下游 Doris/StarRocks 怎么直查湖表——但**表格式到底在磁盘上写了什么**，你还一次没亲眼看过。第 07 章画过那棵元数据树（snapshot → manifest → data file），本 lab 就是在 VM 上把它 `ls` 出来。
 
-环境：Ubuntu VM（`candidate@172.30.30.50`，docker 可用，内存 10G、磁盘余 25G+；docker.io 走已配代理，Maven Central 直连或代理）。要做的闭环：docker compose 起 Flink 1.19 session 集群 → 挂载 Paimon 的 Flink bundle jar → sql-client 里 datagen 源表持续写 Paimon 主键表 → 停写后批查询验证去重 → 进 taskmanager 容器看 warehouse 目录 → 同主键写新值验证 UPDATE 语义。
+环境：Ubuntu VM（`user@172.30.30.50`，docker 可用，内存 10G、磁盘余 25G+；docker.io 走已配代理，Maven Central 直连或代理）。要做的闭环：docker compose 起 Flink 1.19 session 集群 → 挂载 Paimon 的 Flink bundle jar → sql-client 里 datagen 源表持续写 Paimon 主键表 → 停写后批查询验证去重 → 进 taskmanager 容器看 warehouse 目录 → 同主键写新值验证 UPDATE 语义。
 
 ```
 Flink session 集群 (docker compose, 各限 2G)          file:///opt/flink/warehouse（两容器共享挂载）
@@ -95,7 +95,7 @@ sql-client 默认 `execution.runtime-mode` 是 streaming：对湖表的 SELECT �
 2. **用户与目录属主**：容器里 JM/TM 进程以 `flink`（uid 9999）运行，而 `docker exec`
    默认是 root。sql-client 不加 `-u flink` 时，建出来的 `sre_lab.db/` 等目录是
    root:755，TM 写 bucket 时报 `Mkdirs failed to create .../bucket-N`；宿主
-   `./warehouse` 目录（candidate:775）也要先 `chmod 777` 让 9999 可写。所以本 lab 所有
+   `./warehouse` 目录（youruser:775）也要先 `chmod 777` 让 9999 可写。所以本 lab 所有
    sql-client 调用统一写 `docker exec -u flink flink-jm /opt/flink/bin/sql-client.sh ...`。
 
 </details>

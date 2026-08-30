@@ -190,7 +190,7 @@ docker exec mysql-s mysql -uroot -proot123 -e "SELECT COUNT(*) FROM shop.orders;
 
 ```bash
 # [Ubuntu VM] 镜像里没有 mysqlbinlog:先在宿主机装,再把 binlog 拷出来解码
-echo 123 | sudo -S apt-get install -y mysql-server-core-8.0
+sudo apt-get install -y mysql-server-core-8.0（若提示输密码，见本地 _meta/labtest-brief.md，不写入公开文档）
 docker cp mysql-m:/var/lib/mysql/binlog.000003 /tmp/    # 文件名以 SHOW MASTER STATUS 的 File 为准
 mysqlbinlog --base64-output=decode-rows -vv /tmp/binlog.000003 | tail -40
 # 尾部应能看到:

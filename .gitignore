@@ -1,13 +1,17 @@
 # ===== 版权与内部资料（不入库）=====
-# 题库手册来自付费资料，请自行放置到该路径
+# 题库手册来自付费资料，请自行放置到该路径（宽松形态：版本号升级仍受保护，与 config.mts srcExclude 一致）
+**/question-bank-manual*.md
 05-cka/question-bank-manual-v1.35.md
 # 付费教材 PDF 的衍生文本
+**/ref-pdfs/
 _meta/ref-pdfs/
 # 内部实测简报（含环境凭据）
+**/labtest-brief*
 _meta/labtest-brief.md
 
 # ===== 生成产物 =====
 portal/content.js
+portal/.audit-*.cjs
 docs/.vitepress/dist/
 docs/.vitepress/cache/
 docs/.vitepress/sidebar.generated.json

@@ -54,6 +54,8 @@ const MODULES = [
   { dir: '13-sre-methodology', title: '13 · SRE 方法论', pillar: 'observability' },
   { dir: '14-cloud', title: '14 · 云平台', pillar: 'platform' },
   { dir: '15-aiops-llm', title: '15 · AIOps 与 LLM', pillar: 'aiops' },
+  { dir: '16-bigdata', title: '16 · 大数据体系', pillar: 'platform' },
+  { dir: '17-distributed', title: '17 · 分布式理论', pillar: 'platform' },
 ]
 
 // ---------- 工具 ----------
@@ -165,7 +167,7 @@ const sidebar = {
       collapsed: false,
       items: [
         { text: '首页', link: '/' },
-        { text: '学习路线图（25 周 / 9 阶段）', link: '/ROADMAP.html' },
+        { text: '学习路线图（27 周 / 10 阶段）', link: '/ROADMAP.html' },
         { text: '故障场景速查', link: '/SCENARIOS.html' },
         { text: '仓库说明（README）', link: '/README.html' },
       ],

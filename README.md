@@ -1,4 +1,4 @@
-# Learning Hub — 云原生 SRE 学习中心（16 模块）
+# Learning Hub — 云原生 SRE 学习中心（17 模块）
 
 一套自包含的**学习材料 + 学习平台 + 练习平台**，专为以下情况设计：
 
@@ -14,7 +14,7 @@
 - 证书备考与三视图（学习顺序/能力支柱/场景索引）见 `ROADMAP.md`、`SCENARIOS.md`
 - 许可：代码 MIT，文档 CC BY-NC-SA 4.0（见 LICENSE）
 
-## 15 个模块
+## 17 个模块
 
 | # | 目录 | 内容 | 定位 |
 |---|---|---|---|
@@ -53,12 +53,12 @@
 
 ### 1. 学习平台（浏览器打开）
 
-双击 `portal/index.html`——无需服务器、无需联网。含：15 模块进度追踪（自动存本地）、内置题库测验、CKA 考试计时器、kubectl/vim/PromQL 速查。
+双击 `portal/index.html`——无需服务器、无需联网。含：17 模块进度追踪（自动存本地）、内置题库测验、CKA 考试计时器、kubectl/vim/PromQL 速查。
 （如需站内阅读 markdown，先在 portal/ 下运行 `build-content.ps1` 生成 content.js。）
 
 ### 2. 系统学习（按 ROADMAP.md 的阶段与闭环推进）
 
-见 [ROADMAP.md](ROADMAP.md)：25 周、9 个阶段、每个阶段一个贯穿闭环（代码→镜像→IaC→CI/CD→监控→注故障→排查→复盘）。
+见 [ROADMAP.md](ROADMAP.md)：27 周、10 个阶段、每个阶段一个贯穿闭环（代码→镜像→IaC→CI/CD→监控→注故障→排查→复盘）。
 `05-cka/question-bank-manual-v1.35.md` 是你原来的题库操作手册，与基础章节 1:1 互补：先读原理章 → 再做题库题 → 最后 lab 巩固。
 
 ### 3. 练习平台（在 Ubuntu VM 上跑）

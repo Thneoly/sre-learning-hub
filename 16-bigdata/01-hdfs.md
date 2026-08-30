@@ -366,7 +366,7 @@ docker exec hadoop-lab bash -c \
 #           Safe mode is ON → OFF → 目录里出现 big.bin 和 ok.txt
 ```
 
-验证方法汇总：`fsck` 输出 3 块且 HEALTHY、HAR 目录 items 数为个位数、safemode ON 时写入被拒。容器保留给 02 章用（进程随容器停止而消失，但 `/tmp/hdfs` 里的数据在容器销毁前都在；下次 `docker start hadoop-lab` 后重新执行第 2 步的启动即可，**不要再 format**）。
+验证方法汇总：`fsck` 输出 3 块且 HEALTHY、HAR 目录 items 数为个位数、safemode ON 时写入被拒。容器保留给 02 章用（进程随容器停止而消失，但 `/tmp/hdfs` 里的数据在容器销毁前都在；下次 `docker start hadoop-lab` 后重新执行第 2 步的启动即可，**不要再 format**）。完整练习（判分脚本 + 详解）见 `16-bigdata/labs/01-hdfs-pseudo`。
 
 ## 常见坑
 

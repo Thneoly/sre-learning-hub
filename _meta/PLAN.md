@@ -1,19 +1,32 @@
-# learning-hub 文件清单（v2 · 15 模块版，验证以此为准）
+# learning-hub 文件清单（v2 · 17 模块版，验证以此为准）
 
 所有路径相对于 `D:\SRE\chat\learning-hub\`。标注 [手工] 的由主会话负责，[已生成] 表示 v1 已完成，其余由对应 owner 生成。
 
 ```
 README.md                                    [手工]
 ROADMAP.md                                   [手工]
+SCENARIOS.md                                 [手工：排障场景速查，portal 与卡片生成器共同消费]
+LICENSE / .gitignore / package.json          [手工：基础设施]
+.github/workflows/deploy-pages.yml           [手工：GitHub Pages 发布（npm run docs:build 产物）]
 _meta/STYLE.md                               [手工]
 _meta/PLAN.md                                [手工]
 _meta/research-2026-08-community-github.md   [手工：调研存档]
 _meta/research-2026-08-jd-platforms.md       [手工：调研存档]
+_meta/labtest-brief.md                       [手工：内部实测简报（含环境凭据），gitignore 排除、不入库]
+_meta/ref-pdfs/                              [手工：参考资料 PDF，gitignore 排除、不入库]
+_meta/skill-cards.json                       [构建产物：由 gen-skill-cards.mjs 生成]
+_meta/skill-cards-anki.csv                   [构建产物：由 gen-skill-cards.mjs 生成（Anki 导出）]
+
+docs/（VitePress 书站：index.md + .vitepress/config.mts）  [docs·已生成]
+docs/.vitepress/dist/                        [构建产物：npm run docs:build 生成，发布到 GitHub Pages]
+scripts/gen-vitepress-nav.mjs                [docs·已生成：书站侧栏/导航生成器，docs:build 前自动执行]
 
 portal/index.html                            [portal·已生成]
 portal/build-content.ps1                     [portal·已生成]
 portal/quiz-data.js                          [quiz·已生成]
+portal/cards-data.js                         [构建产物：由 gen-skill-cards.mjs 生成，portal 运行时依赖]
 portal/content.js                            [构建产物：由 build-content.ps1 生成，验证时无需检查]
+scripts/gen-skill-cards.mjs                  [cards·已生成：技能卡生成器，产出上述三份卡库文件]
 
 01-linux/01-boot-and-systemd.md              [linux-materials]
 01-linux/02-filesystem-and-io.md             [linux-materials]
@@ -104,6 +117,9 @@ portal/content.js                            [构建产物：由 build-content.p
 16-bigdata/05-olap-doris-starrocks.md        [bd-mat-olap]
 16-bigdata/06-zookeeper.md                   [bd-mat-olap]
 16-bigdata/07-lakehouse-table-formats.md     [lakehouse·新补：Iceberg/Hudi/Paimon 深讲+湖仓运维专题]
+16-bigdata/labs/01-hdfs-pseudo/{task.md,check.sh,solution.md}            [bd-labs]
+16-bigdata/labs/02-spark-local/{task.md,check.sh,solution.md}            [bd-labs]
+16-bigdata/labs/03-doris-quickstart/{task.md,check.sh,solution.md}       [bd-labs]
 16-bigdata/labs/04-lakehouse-flink-paimon/{task.md,check.sh,solution.md}    [lakehouse·新补]
 
 17-distributed/00-distributed-overview.md            [dist-mat-a]
@@ -116,17 +132,15 @@ portal/content.js                            [构建产物：由 build-content.p
 17-distributed/07-distributed-troubleshooting.md     [dist-mat-b]
 17-distributed/labs/01-etcd-raft-observation/{task.md,check.sh,solution.md}      [dist-labs]
 17-distributed/labs/02-distributed-lock-idempotency/{task.md,check.sh,solution.md} [dist-labs]
-16-bigdata/labs/01-hdfs-pseudo/{task.md,check.sh,solution.md}            [bd-labs]
-16-bigdata/labs/02-spark-local/{task.md,check.sh,solution.md}            [bd-labs]
-16-bigdata/labs/03-doris-quickstart/{task.md,check.sh,solution.md}       [bd-labs]
 
 scripts/README.md + lib/common.sh            [scripts-setup·已生成]
+scripts/labctl.sh                            [scripts-setup·已生成：练习平台 CLI（list/show/check/scores/solution/fault/drill/timer）]
 scripts/setup/（5 个文件）                    [scripts-setup·已生成]
 scripts/faults/（12 个 break-*.sh + FIXES.md）[scripts-faults·已生成]
 ```
 
 ## 形态说明
 
-- 实操型模块（01/02/03/05/06/07/09/10/11/12/13/14/15）lab 一律三件套（task.md/check.sh/solution.md）
+- 实操型模块（01/02/03/05/06/07/09/10/11/12/13/14/15/16/17）lab 一律三件套（task.md/check.sh/solution.md）
 - 08-pca 允许"题库形态"单文件（见 STYLE.md 的题库文件模板节）
 - 模块学习顺序依据 `_meta/research-2026-08-*.md` 两份调研：地基(Linux/编程) → 容器 → K8s → 工程化 → 安全 → 可观测 → 数据组件 → 方法论 → 云 → AIOps

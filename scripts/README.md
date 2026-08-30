@@ -47,12 +47,12 @@ scripts/
 ## labctl 练习平台（lab 的统一入口）
 
 `labctl.sh` 是单文件 bash CLI（只依赖 bash/kubectl），把"读题 → 判分 → 记分 → 看答案 → 注故障 → 限时演练"串成一个闭环。
-自动发现全仓库 59 个 lab（`*/labs/*/task.md`），记分写入 `~/.labctl/scores.tsv`，需 root 的 `check.sh` 与故障脚本会自动走 sudo（密码默认 `123`，可用 `LABCTL_SUDO_PASS` 覆盖）。
+自动发现全仓库全部 lab（`*/labs/*/task.md`，当前 65 个），记分写入 `~/.labctl/scores.tsv`，需 root 的 `check.sh` 与故障脚本会自动走 sudo（密码默认 `123`，可用 `LABCTL_SUDO_PASS` 覆盖）。
 
 ```bash
 # [master] 建议先做个别名：alias labctl='bash ~/hub/scripts/labctl.sh'
 labctl --help                    # 中文自文档（子命令、lab 的四种写法、环境变量）
-labctl list                      # 全部 59 个 lab：编号/难度/名称/✓ 最佳得分
+labctl list                      # 全部 lab：编号/难度/名称/✓ 最佳得分
 labctl list 05                   # 只看 05-cka 模块（也可写 05-cka、cka）
 labctl show 11                   # 读题（支持 11 / 11-rbac-role-binding / 05:11 / 完整路径）
 labctl check 05:11               # 跑 check.sh 判分，PASS/FAIL 彩色回放，自动记分并与历史最佳对比
