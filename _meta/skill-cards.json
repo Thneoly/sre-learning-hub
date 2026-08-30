@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated": "2026-08-23",
+  "generated": "2026-08-30",
   "cards": [
     {
       "id": "sc-0001",
@@ -7325,6 +7325,481 @@
     },
     {
       "id": "sc-0517",
+      "module": "16-bigdata",
+      "source": "16-bigdata/00-bigdata-overview.md#自测",
+      "type": "selftest",
+      "front": "1. 为什么 Spark 既能跑在 YARN 上又能跑在 K8s 上？这说明六层地图里哪一层是\"可替换\"的，替换时引擎要适配什么？",
+      "back": "资源调度层可替换。Spark 只需要一个\"给我 N 份 CPU/内存，再把我的 executor 进程拉起来\"的接口：YARN 的 Container 和 K8s 的 Pod 都能满足，差别在提交协议（YARN 的 ApplicationMaster 协议 vs K8s 的 Pod/Operator）与资源描述方式（静态申请 vs requests/limits）。存储层同理可替换（HDFS/对象存储），但计算引擎要适配各自的文件系统客户端。这正是第二代架构\"存算分离\"能成立的原因：各层之间靠窄接口解耦。",
+      "tags": [
+        "selftest",
+        "bigdata",
+        "overview",
+        "q1"
+      ]
+    },
+    {
+      "id": "sc-0518",
+      "module": "16-bigdata",
+      "source": "16-bigdata/00-bigdata-overview.md#自测",
+      "type": "selftest",
+      "front": "2. 三代架构里\"运维对象\"分别是什么？为什么说湖仓一体让大数据运维更接近平台工程？",
+      "back": "一代：物理机 + 全栈 Hadoop 服务，运维盯进程和磁盘。二代：K8s 集群与独立存储集群两套对象，运维开始写 Operator/Helm 而不是改配置推机器。三代：核心对象变成\"表\"——表格式元数据、小文件、compaction、数据质量；用户按表自助使用，运维提供平台与规范。这与\"平台工程=自助式基础设施+规范制定\"的定义重合，也解释了为什么大数据运维 JD 越来越多要求 K8s 与自动化开发能力。",
+      "tags": [
+        "selftest",
+        "bigdata",
+        "overview",
+        "q2"
+      ]
+    },
+    {
+      "id": "sc-0519",
+      "module": "16-bigdata",
+      "source": "16-bigdata/00-bigdata-overview.md#自测",
+      "type": "selftest",
+      "front": "3. Kafka 已经用 KRaft 去掉了 ZooKeeper，为什么 HDFS NameNode HA 和 YARN RM HA 至今仍常用 ZooKeeper？",
+      "back": "Kafka 的元数据（分区副本状态）本身就需要一条多数派日志，KRaft 把\"选主\"与\"日志复制\"合并进 broker，去 ZK 是合并不是消灭。HDFS 的元数据是全内存命名空间（fsimage + edits），JournalNode 已承担多数派日志，ZK 只负责\"谁是 Active\"这一个选举问题，替换收益小、迁移风险大。YARN 同理，且 RM 的调度状态可由 NM 汇报重建。结论：去不去 ZK 取决于元数据的形态与重建成本，不是潮流（详见 01/02/06 章）。",
+      "tags": [
+        "selftest",
+        "bigdata",
+        "overview",
+        "q3"
+      ]
+    },
+    {
+      "id": "sc-0520",
+      "module": "16-bigdata",
+      "source": "16-bigdata/00-bigdata-overview.md#自测",
+      "type": "selftest",
+      "front": "4. JD 里\"大规模\"三个字，具体改变了哪些运维手段？给出至少三个例子。",
+      "back": "例：NameNode 堆容量与小文件治理（元数据对象数以亿计，堆 50GB 起步）；Balancer 一次跑数天，必须与业务错峰并限速；全量块报告与重启 edits 回放时间不可忽略，发布要算窗口；队列与租户数暴涨，需要标签调度隔离；监控从\"单实例 up/down\"变成\"集群水位+长尾\"（副本补齐队列、RPC p99）。小集群靠人肉的场景，大规模全要制度化、工具化。",
+      "tags": [
+        "selftest",
+        "bigdata",
+        "overview",
+        "q4"
+      ]
+    },
+    {
+      "id": "sc-0521",
+      "module": "16-bigdata",
+      "source": "16-bigdata/00-bigdata-overview.md#自测",
+      "type": "selftest",
+      "front": "5. Doris/StarRocks 和 Hive on MR 的根本差异是什么？为什么 JD 把前者列为\"优先\"？",
+      "back": "Hive/MR 是\"批处理引擎 + 扫文件\"，延迟分钟级，面向 T+1 加工；Doris/StarRocks 是 MPP 架构的 OLAP 数据库：列式存储 + 预聚合（Rollup/物化视图）+ 向量化执行，面向亿行亚秒交互查询。业务实时看数的诉求增长，使\"会维护 OLAP 集群（导入链路、compaction、副本）\"成为稀缺加分项，故 JD 标注优先（05 章展开）。",
+      "tags": [
+        "selftest",
+        "bigdata",
+        "overview",
+        "q5"
+      ]
+    },
+    {
+      "id": "sc-0522",
+      "module": "16-bigdata",
+      "source": "16-bigdata/01-hdfs.md#自测",
+      "type": "selftest",
+      "front": "1. 如果把 NN 元数据改成 RocksDB 落盘而不是全内存，会换到什么、付出什么？为什么社区选择\"全内存 + Federation 水平拆分\"而不是\"落盘\"？",
+      "back": "换到\"单点内存上限消失\"。付出的是：每次写要逐级解析父目录并加锁、每次读要查块位置，这些高频随机访问落到磁盘后延迟从微秒升到毫秒，吞吐随并发锁竞争急剧下降；checkpoint 的\"全量快照\"结构也不再简单。HDFS 的选择是保住元数据操作的微秒级延迟，容量不够就按路径拆多个 namespace（Federation），让每个 NN 只管一部分目录树。对比：Kafka 的元数据本来就小（分区级），才能整体塞进 KRaft 日志。",
+      "tags": [
+        "selftest",
+        "hdfs",
+        "q1"
+      ]
+    },
+    {
+      "id": "sc-0523",
+      "module": "16-bigdata",
+      "source": "16-bigdata/01-hdfs.md#自测",
+      "type": "selftest",
+      "front": "2. 什么情况下 3 副本会全部落在同一机架？如何发现、如何补救？为什么后配机架感知脚本不会自动搬旧副本？",
+      "back": "机架感知脚本未配置或写错（全部返回 /default-rack）时，放置策略退化为随机。发现：`hdfs fsck /path -blocks -locations -racks` 看每块的 rack 分布，NN 日志也有拓扑告警。补救：配好脚本后，对存量数据 `hadoop fs -setrep` 触发重复制（或 distcp 重写），Balancer 只搬数据量不纠正拓扑。不自动搬是因为放置策略只在**写入那一刻**生效，NN 没有\"副本位置不合规就迁移\"的后台任务——迁移代价（全量数据重写一遍网络）太高。",
+      "tags": [
+        "selftest",
+        "hdfs",
+        "q2"
+      ]
+    },
+    {
+      "id": "sc-0524",
+      "module": "16-bigdata",
+      "source": "16-bigdata/01-hdfs.md#自测",
+      "type": "selftest",
+      "front": "3. edits 无限增长会发生什么？针对它的告警应该怎么设计？",
+      "back": "NN 重启时回放时间线性变长，集群长时间停在 safemode；同时磁盘上 edits 文件占用变大。告警设计：监控 `dfs.namenode` JMX 里的事务数/edits 大小与最近一次 checkpoint 距今的事务数差值（如 LastWrittenTxId - MostRecentCheckpointTxId 超阈值告警），以及 Standby NN 存活（HA 下 checkpoint 靠它做，Standby 挂了 edits 就开始堆积）。这也解释了为什么 HA 集群的 Standby 不能当摆设。",
+      "tags": [
+        "selftest",
+        "hdfs",
+        "q3"
+      ]
+    },
+    {
+      "id": "sc-0525",
+      "module": "16-bigdata",
+      "source": "16-bigdata/01-hdfs.md#自测",
+      "type": "selftest",
+      "front": "4. 一块物理盘坏了但 DN 进程还活着，HDFS 如何知道？哪些情况会演变成丢失块？",
+      "back": "路径一：DN 检测到卷失败（可容忍 `dfs.datanode.failed.volumes.tolerated` 个），立即用增量块报告把该盘的块标记为失效，NN 调度补副本。路径二：VolumeScanner 后台扫描发现校验和错误。路径三：读请求校验失败上报。演变成丢失块的条件：某块的全部 3 副本所在 DN/盘同时不可用（如同机架故障 + 巧合的另一副本盘坏），或副本数被错误设为 1 再遇 DN 下线——这正是\"副本数严禁为 1\"和\"decommission 必须走完\"的原因。",
+      "tags": [
+        "selftest",
+        "hdfs",
+        "q4"
+      ]
+    },
+    {
+      "id": "sc-0526",
+      "module": "16-bigdata",
+      "source": "16-bigdata/01-hdfs.md#自测",
+      "type": "selftest",
+      "front": "5. Balancer 默认把每 DN 搬迁带宽限制在 1MB/s 量级，为什么？把它调到 200MB/s 可能引发什么？",
+      "back": "搬迁流量与业务读写共享同一块盘和同一张网卡，限速是为了让均衡对业务\"无害\"。调到 200MB/s 可能引发：磁盘 util 打满导致业务读延迟飙升、上联/核心交换机带宽被打穿（跨机架搬迁）、NN 侧搬迁指令处理压力增大。正确做法是错峰 + 分批 + 按集群实测带宽阶梯上调，并盯业务的读 P99 是否恶化。这与 Kafka 迁移分区要限流（`12-data-streaming/kafka`）是同一个问题：**数据搬迁永远和可用性抢资源**。",
+      "tags": [
+        "selftest",
+        "hdfs",
+        "q5"
+      ]
+    },
+    {
+      "id": "sc-0527",
+      "module": "16-bigdata",
+      "source": "16-bigdata/02-yarn.md#自测",
+      "type": "selftest",
+      "front": "1. AM 为什么不做成 RM 内部的一个线程，而要每个应用独立进程？这个设计换来了什么、付出了什么？",
+      "back": "这是 MRv1→MRv2 的核心改造：JobTracker 既管资源又执行应用逻辑，任何作业的 bug 都可能拖垮整个集群调度。拆出 AM 后，应用逻辑失败只影响自己的 AM（RM 只需为它重新申请一个容器重跑），RM 保持极简稳定；还换来了框架中立——Spark/Flink/Tez 都实现了自己的 AM，不必改 RM。代价：每个应用多一个进程与一轮协商（小作业启动开销变大）、AM 本身要占资源（于是有 am-percent 防挤占）、运维多了一层\"AM 挂了导致应用重试\"的排障面。",
+      "tags": [
+        "selftest",
+        "yarn",
+        "q1"
+      ]
+    },
+    {
+      "id": "sc-0528",
+      "module": "16-bigdata",
+      "source": "16-bigdata/02-yarn.md#自测",
+      "type": "selftest",
+      "front": "2. 一个大队列里跑着几百个\"永远只要 1 个 container\"的小应用，`maximum-am-resource-percent` 保持默认 0.1，会发生什么？为什么这个默认值是对的行为？",
+      "back": "AM 也占队列资源，几百个小应用的 AM 加起来可能吃掉远超 10% 的配额，于是后续应用的 AM 拿不到容器，全部排在 ACCEPTED——队列明明还有资源却没有一个应用能干活。默认 0.1 正是防这种死锁的护栏：AM 是\"管理开销\"，必须给真正的 task 留出主体资源。正确处置是识别负载形态：这类场景要么调大 am-percent，要么把常驻型应用（Spark Thrift Server 等）挪到独立队列。",
+      "tags": [
+        "selftest",
+        "yarn",
+        "q2"
+      ]
+    },
+    {
+      "id": "sc-0529",
+      "module": "16-bigdata",
+      "source": "16-bigdata/02-yarn.md#自测",
+      "type": "selftest",
+      "front": "3. 为什么\"内存打满、vcores 大量剩余\"是 YARN 集群常态？容量规划时你按哪个维度做主轴？",
+      "back": "因为应用申请的内存配比普遍高于整机配比：Spark executor 常见 4C/16G（1:4），JVM 堆外、Python 进程（PySpark）还要额外内存，而纯计算对 vcores 的记账消耗增长慢；同时 vcores 默认只是配额不设硬限，超售也无感。所以按 memory-mb 做主轴：队列保底/上限、扩容决策、水位告警都先看内存；vcores 用来防\"单个超大 container\"和粗粒度配额。演练第 8 节的 240GB/60C 推导就是这个逻辑。",
+      "tags": [
+        "selftest",
+        "yarn",
+        "q3"
+      ]
+    },
+    {
+      "id": "sc-0530",
+      "module": "16-bigdata",
+      "source": "16-bigdata/02-yarn.md#自测",
+      "type": "selftest",
+      "front": "4. RM HA 切换时正在跑的 Spark 作业为什么不重启也能继续？它的前提条件有哪些？",
+      "back": "work-preserving restart：新 Active 从 ZK StateStore 恢复应用登记，NM 重新汇报各自持有的运行中容器，AM 检测到 RM 重连后重新注册，作业继续。前提：recovery.enabled=true、StateStore 用 ZK 实现（与选举共用 ZK 集群）、NM 的容器没被误杀、AM 的重连窗口足够（否则 AM 自杀重跑也是可接受的降级）。若 recovery 没开，切换等于全集群作业清零——这是配置审计里比 HA 本身更容易漏的一项。",
+      "tags": [
+        "selftest",
+        "yarn",
+        "q4"
+      ]
+    },
+    {
+      "id": "sc-0531",
+      "module": "16-bigdata",
+      "source": "16-bigdata/02-yarn.md#自测",
+      "type": "selftest",
+      "front": "5. 同样基于 cgroup，YARN 的容器隔离和 K8s 的 Pod 隔离差在哪里？为什么说 YARN 是\"半个容器系统\"？",
+      "back": "K8s（准确说容器运行时）用 cgroup + **namespace** 双重隔离：文件系统、PID、网络栈全部隔离，还叠加 Seccomp/SELinux 等安全边界。YARN 默认的 DefaultContainerExecutor 只起进程不隔离；即便配了 linux-container-executor + cgroup，也只有资源维度（内存硬限/可选 CPU），进程间共享同一文件系统、同一网络命名空间、同一用户上下文——所以 YARN 集群必须靠\"所有节点有相同的 Linux 用户\"来隔离文件权限。这就是大数据作业可以直接读本地 HDFS 目录、却很难安全承载多租户任意代码的原因…",
+      "tags": [
+        "selftest",
+        "yarn",
+        "q5"
+      ]
+    },
+    {
+      "id": "sc-0532",
+      "module": "16-bigdata",
+      "source": "16-bigdata/03-hive-warehouse.md#自测",
+      "type": "selftest",
+      "front": "1. 为什么 local 模式（metastore 与 HS2 同 JVM、后端 MySQL）在生产几乎绝迹，尽管它比 remote 少一个进程？",
+      "back": "三个原因：① 故障域不隔离——HS2 被 OOM/重启，metastore 服务跟着消失，所有依赖元数据的引擎（含正在提交的 Spark 作业）同时受影响；② 连接数不收敛——每个 HS2 实例独立维护 JDBC 连接，HS2 横向扩容时 MySQL 连接线性增长，最终打满 MySQL；③ 无法独立扩容/升级 metastore。remote 模式多花一个进程换来了\"元数据面\"与\"查询接入面\"解耦，这和把 etcd 从 apiserver 进程里拆出来是同一类架构决策。",
+      "tags": [
+        "selftest",
+        "hive",
+        "warehouse",
+        "q1"
+      ]
+    },
+    {
+      "id": "sc-0533",
+      "module": "16-bigdata",
+      "source": "16-bigdata/03-hive-warehouse.md#自测",
+      "type": "selftest",
+      "front": "2. 同一条 `SELECT city, sum(amount) FROM t WHERE dt='2026-08-29' AND amount>100 GROUP BY city`，TextFile 和 ORC 的物理执行差在哪一步？差距是 SQL 引擎造成的吗？",
+      "back": "差距主要不在引擎而在文件读取层。ORC reader 先读 footer 统计：dt 靠分区裁剪跳过目录，amount>100 靠 row group/stripe 的 min-max（可加 bloom filter）整块跳过，且只反序列化 city、amount 两列。TextFile 必须把命中分区的所有行完整读入并解析全部字段。引擎完全相同的情况下，IO 量与反序列化 CPU 差一个数量级很常见。",
+      "tags": [
+        "selftest",
+        "hive",
+        "warehouse",
+        "q2"
+      ]
+    },
+    {
+      "id": "sc-0534",
+      "module": "16-bigdata",
+      "source": "16-bigdata/03-hive-warehouse.md#自测",
+      "type": "selftest",
+      "front": "3. 分桶能让 join 不 shuffle，那把热点大表按 join key 分 64 桶，能解决\"某单个 key 占 40% 数据\"的倾斜吗？",
+      "back": "不能。分桶的拆分函数是 hash(key) mod N，同一个 key 的所有行必然落到同一个桶文件——单个热点 key 的数据仍然整体在一个 task 里。分桶解决的是\"key 很多但分布不均\"的长尾，让文件大小均匀、并支持 bucket map join 省掉 shuffle；单 key 倾斜必须打散 key 本身（加盐、null 值单独处理），见 04-spark.md 第 5 节。",
+      "tags": [
+        "selftest",
+        "hive",
+        "warehouse",
+        "q3"
+      ]
+    },
+    {
+      "id": "sc-0535",
+      "module": "16-bigdata",
+      "source": "16-bigdata/03-hive-warehouse.md#自测",
+      "type": "selftest",
+      "front": "4. ODS 层任务失败为什么要配最高级告警，而 ADS 层常常只开工单？",
+      "back": "依赖传播范围不同：ODS 是全链路的数据源头，它晚到或失败意味着 DWD/DWS/ADS 全部顺延，报表截止时间（SLA）整体风险，且重跑要回源（重拉 binlog/日志，代价最大、窗口最长）；ADS 失败影响面通常只有一张报表/一个 API，且数据仍在下层，重跑是廉价的本地重算。告警分级本质上是对\"影响面 × 恢复成本\"排序。",
+      "tags": [
+        "selftest",
+        "hive",
+        "warehouse",
+        "q4"
+      ]
+    },
+    {
+      "id": "sc-0536",
+      "module": "16-bigdata",
+      "source": "16-bigdata/03-hive-warehouse.md#自测",
+      "type": "selftest",
+      "front": "5. 恢复 metastore 的 MySQL 备份后，业务一定正常吗？列出至少两类不一致。",
+      "back": "不一定，元数据与 HDFS 文件可能撕裂：① MySQL 备份时间点之后新建的表/分区，MySQL 里没有记录但 HDFS 目录存在（孤儿数据）；② 备份之后 drop 掉的表，恢复后 MySQL 又\"复活\"了表定义，但 HDFS 文件若已被清掉则查询直接报错；③ ACID 表的事务 ID 与 delta 目录状态不一致，可能需要 `MSCK REPAIR` 与 compaction 清理。所以 runbook 必须写清恢复后的一致性核对步骤（SHOW TABLES 抽查 + 关键分区 count 比对），并明确\"以哪边为准\"。",
+      "tags": [
+        "selftest",
+        "hive",
+        "warehouse",
+        "q5"
+      ]
+    },
+    {
+      "id": "sc-0537",
+      "module": "16-bigdata",
+      "source": "16-bigdata/04-spark.md#自测",
+      "type": "selftest",
+      "front": "1. 为什么 Execution 内存可以抢占 Storage，反向却不行？这个不对称保护的是什么？",
+      "back": "保护\"正在运行的 task 不能被中断\"：Execution 内存不够时 task 无法让步（算到一半的数据不能扔），只能通过挤掉可重建的缓存块腾地方——缓存丢了可以重算或重读，task 失败则整个 stage 重来。反向 Storage 若能抢占 Execution，缓存的写入会随时杀掉正在执行的 task，作业正确性与进度都不可控。一句话：可重算的资源永远让位于不可中断的计算。",
+      "tags": [
+        "selftest",
+        "spark",
+        "q1"
+      ]
+    },
+    {
+      "id": "sc-0538",
+      "module": "16-bigdata",
+      "source": "16-bigdata/04-spark.md#自测",
+      "type": "selftest",
+      "front": "2. YARN 报 \"8GB of 8GB physical memory used\" 但 executor 堆只配了 6g、才用到一半，哪里吃掉了内存？",
+      "back": "RSS ≠ 堆。容器 8GB 里堆 6g，剩余 2g 给堆外：netty DirectByteBuffer（shuffle 拉取缓冲）、数百个 task/JVM 线程栈、metaspace/code cache、glibc malloc 碎片。shuffle 量大时直接内存膨胀最快，堆一半没用完 RSS 已到 8GB 被 YARN 杀。处置是加 memoryOverhead（或减 executor-cores 降并发），而不是加 -Xmx——后者会让堆外空间更小。",
+      "tags": [
+        "selftest",
+        "spark",
+        "q2"
+      ]
+    },
+    {
+      "id": "sc-0539",
+      "module": "16-bigdata",
+      "source": "16-bigdata/04-spark.md#自测",
+      "type": "selftest",
+      "front": "3. 一个 stage 的 199 个 task 都是 3 秒，1 个 task 跑了 25 分钟且 Spill (disk) 达到十几 GB。说出你的完整处置顺序。",
+      "back": "① 确认倾斜而非环境问题：该 task 的 Input Size 是否远大于其他 task（若数据量相同才怀疑节点/盘）；② 看 EXPLAIN 定位该 Exchange 前后的算子，找出分组/join key；③ 用 `df.groupBy(key).count().orderBy(desc)` 采样验证 key 分布（或直接查 null 占比）；④ 选武器：null/空值先拆、小表 broadcast、聚合两阶段、join 加盐；⑤ Spark 3.5 先确认 AQE skewJoin 已生效（它只自动处理排序 join 的倾斜）；⑥ 修复后在同一数据集对比 stage 的 max/me…",
+      "tags": [
+        "selftest",
+        "spark",
+        "q3"
+      ]
+    },
+    {
+      "id": "sc-0540",
+      "module": "16-bigdata",
+      "source": "16-bigdata/04-spark.md#自测",
+      "type": "selftest",
+      "front": "4. 开了 dynamicAllocation，为什么 YARN 必须配 external shuffle service，而 K8s 上却用 shuffleTracking？本质矛盾是什么？",
+      "back": "矛盾是\"executor 的生命周期由资源策略决定，shuffle 文件的生命周期由作业数据流决定\"，两者天然不同步：map 阶段结束后 executor 空闲被回收，但它的输出文件还要被下一个 stage 拉取几十分钟。YARN 有常驻的 NodeManager，把文件托管职责挪给 NM 里的 ESS，executor 随便死；K8s 上没有等价的常驻节点代理（ESS 只能 DaemonSet 变种，维护成本高），所以 3.0 改为 shuffleTracking：Spark 自己记录哪些块还被引用，持有数据的 executor 暂不回收——用保守回收换正确性。",
+      "tags": [
+        "selftest",
+        "spark",
+        "q4"
+      ]
+    },
+    {
+      "id": "sc-0541",
+      "module": "16-bigdata",
+      "source": "16-bigdata/04-spark.md#自测",
+      "type": "selftest",
+      "front": "5. 同一个 ETL 逻辑，该用 Spark on K8s 还是 Flink on K8s？给出判断依据，并说明两者失败恢复语义的差别。",
+      "back": "按数据的时间形态定：有界、按批重算幂等（覆盖写）→ Spark；无界、要求事件内持续聚合与状态 → Flink。恢复语义差别：Spark 无持久状态，失败从上游 stage 或重跑分区恢复，幂等输出保证最终一致；Flink 的进度存在于算子状态里，必须依赖 checkpoint/savepoint，恢复是从最近快照重放（exactly-once 需 sink 两阶段提交配合，见 12-data-streaming/flink/02）。因此 Spark 的升级是\"重跑\"，Flink 的升级是\"savepoint 迁移\"，运维流程完全不同。",
+      "tags": [
+        "selftest",
+        "spark",
+        "q5"
+      ]
+    },
+    {
+      "id": "sc-0542",
+      "module": "16-bigdata",
+      "source": "16-bigdata/05-olap-doris-starrocks.md#自测",
+      "type": "selftest",
+      "front": "1. 同一份订单数据，\"审计明细留存\"和\"实时余额查询\"分别该用哪种模型？如果把实时余额表从 MoW 换成 MoR，写入吞吐和点查延迟各怎么变？",
+      "back": "明细留存用 Duplicate（写最便宜、永不合并、可随时按新口径重算）；实时余额用 Unique + merge-on-write（主键 upsert，读路径无合并、点查快）。MoW→MoR：写入变便宜（不用写时打 delete bitmap，写放大下降，吞吐上升），但每次查询都要现场按主键合并多版本，点查与范围查都显著变慢——本质是把合并成本从写路径挪到读路径，按\"写多读少还是读多写少\"选。",
+      "tags": [
+        "selftest",
+        "olap",
+        "doris",
+        "starrocks",
+        "q1"
+      ]
+    },
+    {
+      "id": "sc-0543",
+      "module": "16-bigdata",
+      "source": "16-bigdata/05-olap-doris-starrocks.md#自测",
+      "type": "selftest",
+      "front": "2. compaction 长期跟不上，会在 Doris、Flink、Kafka 三层分别看到什么现象？治理动作是什么？",
+      "back": "Doris 层：compaction score 持续升高，tablet 版本数堆积，最终写入被拒（too many versions）；导入事务排队、label 提交变慢。Flink 层：sink 写入变慢 → 算子反压 → checkpoint 变慢/超时（backPressured 指标顶满，见 12 模块反压定位法）。Kafka 层：source 消费停滞，消费组 lag 直线上扬。治理：降低导入频次、攒大批次（减少版本产生速度）；清理不必要的小表导入任务；评估调大 compaction 线程/磁盘能力；根治是\"明细 Duplicate + 报表 Aggregate\"分层，避免高频小…",
+      "tags": [
+        "selftest",
+        "olap",
+        "doris",
+        "starrocks",
+        "q2"
+      ]
+    },
+    {
+      "id": "sc-0544",
+      "module": "16-bigdata",
+      "source": "16-bigdata/05-olap-doris-starrocks.md#自测",
+      "type": "selftest",
+      "front": "3. FE Leader 宕机的 30 秒里，哪些操作失败、哪些照常？为什么生产要求至少 3 个 FOLLOWER 而 OBSERVER 不能算数？",
+      "back": "失败：所有需要写元数据的操作——建表/删表、导入事务提交（新数据不可见）、权限变更。照常：已提交数据的查询（follower/observer 可规划只读查询），但有短暂路由抖动。FOLLOWER 构成元数据写的过半多数派，1 个 FOLLOWER 挂了剩 2/3 仍过半；OBSERVER 不参与选举与 quorum，挂再多也不提升可用性——这与 Kafka ISR 的多数派、K8s etcd 的 quorum 是同一条数学约束：过半机制容忍 (n-1)/2 个故障，偶数节点不增加容错只增加写延迟。",
+      "tags": [
+        "selftest",
+        "olap",
+        "doris",
+        "starrocks",
+        "q3"
+      ]
+    },
+    {
+      "id": "sc-0545",
+      "module": "16-bigdata",
+      "source": "16-bigdata/05-olap-doris-starrocks.md#自测",
+      "type": "selftest",
+      "front": "4. Flink→Doris 与 Flink→KafkaSink 的 exactly-once 机制有何同构性？\"事务\"分别由什么实现？",
+      "back": "同构：都依赖三前提——source 可重放（Kafka offset 在 checkpoint）、算子状态随 checkpoint 持久化、sink 两阶段提交（先写不可见数据，checkpoint 完成 notifyCheckpointComplete 后统一 commit）。差异在\"事务\"载体：KafkaSink 用 broker 的事务日志（transactional.id + PID），读端要 `isolation.level=read_committed`；Doris Connector 用 Stream Load 2PC（label 的 precommit/commit），未 c…",
+      "tags": [
+        "selftest",
+        "olap",
+        "doris",
+        "starrocks",
+        "q4"
+      ]
+    },
+    {
+      "id": "sc-0546",
+      "module": "16-bigdata",
+      "source": "16-bigdata/05-olap-doris-starrocks.md#自测",
+      "type": "selftest",
+      "front": "5. 业务要\"按城市+日期的秒级报表\"，明细每天 10 亿行。只建一张 Duplicate 明细表直接 GROUP BY 会发生什么？给出分层建表方案。",
+      "back": "每次查询全量扫描 10 亿行明细做聚合，秒级响应无从谈起，且并发几个报表就把 BE CPU/IO 打满、拖垮其他查询。分层方案：Duplicate 明细表按天分区（留存与回算用）；Aggregate 表 AGGREGATE KEY(dt, city) 带 pv/cost SUM（写入时预聚合，行数从 10 亿降到百万级）；再按查询热度加 rollup（如 (dt, city, channel)）；高频口径用异步物化视图。查询走 rollup/MV 命中，历史分区直接删除释放空间。",
+      "tags": [
+        "selftest",
+        "olap",
+        "doris",
+        "starrocks",
+        "q5"
+      ]
+    },
+    {
+      "id": "sc-0547",
+      "module": "16-bigdata",
+      "source": "16-bigdata/06-zookeeper.md#自测",
+      "type": "selftest",
+      "front": "1. 3 节点 ZK 挂 1 台，读写分别受什么影响？挂 2 台呢？如果这时还剩一个\"曾经是 Leader 的节点\"，它还能对外提供写服务吗？",
+      "back": "挂 1 台：过半（2/3）仍在，读写正常（可用性以少数派节点退出为代价）。挂 2 台：只剩 1 台不足过半—— Leader 因收不到过半 ACK 不再提交任何写，集群不可写；读默认仍可（本地内存数据）但不再有新数据，因此整体上应视为不可用。剩下的单节点即使是旧 Leader 也不能接受写：ZAB 的提交条件是过半 ACK，单节点无法满足，它会进入 LOOKING 等待仲裁恢复。这正是过半机制防脑裂的体现——宁可停写，不可双主。",
+      "tags": [
+        "selftest",
+        "zookeeper",
+        "q1"
+      ]
+    },
+    {
+      "id": "sc-0548",
+      "module": "16-bigdata",
+      "source": "16-bigdata/06-zookeeper.md#自测",
+      "type": "selftest",
+      "front": "2. 选举时\"zxid 大者优先\"解决什么问题？如果改成\"myid 大者优先\"，会在什么场景出什么事故？",
+      "back": "zxid 大 = 事务日志最全，让数据最新的节点当选，避免已提交事务丢失（其余节点向它同步）。若只按 myid：数据落后的高 id 节点当选 Leader，其他节点要向它同步时发现本地有 Leader 没有的已提交事务——这些事务必须被 TRUNC 回滚，等于已提交的写被\"撤销\"，违反持久化承诺； Worse 的情况下每次选主都可能在不同数据版本间回滚，产生抖动性丢写。epoch 优先级最高的原因同理：新朝代必须否定旧朝代的半成品事务。",
+      "tags": [
+        "selftest",
+        "zookeeper",
+        "q2"
+      ]
+    },
+    {
+      "id": "sc-0549",
+      "module": "16-bigdata",
+      "source": "16-bigdata/06-zookeeper.md#自测",
+      "type": "selftest",
+      "front": "3. 为什么 HDFS 的 ActiveStandbyElectorLock 用临时节点而不是持久节点 + 手动删除？如果两个 NameNode 都自认 Active，除了 ZK 还缺哪一层防护？",
+      "back": "临时节点把\"持有权\"与\"进程会话\"绑定：NameNode 崩溃/断连的瞬间锁自动释放，Standby 立刻可见并抢主，不需要人工或脚本清理（人工清理必有延迟和误删风险）。双 Active 的残余场景：旧 Active 长暂停后恢复，自认为仍持有锁（会话漂移，第 4 节）。ZK 只解决\"互相知情\"，防双写还差 **fencing**：HDFS 用 fencing 机制隔离旧 Active（如让 JournalNode/共享存储拒绝旧 epoch 的写），存储层强制单写才是最后防线。这与\"ZK 锁要配 fencing token\"是同一个结论。",
+      "tags": [
+        "selftest",
+        "zookeeper",
+        "q3"
+      ]
+    },
+    {
+      "id": "sc-0550",
+      "module": "16-bigdata",
+      "source": "16-bigdata/06-zookeeper.md#自测",
+      "type": "selftest",
+      "front": "4. watch 改成\"永久触发\"（注册一次一直有效）听起来更好，为什么 ZK 不这么做？这个决定把复杂度推给了谁？",
+      "back": "一次性 watch 让服务端实现简单且状态可预期：触发即清除，Leader 故障切换时无需在节点间迁移海量 watch 状态（永久 watch 意味着服务端要为每个客户端维护长期监听表并在会话漂移/FLE 后精确恢复，故障窗口的丢失或重复都很难定义）。代价是把复杂度推给客户端：必须\"事件后重注册 + 全量读\"处理丢失窗口，还要处理会话过期后全部作废。框架（Curator Cache 等）和后续系统（etcd 的 watcher 语义虽是持续推送，但同样要求消费方幂等）都在不同层面替业务承担了这部分。",
+      "tags": [
+        "selftest",
+        "zookeeper",
+        "q4"
+      ]
+    },
+    {
+      "id": "sc-0551",
+      "module": "16-bigdata",
+      "source": "16-bigdata/06-zookeeper.md#自测",
+      "type": "selftest",
+      "front": "5. 把 5 节点 ZK 扩到 7 节点，写出操作顺序，并解释为什么不能把 5 台的新配置一次性全部重启？",
+      "back": "顺序：① 在 5 台存量节点的 zoo.cfg 里同时加上 server.6、server.7，**一台一台改并重启**，每台回来并完成同步再动下一台；② 成员表统一后，用空 dataDir 启动第 6 台，等它从 Leader 同步完成；③ 再启动第 7 台。若把 5 台一次性全部按\"7 成员\"配置重启：重启窗口内在线节点可能只剩 2~3 台，而 7 成员的过半是 4——集群立刻失去仲裁、整体不可写；滚动期间各台成员表不一致，每台对\"过半\"的算法也不同，必须靠\"一次一台\"保证任意时刻在线节点数 ≥ 当前最大配置的过半数。用动态 reconfig 可免手工滚动，但\"一次一台、确认同步\"的原则…",
+      "tags": [
+        "selftest",
+        "zookeeper",
+        "q5"
+      ]
+    },
+    {
+      "id": "sc-0552",
       "module": "05-cka",
       "source": "SCENARIOS.md#L12",
       "type": "scenario",
@@ -7335,7 +7810,7 @@
       ]
     },
     {
-      "id": "sc-0518",
+      "id": "sc-0553",
       "module": "05-cka",
       "source": "SCENARIOS.md#L13",
       "type": "scenario",
@@ -7346,7 +7821,7 @@
       ]
     },
     {
-      "id": "sc-0519",
+      "id": "sc-0554",
       "module": "05-cka",
       "source": "SCENARIOS.md#L14",
       "type": "scenario",
@@ -7358,7 +7833,7 @@
       ]
     },
     {
-      "id": "sc-0520",
+      "id": "sc-0555",
       "module": "05-cka",
       "source": "SCENARIOS.md#L15",
       "type": "scenario",
@@ -7370,7 +7845,7 @@
       ]
     },
     {
-      "id": "sc-0521",
+      "id": "sc-0556",
       "module": "05-cka",
       "source": "SCENARIOS.md#L16",
       "type": "scenario",
@@ -7382,7 +7857,7 @@
       ]
     },
     {
-      "id": "sc-0522",
+      "id": "sc-0557",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L17",
       "type": "scenario",
@@ -7394,7 +7869,7 @@
       ]
     },
     {
-      "id": "sc-0523",
+      "id": "sc-0558",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L18",
       "type": "scenario",
@@ -7405,7 +7880,7 @@
       ]
     },
     {
-      "id": "sc-0524",
+      "id": "sc-0559",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L19",
       "type": "scenario",
@@ -7417,7 +7892,7 @@
       ]
     },
     {
-      "id": "sc-0525",
+      "id": "sc-0560",
       "module": "05-cka",
       "source": "SCENARIOS.md#L20",
       "type": "scenario",
@@ -7428,7 +7903,7 @@
       ]
     },
     {
-      "id": "sc-0526",
+      "id": "sc-0561",
       "module": "05-cka",
       "source": "SCENARIOS.md#L21",
       "type": "scenario",
@@ -7439,7 +7914,7 @@
       ]
     },
     {
-      "id": "sc-0527",
+      "id": "sc-0562",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L22",
       "type": "scenario",
@@ -7450,7 +7925,7 @@
       ]
     },
     {
-      "id": "sc-0528",
+      "id": "sc-0563",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L23",
       "type": "scenario",
@@ -7461,7 +7936,7 @@
       ]
     },
     {
-      "id": "sc-0529",
+      "id": "sc-0564",
       "module": "05-cka",
       "source": "SCENARIOS.md#L24",
       "type": "scenario",
@@ -7472,7 +7947,7 @@
       ]
     },
     {
-      "id": "sc-0530",
+      "id": "sc-0565",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L25",
       "type": "scenario",
@@ -7483,7 +7958,7 @@
       ]
     },
     {
-      "id": "sc-0531",
+      "id": "sc-0566",
       "module": "05-cka",
       "source": "SCENARIOS.md#L26",
       "type": "scenario",
@@ -7494,7 +7969,7 @@
       ]
     },
     {
-      "id": "sc-0532",
+      "id": "sc-0567",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L27",
       "type": "scenario",
@@ -7505,7 +7980,7 @@
       ]
     },
     {
-      "id": "sc-0533",
+      "id": "sc-0568",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L31",
       "type": "scenario",
@@ -7517,7 +7992,7 @@
       ]
     },
     {
-      "id": "sc-0534",
+      "id": "sc-0569",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L32",
       "type": "scenario",
@@ -7529,7 +8004,7 @@
       ]
     },
     {
-      "id": "sc-0535",
+      "id": "sc-0570",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L33",
       "type": "scenario",
@@ -7541,7 +8016,7 @@
       ]
     },
     {
-      "id": "sc-0536",
+      "id": "sc-0571",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L34",
       "type": "scenario",
@@ -7553,7 +8028,7 @@
       ]
     },
     {
-      "id": "sc-0537",
+      "id": "sc-0572",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L35",
       "type": "scenario",
@@ -7564,7 +8039,7 @@
       ]
     },
     {
-      "id": "sc-0538",
+      "id": "sc-0573",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L36",
       "type": "scenario",
@@ -7575,7 +8050,7 @@
       ]
     },
     {
-      "id": "sc-0539",
+      "id": "sc-0574",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L37",
       "type": "scenario",
@@ -7586,7 +8061,7 @@
       ]
     },
     {
-      "id": "sc-0540",
+      "id": "sc-0575",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L38",
       "type": "scenario",
@@ -7597,7 +8072,7 @@
       ]
     },
     {
-      "id": "sc-0541",
+      "id": "sc-0576",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L39",
       "type": "scenario",
@@ -7608,7 +8083,7 @@
       ]
     },
     {
-      "id": "sc-0542",
+      "id": "sc-0577",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L40",
       "type": "scenario",
@@ -7619,7 +8094,7 @@
       ]
     },
     {
-      "id": "sc-0543",
+      "id": "sc-0578",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L41",
       "type": "scenario",
@@ -7630,7 +8105,7 @@
       ]
     },
     {
-      "id": "sc-0544",
+      "id": "sc-0579",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L42",
       "type": "scenario",
@@ -7641,7 +8116,7 @@
       ]
     },
     {
-      "id": "sc-0545",
+      "id": "sc-0580",
       "module": "05-cka",
       "source": "SCENARIOS.md#L43",
       "type": "scenario",
@@ -7652,7 +8127,7 @@
       ]
     },
     {
-      "id": "sc-0546",
+      "id": "sc-0581",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L44",
       "type": "scenario",
@@ -7663,7 +8138,7 @@
       ]
     },
     {
-      "id": "sc-0547",
+      "id": "sc-0582",
       "module": "01-linux",
       "source": "SCENARIOS.md#L45",
       "type": "scenario",
@@ -7674,7 +8149,7 @@
       ]
     },
     {
-      "id": "sc-0548",
+      "id": "sc-0583",
       "module": "01-linux",
       "source": "SCENARIOS.md#L46",
       "type": "scenario",
@@ -7685,7 +8160,7 @@
       ]
     },
     {
-      "id": "sc-0549",
+      "id": "sc-0584",
       "module": "14-cloud",
       "source": "SCENARIOS.md#L47",
       "type": "scenario",
@@ -7696,7 +8171,7 @@
       ]
     },
     {
-      "id": "sc-0550",
+      "id": "sc-0585",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L51",
       "type": "scenario",
@@ -7708,7 +8183,7 @@
       ]
     },
     {
-      "id": "sc-0551",
+      "id": "sc-0586",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L52",
       "type": "scenario",
@@ -7720,7 +8195,7 @@
       ]
     },
     {
-      "id": "sc-0552",
+      "id": "sc-0587",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L53",
       "type": "scenario",
@@ -7731,7 +8206,7 @@
       ]
     },
     {
-      "id": "sc-0553",
+      "id": "sc-0588",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L54",
       "type": "scenario",
@@ -7742,7 +8217,7 @@
       ]
     },
     {
-      "id": "sc-0554",
+      "id": "sc-0589",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L55",
       "type": "scenario",
@@ -7753,7 +8228,7 @@
       ]
     },
     {
-      "id": "sc-0555",
+      "id": "sc-0590",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L56",
       "type": "scenario",
@@ -7764,7 +8239,7 @@
       ]
     },
     {
-      "id": "sc-0556",
+      "id": "sc-0591",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L57",
       "type": "scenario",
@@ -7775,7 +8250,7 @@
       ]
     },
     {
-      "id": "sc-0557",
+      "id": "sc-0592",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L58",
       "type": "scenario",
@@ -7786,7 +8261,7 @@
       ]
     },
     {
-      "id": "sc-0558",
+      "id": "sc-0593",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L59",
       "type": "scenario",
@@ -7797,7 +8272,7 @@
       ]
     },
     {
-      "id": "sc-0559",
+      "id": "sc-0594",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L60",
       "type": "scenario",
@@ -7808,7 +8283,7 @@
       ]
     },
     {
-      "id": "sc-0560",
+      "id": "sc-0595",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L61",
       "type": "scenario",
@@ -7819,7 +8294,7 @@
       ]
     },
     {
-      "id": "sc-0561",
+      "id": "sc-0596",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L62",
       "type": "scenario",
@@ -7830,7 +8305,7 @@
       ]
     },
     {
-      "id": "sc-0562",
+      "id": "sc-0597",
       "module": "05-cka",
       "source": "SCENARIOS.md#L63",
       "type": "scenario",
@@ -7841,7 +8316,7 @@
       ]
     },
     {
-      "id": "sc-0563",
+      "id": "sc-0598",
       "module": "05-cka",
       "source": "SCENARIOS.md#L64",
       "type": "scenario",
@@ -7852,7 +8327,7 @@
       ]
     },
     {
-      "id": "sc-0564",
+      "id": "sc-0599",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L68",
       "type": "scenario",
@@ -7863,7 +8338,7 @@
       ]
     },
     {
-      "id": "sc-0565",
+      "id": "sc-0600",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L69",
       "type": "scenario",
@@ -7874,7 +8349,7 @@
       ]
     },
     {
-      "id": "sc-0566",
+      "id": "sc-0601",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L70",
       "type": "scenario",
@@ -7885,7 +8360,7 @@
       ]
     },
     {
-      "id": "sc-0567",
+      "id": "sc-0602",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L71",
       "type": "scenario",
@@ -7896,7 +8371,7 @@
       ]
     },
     {
-      "id": "sc-0568",
+      "id": "sc-0603",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L72",
       "type": "scenario",
@@ -7907,7 +8382,7 @@
       ]
     },
     {
-      "id": "sc-0569",
+      "id": "sc-0604",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L73",
       "type": "scenario",
@@ -7918,7 +8393,7 @@
       ]
     },
     {
-      "id": "sc-0570",
+      "id": "sc-0605",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L74",
       "type": "scenario",
@@ -7929,7 +8404,7 @@
       ]
     },
     {
-      "id": "sc-0571",
+      "id": "sc-0606",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L75",
       "type": "scenario",
@@ -7940,7 +8415,7 @@
       ]
     },
     {
-      "id": "sc-0572",
+      "id": "sc-0607",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L76",
       "type": "scenario",
@@ -7951,7 +8426,7 @@
       ]
     },
     {
-      "id": "sc-0573",
+      "id": "sc-0608",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L77",
       "type": "scenario",
@@ -7962,7 +8437,7 @@
       ]
     },
     {
-      "id": "sc-0574",
+      "id": "sc-0609",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L78",
       "type": "scenario",
@@ -7973,7 +8448,7 @@
       ]
     },
     {
-      "id": "sc-0575",
+      "id": "sc-0610",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L79",
       "type": "scenario",
@@ -7984,7 +8459,7 @@
       ]
     },
     {
-      "id": "sc-0576",
+      "id": "sc-0611",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L80",
       "type": "scenario",
@@ -7995,7 +8470,7 @@
       ]
     },
     {
-      "id": "sc-0577",
+      "id": "sc-0612",
       "module": "12-data-streaming",
       "source": "SCENARIOS.md#L81",
       "type": "scenario",
@@ -8006,7 +8481,7 @@
       ]
     },
     {
-      "id": "sc-0578",
+      "id": "sc-0613",
       "module": "12-data-streaming",
       "source": "SCENARIOS.md#L82",
       "type": "scenario",
@@ -8017,7 +8492,7 @@
       ]
     },
     {
-      "id": "sc-0579",
+      "id": "sc-0614",
       "module": "12-data-streaming",
       "source": "SCENARIOS.md#L83",
       "type": "scenario",
@@ -8028,7 +8503,7 @@
       ]
     },
     {
-      "id": "sc-0580",
+      "id": "sc-0615",
       "module": "12-data-streaming",
       "source": "SCENARIOS.md#L84",
       "type": "scenario",
@@ -8039,7 +8514,7 @@
       ]
     },
     {
-      "id": "sc-0581",
+      "id": "sc-0616",
       "module": "01-linux",
       "source": "SCENARIOS.md#L88",
       "type": "scenario",
@@ -8050,7 +8525,7 @@
       ]
     },
     {
-      "id": "sc-0582",
+      "id": "sc-0617",
       "module": "01-linux",
       "source": "SCENARIOS.md#L89",
       "type": "scenario",
@@ -8061,7 +8536,7 @@
       ]
     },
     {
-      "id": "sc-0583",
+      "id": "sc-0618",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L90",
       "type": "scenario",
@@ -8072,7 +8547,7 @@
       ]
     },
     {
-      "id": "sc-0584",
+      "id": "sc-0619",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L91",
       "type": "scenario",
@@ -8083,7 +8558,7 @@
       ]
     },
     {
-      "id": "sc-0585",
+      "id": "sc-0620",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L92",
       "type": "scenario",
@@ -8094,7 +8569,7 @@
       ]
     },
     {
-      "id": "sc-0586",
+      "id": "sc-0621",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L93",
       "type": "scenario",
@@ -8105,7 +8580,7 @@
       ]
     },
     {
-      "id": "sc-0587",
+      "id": "sc-0622",
       "module": "01-linux",
       "source": "SCENARIOS.md#L94",
       "type": "scenario",
@@ -8116,7 +8591,7 @@
       ]
     },
     {
-      "id": "sc-0588",
+      "id": "sc-0623",
       "module": "01-linux",
       "source": "SCENARIOS.md#L95",
       "type": "scenario",
@@ -8127,7 +8602,7 @@
       ]
     },
     {
-      "id": "sc-0589",
+      "id": "sc-0624",
       "module": "01-linux",
       "source": "SCENARIOS.md#L96",
       "type": "scenario",
@@ -8138,7 +8613,7 @@
       ]
     },
     {
-      "id": "sc-0590",
+      "id": "sc-0625",
       "module": "01-linux",
       "source": "SCENARIOS.md#L97",
       "type": "scenario",
@@ -8149,7 +8624,7 @@
       ]
     },
     {
-      "id": "sc-0591",
+      "id": "sc-0626",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L98",
       "type": "scenario",
@@ -8160,7 +8635,7 @@
       ]
     },
     {
-      "id": "sc-0592",
+      "id": "sc-0627",
       "module": "11-middleware",
       "source": "SCENARIOS.md#L99",
       "type": "scenario",
@@ -8171,7 +8646,7 @@
       ]
     },
     {
-      "id": "sc-0593",
+      "id": "sc-0628",
       "module": "06-cicd-iac-gitops",
       "source": "SCENARIOS.md#L103",
       "type": "scenario",
@@ -8182,7 +8657,7 @@
       ]
     },
     {
-      "id": "sc-0594",
+      "id": "sc-0629",
       "module": "06-cicd-iac-gitops",
       "source": "SCENARIOS.md#L104",
       "type": "scenario",
@@ -8193,7 +8668,7 @@
       ]
     },
     {
-      "id": "sc-0595",
+      "id": "sc-0630",
       "module": "06-cicd-iac-gitops",
       "source": "SCENARIOS.md#L105",
       "type": "scenario",
@@ -8204,7 +8679,7 @@
       ]
     },
     {
-      "id": "sc-0596",
+      "id": "sc-0631",
       "module": "06-cicd-iac-gitops",
       "source": "SCENARIOS.md#L106",
       "type": "scenario",
@@ -8215,7 +8690,7 @@
       ]
     },
     {
-      "id": "sc-0597",
+      "id": "sc-0632",
       "module": "06-cicd-iac-gitops",
       "source": "SCENARIOS.md#L107",
       "type": "scenario",
@@ -8226,7 +8701,7 @@
       ]
     },
     {
-      "id": "sc-0598",
+      "id": "sc-0633",
       "module": "06-cicd-iac-gitops",
       "source": "SCENARIOS.md#L108",
       "type": "scenario",
@@ -8237,7 +8712,7 @@
       ]
     },
     {
-      "id": "sc-0599",
+      "id": "sc-0634",
       "module": "06-cicd-iac-gitops",
       "source": "SCENARIOS.md#L109",
       "type": "scenario",
@@ -8248,7 +8723,7 @@
       ]
     },
     {
-      "id": "sc-0600",
+      "id": "sc-0635",
       "module": "06-cicd-iac-gitops",
       "source": "SCENARIOS.md#L110",
       "type": "scenario",
@@ -8259,7 +8734,7 @@
       ]
     },
     {
-      "id": "sc-0601",
+      "id": "sc-0636",
       "module": "06-cicd-iac-gitops",
       "source": "SCENARIOS.md#L111",
       "type": "scenario",
@@ -8270,7 +8745,7 @@
       ]
     },
     {
-      "id": "sc-0602",
+      "id": "sc-0637",
       "module": "06-cicd-iac-gitops",
       "source": "SCENARIOS.md#L112",
       "type": "scenario",
@@ -8281,7 +8756,7 @@
       ]
     },
     {
-      "id": "sc-0603",
+      "id": "sc-0638",
       "module": "02-programming",
       "source": "SCENARIOS.md#L113",
       "type": "scenario",
@@ -8292,7 +8767,7 @@
       ]
     },
     {
-      "id": "sc-0604",
+      "id": "sc-0639",
       "module": "02-programming",
       "source": "SCENARIOS.md#L114",
       "type": "scenario",
@@ -8303,7 +8778,7 @@
       ]
     },
     {
-      "id": "sc-0605",
+      "id": "sc-0640",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L118",
       "type": "scenario",
@@ -8314,7 +8789,7 @@
       ]
     },
     {
-      "id": "sc-0606",
+      "id": "sc-0641",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L119",
       "type": "scenario",
@@ -8325,7 +8800,7 @@
       ]
     },
     {
-      "id": "sc-0607",
+      "id": "sc-0642",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L120",
       "type": "scenario",
@@ -8336,7 +8811,7 @@
       ]
     },
     {
-      "id": "sc-0608",
+      "id": "sc-0643",
       "module": "08-pca",
       "source": "SCENARIOS.md#L121",
       "type": "scenario",
@@ -8347,7 +8822,7 @@
       ]
     },
     {
-      "id": "sc-0609",
+      "id": "sc-0644",
       "module": "08-pca",
       "source": "SCENARIOS.md#L122",
       "type": "scenario",
@@ -8358,7 +8833,7 @@
       ]
     },
     {
-      "id": "sc-0610",
+      "id": "sc-0645",
       "module": "08-pca",
       "source": "SCENARIOS.md#L123",
       "type": "scenario",
@@ -8369,7 +8844,7 @@
       ]
     },
     {
-      "id": "sc-0611",
+      "id": "sc-0646",
       "module": "08-pca",
       "source": "SCENARIOS.md#L124",
       "type": "scenario",
@@ -8380,7 +8855,7 @@
       ]
     },
     {
-      "id": "sc-0612",
+      "id": "sc-0647",
       "module": "08-pca",
       "source": "SCENARIOS.md#L125",
       "type": "scenario",
@@ -8391,7 +8866,7 @@
       ]
     },
     {
-      "id": "sc-0613",
+      "id": "sc-0648",
       "module": "08-pca",
       "source": "SCENARIOS.md#L126",
       "type": "scenario",
@@ -8402,7 +8877,7 @@
       ]
     },
     {
-      "id": "sc-0614",
+      "id": "sc-0649",
       "module": "09-otel",
       "source": "SCENARIOS.md#L127",
       "type": "scenario",
@@ -8413,7 +8888,7 @@
       ]
     },
     {
-      "id": "sc-0615",
+      "id": "sc-0650",
       "module": "09-otel",
       "source": "SCENARIOS.md#L128",
       "type": "scenario",
@@ -8424,7 +8899,7 @@
       ]
     },
     {
-      "id": "sc-0616",
+      "id": "sc-0651",
       "module": "09-otel",
       "source": "SCENARIOS.md#L129",
       "type": "scenario",
@@ -8435,7 +8910,7 @@
       ]
     },
     {
-      "id": "sc-0617",
+      "id": "sc-0652",
       "module": "09-otel",
       "source": "SCENARIOS.md#L130",
       "type": "scenario",
@@ -8446,7 +8921,7 @@
       ]
     },
     {
-      "id": "sc-0618",
+      "id": "sc-0653",
       "module": "10-logging",
       "source": "SCENARIOS.md#L131",
       "type": "scenario",
@@ -8457,7 +8932,7 @@
       ]
     },
     {
-      "id": "sc-0619",
+      "id": "sc-0654",
       "module": "10-logging",
       "source": "SCENARIOS.md#L132",
       "type": "scenario",
@@ -8468,7 +8943,7 @@
       ]
     },
     {
-      "id": "sc-0620",
+      "id": "sc-0655",
       "module": "10-logging",
       "source": "SCENARIOS.md#L133",
       "type": "scenario",
@@ -8479,7 +8954,7 @@
       ]
     },
     {
-      "id": "sc-0621",
+      "id": "sc-0656",
       "module": "13-sre-methodology",
       "source": "SCENARIOS.md#L134",
       "type": "scenario",
@@ -8490,7 +8965,7 @@
       ]
     },
     {
-      "id": "sc-0622",
+      "id": "sc-0657",
       "module": "08-pca",
       "source": "SCENARIOS.md#L135",
       "type": "scenario",
@@ -8501,7 +8976,7 @@
       ]
     },
     {
-      "id": "sc-0623",
+      "id": "sc-0658",
       "module": "07-cks",
       "source": "SCENARIOS.md#L139",
       "type": "scenario",
@@ -8513,7 +8988,7 @@
       ]
     },
     {
-      "id": "sc-0624",
+      "id": "sc-0659",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L140",
       "type": "scenario",
@@ -8524,7 +8999,7 @@
       ]
     },
     {
-      "id": "sc-0625",
+      "id": "sc-0660",
       "module": "04-k8s-fundamentals",
       "source": "SCENARIOS.md#L141",
       "type": "scenario",
@@ -8535,7 +9010,7 @@
       ]
     },
     {
-      "id": "sc-0626",
+      "id": "sc-0661",
       "module": "07-cks",
       "source": "SCENARIOS.md#L142",
       "type": "scenario",
@@ -8546,7 +9021,7 @@
       ]
     },
     {
-      "id": "sc-0627",
+      "id": "sc-0662",
       "module": "07-cks",
       "source": "SCENARIOS.md#L143",
       "type": "scenario",
@@ -8557,7 +9032,7 @@
       ]
     },
     {
-      "id": "sc-0628",
+      "id": "sc-0663",
       "module": "07-cks",
       "source": "SCENARIOS.md#L144",
       "type": "scenario",
@@ -8568,7 +9043,7 @@
       ]
     },
     {
-      "id": "sc-0629",
+      "id": "sc-0664",
       "module": "07-cks",
       "source": "SCENARIOS.md#L145",
       "type": "scenario",
@@ -8579,7 +9054,7 @@
       ]
     },
     {
-      "id": "sc-0630",
+      "id": "sc-0665",
       "module": "07-cks",
       "source": "SCENARIOS.md#L146",
       "type": "scenario",
@@ -8590,7 +9065,7 @@
       ]
     },
     {
-      "id": "sc-0631",
+      "id": "sc-0666",
       "module": "07-cks",
       "source": "SCENARIOS.md#L147",
       "type": "scenario",
@@ -8601,7 +9076,7 @@
       ]
     },
     {
-      "id": "sc-0632",
+      "id": "sc-0667",
       "module": "07-cks",
       "source": "SCENARIOS.md#L148",
       "type": "scenario",
@@ -8612,7 +9087,7 @@
       ]
     },
     {
-      "id": "sc-0633",
+      "id": "sc-0668",
       "module": "07-cks",
       "source": "SCENARIOS.md#L149",
       "type": "scenario",
@@ -8623,7 +9098,7 @@
       ]
     },
     {
-      "id": "sc-0634",
+      "id": "sc-0669",
       "module": "07-cks",
       "source": "SCENARIOS.md#L150",
       "type": "scenario",
@@ -8634,7 +9109,7 @@
       ]
     },
     {
-      "id": "sc-0635",
+      "id": "sc-0670",
       "module": "07-cks",
       "source": "SCENARIOS.md#L151",
       "type": "scenario",
@@ -8645,7 +9120,7 @@
       ]
     },
     {
-      "id": "sc-0636",
+      "id": "sc-0671",
       "module": "03-docker",
       "source": "SCENARIOS.md#L152",
       "type": "scenario",
@@ -8656,7 +9131,7 @@
       ]
     },
     {
-      "id": "sc-0637",
+      "id": "sc-0672",
       "module": "07-cks",
       "source": "SCENARIOS.md#L153",
       "type": "scenario",
@@ -8667,7 +9142,7 @@
       ]
     },
     {
-      "id": "sc-0638",
+      "id": "sc-0673",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[0]",
       "type": "quiz",
@@ -8679,7 +9154,7 @@
       ]
     },
     {
-      "id": "sc-0639",
+      "id": "sc-0674",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[1]",
       "type": "quiz",
@@ -8691,7 +9166,7 @@
       ]
     },
     {
-      "id": "sc-0640",
+      "id": "sc-0675",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[2]",
       "type": "quiz",
@@ -8703,7 +9178,7 @@
       ]
     },
     {
-      "id": "sc-0641",
+      "id": "sc-0676",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[3]",
       "type": "quiz",
@@ -8715,7 +9190,7 @@
       ]
     },
     {
-      "id": "sc-0642",
+      "id": "sc-0677",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[4]",
       "type": "quiz",
@@ -8727,7 +9202,7 @@
       ]
     },
     {
-      "id": "sc-0643",
+      "id": "sc-0678",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[5]",
       "type": "quiz",
@@ -8739,7 +9214,7 @@
       ]
     },
     {
-      "id": "sc-0644",
+      "id": "sc-0679",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[6]",
       "type": "quiz",
@@ -8751,7 +9226,7 @@
       ]
     },
     {
-      "id": "sc-0645",
+      "id": "sc-0680",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[7]",
       "type": "quiz",
@@ -8763,7 +9238,7 @@
       ]
     },
     {
-      "id": "sc-0646",
+      "id": "sc-0681",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[8]",
       "type": "quiz",
@@ -8775,7 +9250,7 @@
       ]
     },
     {
-      "id": "sc-0647",
+      "id": "sc-0682",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[9]",
       "type": "quiz",
@@ -8787,7 +9262,7 @@
       ]
     },
     {
-      "id": "sc-0648",
+      "id": "sc-0683",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[10]",
       "type": "quiz",
@@ -8799,7 +9274,7 @@
       ]
     },
     {
-      "id": "sc-0649",
+      "id": "sc-0684",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[11]",
       "type": "quiz",
@@ -8811,7 +9286,7 @@
       ]
     },
     {
-      "id": "sc-0650",
+      "id": "sc-0685",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[12]",
       "type": "quiz",
@@ -8823,7 +9298,7 @@
       ]
     },
     {
-      "id": "sc-0651",
+      "id": "sc-0686",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[13]",
       "type": "quiz",
@@ -8835,7 +9310,7 @@
       ]
     },
     {
-      "id": "sc-0652",
+      "id": "sc-0687",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[14]",
       "type": "quiz",
@@ -8847,7 +9322,7 @@
       ]
     },
     {
-      "id": "sc-0653",
+      "id": "sc-0688",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[15]",
       "type": "quiz",
@@ -8859,7 +9334,7 @@
       ]
     },
     {
-      "id": "sc-0654",
+      "id": "sc-0689",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[16]",
       "type": "quiz",
@@ -8871,7 +9346,7 @@
       ]
     },
     {
-      "id": "sc-0655",
+      "id": "sc-0690",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[17]",
       "type": "quiz",
@@ -8883,7 +9358,7 @@
       ]
     },
     {
-      "id": "sc-0656",
+      "id": "sc-0691",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[18]",
       "type": "quiz",
@@ -8895,7 +9370,7 @@
       ]
     },
     {
-      "id": "sc-0657",
+      "id": "sc-0692",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[19]",
       "type": "quiz",
@@ -8907,7 +9382,7 @@
       ]
     },
     {
-      "id": "sc-0658",
+      "id": "sc-0693",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[20]",
       "type": "quiz",
@@ -8919,7 +9394,7 @@
       ]
     },
     {
-      "id": "sc-0659",
+      "id": "sc-0694",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[21]",
       "type": "quiz",
@@ -8931,7 +9406,7 @@
       ]
     },
     {
-      "id": "sc-0660",
+      "id": "sc-0695",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[22]",
       "type": "quiz",
@@ -8943,7 +9418,7 @@
       ]
     },
     {
-      "id": "sc-0661",
+      "id": "sc-0696",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[23]",
       "type": "quiz",
@@ -8955,7 +9430,7 @@
       ]
     },
     {
-      "id": "sc-0662",
+      "id": "sc-0697",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[24]",
       "type": "quiz",
@@ -8967,7 +9442,7 @@
       ]
     },
     {
-      "id": "sc-0663",
+      "id": "sc-0698",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[25]",
       "type": "quiz",
@@ -8979,7 +9454,7 @@
       ]
     },
     {
-      "id": "sc-0664",
+      "id": "sc-0699",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[26]",
       "type": "quiz",
@@ -8991,7 +9466,7 @@
       ]
     },
     {
-      "id": "sc-0665",
+      "id": "sc-0700",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[27]",
       "type": "quiz",
@@ -9003,7 +9478,7 @@
       ]
     },
     {
-      "id": "sc-0666",
+      "id": "sc-0701",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[28]",
       "type": "quiz",
@@ -9015,7 +9490,7 @@
       ]
     },
     {
-      "id": "sc-0667",
+      "id": "sc-0702",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[29]",
       "type": "quiz",
@@ -9027,7 +9502,7 @@
       ]
     },
     {
-      "id": "sc-0668",
+      "id": "sc-0703",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[30]",
       "type": "quiz",
@@ -9039,7 +9514,7 @@
       ]
     },
     {
-      "id": "sc-0669",
+      "id": "sc-0704",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[31]",
       "type": "quiz",
@@ -9051,7 +9526,7 @@
       ]
     },
     {
-      "id": "sc-0670",
+      "id": "sc-0705",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[32]",
       "type": "quiz",
@@ -9063,7 +9538,7 @@
       ]
     },
     {
-      "id": "sc-0671",
+      "id": "sc-0706",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[33]",
       "type": "quiz",
@@ -9075,7 +9550,7 @@
       ]
     },
     {
-      "id": "sc-0672",
+      "id": "sc-0707",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[34]",
       "type": "quiz",
@@ -9087,7 +9562,7 @@
       ]
     },
     {
-      "id": "sc-0673",
+      "id": "sc-0708",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[35]",
       "type": "quiz",
@@ -9099,7 +9574,7 @@
       ]
     },
     {
-      "id": "sc-0674",
+      "id": "sc-0709",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[36]",
       "type": "quiz",
@@ -9111,7 +9586,7 @@
       ]
     },
     {
-      "id": "sc-0675",
+      "id": "sc-0710",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[37]",
       "type": "quiz",
@@ -9123,7 +9598,7 @@
       ]
     },
     {
-      "id": "sc-0676",
+      "id": "sc-0711",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[38]",
       "type": "quiz",
@@ -9135,7 +9610,7 @@
       ]
     },
     {
-      "id": "sc-0677",
+      "id": "sc-0712",
       "module": "08-pca",
       "source": "portal/quiz-data.js#pca[39]",
       "type": "quiz",
@@ -9147,7 +9622,7 @@
       ]
     },
     {
-      "id": "sc-0678",
+      "id": "sc-0713",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[0]",
       "type": "quiz",
@@ -9159,7 +9634,7 @@
       ]
     },
     {
-      "id": "sc-0679",
+      "id": "sc-0714",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[1]",
       "type": "quiz",
@@ -9171,7 +9646,7 @@
       ]
     },
     {
-      "id": "sc-0680",
+      "id": "sc-0715",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[2]",
       "type": "quiz",
@@ -9183,7 +9658,7 @@
       ]
     },
     {
-      "id": "sc-0681",
+      "id": "sc-0716",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[3]",
       "type": "quiz",
@@ -9195,7 +9670,7 @@
       ]
     },
     {
-      "id": "sc-0682",
+      "id": "sc-0717",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[4]",
       "type": "quiz",
@@ -9207,7 +9682,7 @@
       ]
     },
     {
-      "id": "sc-0683",
+      "id": "sc-0718",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[5]",
       "type": "quiz",
@@ -9219,7 +9694,7 @@
       ]
     },
     {
-      "id": "sc-0684",
+      "id": "sc-0719",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[6]",
       "type": "quiz",
@@ -9231,7 +9706,7 @@
       ]
     },
     {
-      "id": "sc-0685",
+      "id": "sc-0720",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[7]",
       "type": "quiz",
@@ -9243,7 +9718,7 @@
       ]
     },
     {
-      "id": "sc-0686",
+      "id": "sc-0721",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[8]",
       "type": "quiz",
@@ -9255,7 +9730,7 @@
       ]
     },
     {
-      "id": "sc-0687",
+      "id": "sc-0722",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[9]",
       "type": "quiz",
@@ -9267,7 +9742,7 @@
       ]
     },
     {
-      "id": "sc-0688",
+      "id": "sc-0723",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[10]",
       "type": "quiz",
@@ -9279,7 +9754,7 @@
       ]
     },
     {
-      "id": "sc-0689",
+      "id": "sc-0724",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[11]",
       "type": "quiz",
@@ -9291,7 +9766,7 @@
       ]
     },
     {
-      "id": "sc-0690",
+      "id": "sc-0725",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[12]",
       "type": "quiz",
@@ -9303,7 +9778,7 @@
       ]
     },
     {
-      "id": "sc-0691",
+      "id": "sc-0726",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[13]",
       "type": "quiz",
@@ -9315,7 +9790,7 @@
       ]
     },
     {
-      "id": "sc-0692",
+      "id": "sc-0727",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[14]",
       "type": "quiz",
@@ -9327,7 +9802,7 @@
       ]
     },
     {
-      "id": "sc-0693",
+      "id": "sc-0728",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[15]",
       "type": "quiz",
@@ -9339,7 +9814,7 @@
       ]
     },
     {
-      "id": "sc-0694",
+      "id": "sc-0729",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[16]",
       "type": "quiz",
@@ -9351,7 +9826,7 @@
       ]
     },
     {
-      "id": "sc-0695",
+      "id": "sc-0730",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[17]",
       "type": "quiz",
@@ -9363,7 +9838,7 @@
       ]
     },
     {
-      "id": "sc-0696",
+      "id": "sc-0731",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[18]",
       "type": "quiz",
@@ -9375,7 +9850,7 @@
       ]
     },
     {
-      "id": "sc-0697",
+      "id": "sc-0732",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[19]",
       "type": "quiz",
@@ -9387,7 +9862,7 @@
       ]
     },
     {
-      "id": "sc-0698",
+      "id": "sc-0733",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[20]",
       "type": "quiz",
@@ -9399,7 +9874,7 @@
       ]
     },
     {
-      "id": "sc-0699",
+      "id": "sc-0734",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[21]",
       "type": "quiz",
@@ -9411,7 +9886,7 @@
       ]
     },
     {
-      "id": "sc-0700",
+      "id": "sc-0735",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[22]",
       "type": "quiz",
@@ -9423,7 +9898,7 @@
       ]
     },
     {
-      "id": "sc-0701",
+      "id": "sc-0736",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[23]",
       "type": "quiz",
@@ -9435,7 +9910,7 @@
       ]
     },
     {
-      "id": "sc-0702",
+      "id": "sc-0737",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[24]",
       "type": "quiz",
@@ -9447,7 +9922,7 @@
       ]
     },
     {
-      "id": "sc-0703",
+      "id": "sc-0738",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[25]",
       "type": "quiz",
@@ -9459,7 +9934,7 @@
       ]
     },
     {
-      "id": "sc-0704",
+      "id": "sc-0739",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[26]",
       "type": "quiz",
@@ -9471,7 +9946,7 @@
       ]
     },
     {
-      "id": "sc-0705",
+      "id": "sc-0740",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[27]",
       "type": "quiz",
@@ -9483,7 +9958,7 @@
       ]
     },
     {
-      "id": "sc-0706",
+      "id": "sc-0741",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[28]",
       "type": "quiz",
@@ -9495,7 +9970,7 @@
       ]
     },
     {
-      "id": "sc-0707",
+      "id": "sc-0742",
       "module": "05-cka",
       "source": "portal/quiz-data.js#cka[29]",
       "type": "quiz",
@@ -9507,7 +9982,7 @@
       ]
     },
     {
-      "id": "sc-0708",
+      "id": "sc-0743",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[0]",
       "type": "quiz",
@@ -9519,7 +9994,7 @@
       ]
     },
     {
-      "id": "sc-0709",
+      "id": "sc-0744",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[1]",
       "type": "quiz",
@@ -9531,7 +10006,7 @@
       ]
     },
     {
-      "id": "sc-0710",
+      "id": "sc-0745",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[2]",
       "type": "quiz",
@@ -9543,7 +10018,7 @@
       ]
     },
     {
-      "id": "sc-0711",
+      "id": "sc-0746",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[3]",
       "type": "quiz",
@@ -9555,7 +10030,7 @@
       ]
     },
     {
-      "id": "sc-0712",
+      "id": "sc-0747",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[4]",
       "type": "quiz",
@@ -9567,7 +10042,7 @@
       ]
     },
     {
-      "id": "sc-0713",
+      "id": "sc-0748",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[5]",
       "type": "quiz",
@@ -9579,7 +10054,7 @@
       ]
     },
     {
-      "id": "sc-0714",
+      "id": "sc-0749",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[6]",
       "type": "quiz",
@@ -9591,7 +10066,7 @@
       ]
     },
     {
-      "id": "sc-0715",
+      "id": "sc-0750",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[7]",
       "type": "quiz",
@@ -9603,7 +10078,7 @@
       ]
     },
     {
-      "id": "sc-0716",
+      "id": "sc-0751",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[8]",
       "type": "quiz",
@@ -9615,7 +10090,7 @@
       ]
     },
     {
-      "id": "sc-0717",
+      "id": "sc-0752",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[9]",
       "type": "quiz",
@@ -9627,7 +10102,7 @@
       ]
     },
     {
-      "id": "sc-0718",
+      "id": "sc-0753",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[10]",
       "type": "quiz",
@@ -9639,7 +10114,7 @@
       ]
     },
     {
-      "id": "sc-0719",
+      "id": "sc-0754",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[11]",
       "type": "quiz",
@@ -9651,7 +10126,7 @@
       ]
     },
     {
-      "id": "sc-0720",
+      "id": "sc-0755",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[12]",
       "type": "quiz",
@@ -9663,7 +10138,7 @@
       ]
     },
     {
-      "id": "sc-0721",
+      "id": "sc-0756",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[13]",
       "type": "quiz",
@@ -9675,7 +10150,7 @@
       ]
     },
     {
-      "id": "sc-0722",
+      "id": "sc-0757",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[14]",
       "type": "quiz",
@@ -9687,7 +10162,7 @@
       ]
     },
     {
-      "id": "sc-0723",
+      "id": "sc-0758",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[15]",
       "type": "quiz",
@@ -9699,7 +10174,7 @@
       ]
     },
     {
-      "id": "sc-0724",
+      "id": "sc-0759",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[16]",
       "type": "quiz",
@@ -9711,7 +10186,7 @@
       ]
     },
     {
-      "id": "sc-0725",
+      "id": "sc-0760",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[17]",
       "type": "quiz",
@@ -9723,7 +10198,7 @@
       ]
     },
     {
-      "id": "sc-0726",
+      "id": "sc-0761",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[18]",
       "type": "quiz",
@@ -9735,7 +10210,7 @@
       ]
     },
     {
-      "id": "sc-0727",
+      "id": "sc-0762",
       "module": "07-cks",
       "source": "portal/quiz-data.js#cks[19]",
       "type": "quiz",
@@ -9747,7 +10222,7 @@
       ]
     },
     {
-      "id": "sc-0728",
+      "id": "sc-0763",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[0]",
       "type": "quiz",
@@ -9759,7 +10234,7 @@
       ]
     },
     {
-      "id": "sc-0729",
+      "id": "sc-0764",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[1]",
       "type": "quiz",
@@ -9771,7 +10246,7 @@
       ]
     },
     {
-      "id": "sc-0730",
+      "id": "sc-0765",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[2]",
       "type": "quiz",
@@ -9783,7 +10258,7 @@
       ]
     },
     {
-      "id": "sc-0731",
+      "id": "sc-0766",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[3]",
       "type": "quiz",
@@ -9795,7 +10270,7 @@
       ]
     },
     {
-      "id": "sc-0732",
+      "id": "sc-0767",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[4]",
       "type": "quiz",
@@ -9807,7 +10282,7 @@
       ]
     },
     {
-      "id": "sc-0733",
+      "id": "sc-0768",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[5]",
       "type": "quiz",
@@ -9819,7 +10294,7 @@
       ]
     },
     {
-      "id": "sc-0734",
+      "id": "sc-0769",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[6]",
       "type": "quiz",
@@ -9831,7 +10306,7 @@
       ]
     },
     {
-      "id": "sc-0735",
+      "id": "sc-0770",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[7]",
       "type": "quiz",
@@ -9843,7 +10318,7 @@
       ]
     },
     {
-      "id": "sc-0736",
+      "id": "sc-0771",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[8]",
       "type": "quiz",
@@ -9855,7 +10330,7 @@
       ]
     },
     {
-      "id": "sc-0737",
+      "id": "sc-0772",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[9]",
       "type": "quiz",
@@ -9867,7 +10342,7 @@
       ]
     },
     {
-      "id": "sc-0738",
+      "id": "sc-0773",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[10]",
       "type": "quiz",
@@ -9879,7 +10354,7 @@
       ]
     },
     {
-      "id": "sc-0739",
+      "id": "sc-0774",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[11]",
       "type": "quiz",
@@ -9891,7 +10366,7 @@
       ]
     },
     {
-      "id": "sc-0740",
+      "id": "sc-0775",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[12]",
       "type": "quiz",
@@ -9903,7 +10378,7 @@
       ]
     },
     {
-      "id": "sc-0741",
+      "id": "sc-0776",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[13]",
       "type": "quiz",
@@ -9915,7 +10390,7 @@
       ]
     },
     {
-      "id": "sc-0742",
+      "id": "sc-0777",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[14]",
       "type": "quiz",
@@ -9927,7 +10402,7 @@
       ]
     },
     {
-      "id": "sc-0743",
+      "id": "sc-0778",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[15]",
       "type": "quiz",
@@ -9939,7 +10414,7 @@
       ]
     },
     {
-      "id": "sc-0744",
+      "id": "sc-0779",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[16]",
       "type": "quiz",
@@ -9951,7 +10426,7 @@
       ]
     },
     {
-      "id": "sc-0745",
+      "id": "sc-0780",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[17]",
       "type": "quiz",
@@ -9963,7 +10438,7 @@
       ]
     },
     {
-      "id": "sc-0746",
+      "id": "sc-0781",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[18]",
       "type": "quiz",
@@ -9975,7 +10450,7 @@
       ]
     },
     {
-      "id": "sc-0747",
+      "id": "sc-0782",
       "module": "04-k8s-fundamentals",
       "source": "portal/quiz-data.js#basics[19]",
       "type": "quiz",
@@ -9987,7 +10462,7 @@
       ]
     },
     {
-      "id": "sc-0748",
+      "id": "sc-0783",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[0]",
       "type": "quiz",
@@ -9999,7 +10474,7 @@
       ]
     },
     {
-      "id": "sc-0749",
+      "id": "sc-0784",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[1]",
       "type": "quiz",
@@ -10011,7 +10486,7 @@
       ]
     },
     {
-      "id": "sc-0750",
+      "id": "sc-0785",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[2]",
       "type": "quiz",
@@ -10023,7 +10498,7 @@
       ]
     },
     {
-      "id": "sc-0751",
+      "id": "sc-0786",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[3]",
       "type": "quiz",
@@ -10035,7 +10510,7 @@
       ]
     },
     {
-      "id": "sc-0752",
+      "id": "sc-0787",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[4]",
       "type": "quiz",
@@ -10047,7 +10522,7 @@
       ]
     },
     {
-      "id": "sc-0753",
+      "id": "sc-0788",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[5]",
       "type": "quiz",
@@ -10059,7 +10534,7 @@
       ]
     },
     {
-      "id": "sc-0754",
+      "id": "sc-0789",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[6]",
       "type": "quiz",
@@ -10071,7 +10546,7 @@
       ]
     },
     {
-      "id": "sc-0755",
+      "id": "sc-0790",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[7]",
       "type": "quiz",
@@ -10083,7 +10558,7 @@
       ]
     },
     {
-      "id": "sc-0756",
+      "id": "sc-0791",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[8]",
       "type": "quiz",
@@ -10095,7 +10570,7 @@
       ]
     },
     {
-      "id": "sc-0757",
+      "id": "sc-0792",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[9]",
       "type": "quiz",
@@ -10107,7 +10582,7 @@
       ]
     },
     {
-      "id": "sc-0758",
+      "id": "sc-0793",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[10]",
       "type": "quiz",
@@ -10119,7 +10594,7 @@
       ]
     },
     {
-      "id": "sc-0759",
+      "id": "sc-0794",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[11]",
       "type": "quiz",
@@ -10131,7 +10606,7 @@
       ]
     },
     {
-      "id": "sc-0760",
+      "id": "sc-0795",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[12]",
       "type": "quiz",
@@ -10143,7 +10618,7 @@
       ]
     },
     {
-      "id": "sc-0761",
+      "id": "sc-0796",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[13]",
       "type": "quiz",
@@ -10155,7 +10630,7 @@
       ]
     },
     {
-      "id": "sc-0762",
+      "id": "sc-0797",
       "module": "01-linux",
       "source": "portal/quiz-data.js#linux[14]",
       "type": "quiz",
@@ -10167,7 +10642,7 @@
       ]
     },
     {
-      "id": "sc-0763",
+      "id": "sc-0798",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[0]",
       "type": "quiz",
@@ -10179,7 +10654,7 @@
       ]
     },
     {
-      "id": "sc-0764",
+      "id": "sc-0799",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[1]",
       "type": "quiz",
@@ -10191,7 +10666,7 @@
       ]
     },
     {
-      "id": "sc-0765",
+      "id": "sc-0800",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[2]",
       "type": "quiz",
@@ -10203,7 +10678,7 @@
       ]
     },
     {
-      "id": "sc-0766",
+      "id": "sc-0801",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[3]",
       "type": "quiz",
@@ -10215,7 +10690,7 @@
       ]
     },
     {
-      "id": "sc-0767",
+      "id": "sc-0802",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[4]",
       "type": "quiz",
@@ -10227,7 +10702,7 @@
       ]
     },
     {
-      "id": "sc-0768",
+      "id": "sc-0803",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[5]",
       "type": "quiz",
@@ -10239,7 +10714,7 @@
       ]
     },
     {
-      "id": "sc-0769",
+      "id": "sc-0804",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[6]",
       "type": "quiz",
@@ -10251,7 +10726,7 @@
       ]
     },
     {
-      "id": "sc-0770",
+      "id": "sc-0805",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[7]",
       "type": "quiz",
@@ -10263,7 +10738,7 @@
       ]
     },
     {
-      "id": "sc-0771",
+      "id": "sc-0806",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[8]",
       "type": "quiz",
@@ -10275,7 +10750,7 @@
       ]
     },
     {
-      "id": "sc-0772",
+      "id": "sc-0807",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[9]",
       "type": "quiz",
@@ -10287,7 +10762,7 @@
       ]
     },
     {
-      "id": "sc-0773",
+      "id": "sc-0808",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[10]",
       "type": "quiz",
@@ -10299,7 +10774,7 @@
       ]
     },
     {
-      "id": "sc-0774",
+      "id": "sc-0809",
       "module": "02-programming",
       "source": "portal/quiz-data.js#programming[11]",
       "type": "quiz",
@@ -10311,7 +10786,7 @@
       ]
     },
     {
-      "id": "sc-0775",
+      "id": "sc-0810",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[0]",
       "type": "quiz",
@@ -10323,7 +10798,7 @@
       ]
     },
     {
-      "id": "sc-0776",
+      "id": "sc-0811",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[1]",
       "type": "quiz",
@@ -10335,7 +10810,7 @@
       ]
     },
     {
-      "id": "sc-0777",
+      "id": "sc-0812",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[2]",
       "type": "quiz",
@@ -10347,7 +10822,7 @@
       ]
     },
     {
-      "id": "sc-0778",
+      "id": "sc-0813",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[3]",
       "type": "quiz",
@@ -10359,7 +10834,7 @@
       ]
     },
     {
-      "id": "sc-0779",
+      "id": "sc-0814",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[4]",
       "type": "quiz",
@@ -10371,7 +10846,7 @@
       ]
     },
     {
-      "id": "sc-0780",
+      "id": "sc-0815",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[5]",
       "type": "quiz",
@@ -10383,7 +10858,7 @@
       ]
     },
     {
-      "id": "sc-0781",
+      "id": "sc-0816",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[6]",
       "type": "quiz",
@@ -10395,7 +10870,7 @@
       ]
     },
     {
-      "id": "sc-0782",
+      "id": "sc-0817",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[7]",
       "type": "quiz",
@@ -10407,7 +10882,7 @@
       ]
     },
     {
-      "id": "sc-0783",
+      "id": "sc-0818",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[8]",
       "type": "quiz",
@@ -10419,7 +10894,7 @@
       ]
     },
     {
-      "id": "sc-0784",
+      "id": "sc-0819",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[9]",
       "type": "quiz",
@@ -10431,7 +10906,7 @@
       ]
     },
     {
-      "id": "sc-0785",
+      "id": "sc-0820",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[10]",
       "type": "quiz",
@@ -10443,7 +10918,7 @@
       ]
     },
     {
-      "id": "sc-0786",
+      "id": "sc-0821",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[11]",
       "type": "quiz",
@@ -10455,7 +10930,7 @@
       ]
     },
     {
-      "id": "sc-0787",
+      "id": "sc-0822",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[12]",
       "type": "quiz",
@@ -10467,7 +10942,7 @@
       ]
     },
     {
-      "id": "sc-0788",
+      "id": "sc-0823",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[13]",
       "type": "quiz",
@@ -10479,7 +10954,7 @@
       ]
     },
     {
-      "id": "sc-0789",
+      "id": "sc-0824",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[14]",
       "type": "quiz",
@@ -10491,7 +10966,7 @@
       ]
     },
     {
-      "id": "sc-0790",
+      "id": "sc-0825",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[15]",
       "type": "quiz",
@@ -10503,7 +10978,7 @@
       ]
     },
     {
-      "id": "sc-0791",
+      "id": "sc-0826",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[16]",
       "type": "quiz",
@@ -10515,7 +10990,7 @@
       ]
     },
     {
-      "id": "sc-0792",
+      "id": "sc-0827",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[17]",
       "type": "quiz",
@@ -10527,7 +11002,7 @@
       ]
     },
     {
-      "id": "sc-0793",
+      "id": "sc-0828",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[18]",
       "type": "quiz",
@@ -10539,7 +11014,7 @@
       ]
     },
     {
-      "id": "sc-0794",
+      "id": "sc-0829",
       "module": "06-cicd-iac-gitops",
       "source": "portal/quiz-data.js#cicd[19]",
       "type": "quiz",
@@ -10551,7 +11026,7 @@
       ]
     },
     {
-      "id": "sc-0795",
+      "id": "sc-0830",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[0]",
       "type": "quiz",
@@ -10563,7 +11038,7 @@
       ]
     },
     {
-      "id": "sc-0796",
+      "id": "sc-0831",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[1]",
       "type": "quiz",
@@ -10575,7 +11050,7 @@
       ]
     },
     {
-      "id": "sc-0797",
+      "id": "sc-0832",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[2]",
       "type": "quiz",
@@ -10587,7 +11062,7 @@
       ]
     },
     {
-      "id": "sc-0798",
+      "id": "sc-0833",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[3]",
       "type": "quiz",
@@ -10599,7 +11074,7 @@
       ]
     },
     {
-      "id": "sc-0799",
+      "id": "sc-0834",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[4]",
       "type": "quiz",
@@ -10611,7 +11086,7 @@
       ]
     },
     {
-      "id": "sc-0800",
+      "id": "sc-0835",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[5]",
       "type": "quiz",
@@ -10623,7 +11098,7 @@
       ]
     },
     {
-      "id": "sc-0801",
+      "id": "sc-0836",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[6]",
       "type": "quiz",
@@ -10635,7 +11110,7 @@
       ]
     },
     {
-      "id": "sc-0802",
+      "id": "sc-0837",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[7]",
       "type": "quiz",
@@ -10647,7 +11122,7 @@
       ]
     },
     {
-      "id": "sc-0803",
+      "id": "sc-0838",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[8]",
       "type": "quiz",
@@ -10659,7 +11134,7 @@
       ]
     },
     {
-      "id": "sc-0804",
+      "id": "sc-0839",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[9]",
       "type": "quiz",
@@ -10671,7 +11146,7 @@
       ]
     },
     {
-      "id": "sc-0805",
+      "id": "sc-0840",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[10]",
       "type": "quiz",
@@ -10683,7 +11158,7 @@
       ]
     },
     {
-      "id": "sc-0806",
+      "id": "sc-0841",
       "module": "09-otel",
       "source": "portal/quiz-data.js#otel[11]",
       "type": "quiz",
@@ -10695,7 +11170,7 @@
       ]
     },
     {
-      "id": "sc-0807",
+      "id": "sc-0842",
       "module": "10-logging",
       "source": "portal/quiz-data.js#logging[0]",
       "type": "quiz",
@@ -10707,7 +11182,7 @@
       ]
     },
     {
-      "id": "sc-0808",
+      "id": "sc-0843",
       "module": "10-logging",
       "source": "portal/quiz-data.js#logging[1]",
       "type": "quiz",
@@ -10719,7 +11194,7 @@
       ]
     },
     {
-      "id": "sc-0809",
+      "id": "sc-0844",
       "module": "10-logging",
       "source": "portal/quiz-data.js#logging[2]",
       "type": "quiz",
@@ -10731,7 +11206,7 @@
       ]
     },
     {
-      "id": "sc-0810",
+      "id": "sc-0845",
       "module": "10-logging",
       "source": "portal/quiz-data.js#logging[3]",
       "type": "quiz",
@@ -10743,7 +11218,7 @@
       ]
     },
     {
-      "id": "sc-0811",
+      "id": "sc-0846",
       "module": "10-logging",
       "source": "portal/quiz-data.js#logging[4]",
       "type": "quiz",
@@ -10755,7 +11230,7 @@
       ]
     },
     {
-      "id": "sc-0812",
+      "id": "sc-0847",
       "module": "10-logging",
       "source": "portal/quiz-data.js#logging[5]",
       "type": "quiz",
@@ -10767,7 +11242,7 @@
       ]
     },
     {
-      "id": "sc-0813",
+      "id": "sc-0848",
       "module": "10-logging",
       "source": "portal/quiz-data.js#logging[6]",
       "type": "quiz",
@@ -10779,7 +11254,7 @@
       ]
     },
     {
-      "id": "sc-0814",
+      "id": "sc-0849",
       "module": "10-logging",
       "source": "portal/quiz-data.js#logging[7]",
       "type": "quiz",
@@ -10791,7 +11266,7 @@
       ]
     },
     {
-      "id": "sc-0815",
+      "id": "sc-0850",
       "module": "10-logging",
       "source": "portal/quiz-data.js#logging[8]",
       "type": "quiz",
@@ -10803,7 +11278,7 @@
       ]
     },
     {
-      "id": "sc-0816",
+      "id": "sc-0851",
       "module": "10-logging",
       "source": "portal/quiz-data.js#logging[9]",
       "type": "quiz",
@@ -10815,7 +11290,7 @@
       ]
     },
     {
-      "id": "sc-0817",
+      "id": "sc-0852",
       "module": "10-logging",
       "source": "portal/quiz-data.js#logging[10]",
       "type": "quiz",
@@ -10827,7 +11302,7 @@
       ]
     },
     {
-      "id": "sc-0818",
+      "id": "sc-0853",
       "module": "11-middleware",
       "source": "portal/quiz-data.js#middleware[0]",
       "type": "quiz",
@@ -10839,7 +11314,7 @@
       ]
     },
     {
-      "id": "sc-0819",
+      "id": "sc-0854",
       "module": "11-middleware",
       "source": "portal/quiz-data.js#middleware[1]",
       "type": "quiz",
@@ -10851,7 +11326,7 @@
       ]
     },
     {
-      "id": "sc-0820",
+      "id": "sc-0855",
       "module": "11-middleware",
       "source": "portal/quiz-data.js#middleware[2]",
       "type": "quiz",
@@ -10863,7 +11338,7 @@
       ]
     },
     {
-      "id": "sc-0821",
+      "id": "sc-0856",
       "module": "11-middleware",
       "source": "portal/quiz-data.js#middleware[3]",
       "type": "quiz",
@@ -10875,7 +11350,7 @@
       ]
     },
     {
-      "id": "sc-0822",
+      "id": "sc-0857",
       "module": "11-middleware",
       "source": "portal/quiz-data.js#middleware[4]",
       "type": "quiz",
@@ -10887,7 +11362,7 @@
       ]
     },
     {
-      "id": "sc-0823",
+      "id": "sc-0858",
       "module": "11-middleware",
       "source": "portal/quiz-data.js#middleware[5]",
       "type": "quiz",
@@ -10899,7 +11374,7 @@
       ]
     },
     {
-      "id": "sc-0824",
+      "id": "sc-0859",
       "module": "11-middleware",
       "source": "portal/quiz-data.js#middleware[6]",
       "type": "quiz",
@@ -10911,7 +11386,7 @@
       ]
     },
     {
-      "id": "sc-0825",
+      "id": "sc-0860",
       "module": "11-middleware",
       "source": "portal/quiz-data.js#middleware[7]",
       "type": "quiz",
@@ -10923,7 +11398,7 @@
       ]
     },
     {
-      "id": "sc-0826",
+      "id": "sc-0861",
       "module": "11-middleware",
       "source": "portal/quiz-data.js#middleware[8]",
       "type": "quiz",
@@ -10935,7 +11410,7 @@
       ]
     },
     {
-      "id": "sc-0827",
+      "id": "sc-0862",
       "module": "11-middleware",
       "source": "portal/quiz-data.js#middleware[9]",
       "type": "quiz",
@@ -10947,7 +11422,7 @@
       ]
     },
     {
-      "id": "sc-0828",
+      "id": "sc-0863",
       "module": "12-data-streaming",
       "source": "portal/quiz-data.js#datastream[0]",
       "type": "quiz",
@@ -10959,7 +11434,7 @@
       ]
     },
     {
-      "id": "sc-0829",
+      "id": "sc-0864",
       "module": "12-data-streaming",
       "source": "portal/quiz-data.js#datastream[1]",
       "type": "quiz",
@@ -10971,7 +11446,7 @@
       ]
     },
     {
-      "id": "sc-0830",
+      "id": "sc-0865",
       "module": "12-data-streaming",
       "source": "portal/quiz-data.js#datastream[2]",
       "type": "quiz",
@@ -10983,7 +11458,7 @@
       ]
     },
     {
-      "id": "sc-0831",
+      "id": "sc-0866",
       "module": "12-data-streaming",
       "source": "portal/quiz-data.js#datastream[3]",
       "type": "quiz",
@@ -10995,7 +11470,7 @@
       ]
     },
     {
-      "id": "sc-0832",
+      "id": "sc-0867",
       "module": "12-data-streaming",
       "source": "portal/quiz-data.js#datastream[4]",
       "type": "quiz",
@@ -11007,7 +11482,7 @@
       ]
     },
     {
-      "id": "sc-0833",
+      "id": "sc-0868",
       "module": "12-data-streaming",
       "source": "portal/quiz-data.js#datastream[5]",
       "type": "quiz",
@@ -11019,7 +11494,7 @@
       ]
     },
     {
-      "id": "sc-0834",
+      "id": "sc-0869",
       "module": "12-data-streaming",
       "source": "portal/quiz-data.js#datastream[6]",
       "type": "quiz",
@@ -11031,7 +11506,7 @@
       ]
     },
     {
-      "id": "sc-0835",
+      "id": "sc-0870",
       "module": "12-data-streaming",
       "source": "portal/quiz-data.js#datastream[7]",
       "type": "quiz",
@@ -11043,7 +11518,7 @@
       ]
     },
     {
-      "id": "sc-0836",
+      "id": "sc-0871",
       "module": "12-data-streaming",
       "source": "portal/quiz-data.js#datastream[8]",
       "type": "quiz",
@@ -11055,7 +11530,7 @@
       ]
     },
     {
-      "id": "sc-0837",
+      "id": "sc-0872",
       "module": "12-data-streaming",
       "source": "portal/quiz-data.js#datastream[9]",
       "type": "quiz",
@@ -11067,7 +11542,7 @@
       ]
     },
     {
-      "id": "sc-0838",
+      "id": "sc-0873",
       "module": "13-sre-methodology",
       "source": "portal/quiz-data.js#sre[0]",
       "type": "quiz",
@@ -11079,7 +11554,7 @@
       ]
     },
     {
-      "id": "sc-0839",
+      "id": "sc-0874",
       "module": "13-sre-methodology",
       "source": "portal/quiz-data.js#sre[1]",
       "type": "quiz",
@@ -11091,7 +11566,7 @@
       ]
     },
     {
-      "id": "sc-0840",
+      "id": "sc-0875",
       "module": "13-sre-methodology",
       "source": "portal/quiz-data.js#sre[2]",
       "type": "quiz",
@@ -11103,7 +11578,7 @@
       ]
     },
     {
-      "id": "sc-0841",
+      "id": "sc-0876",
       "module": "13-sre-methodology",
       "source": "portal/quiz-data.js#sre[3]",
       "type": "quiz",
@@ -11115,7 +11590,7 @@
       ]
     },
     {
-      "id": "sc-0842",
+      "id": "sc-0877",
       "module": "13-sre-methodology",
       "source": "portal/quiz-data.js#sre[4]",
       "type": "quiz",
@@ -11127,7 +11602,7 @@
       ]
     },
     {
-      "id": "sc-0843",
+      "id": "sc-0878",
       "module": "13-sre-methodology",
       "source": "portal/quiz-data.js#sre[5]",
       "type": "quiz",
@@ -11139,7 +11614,7 @@
       ]
     },
     {
-      "id": "sc-0844",
+      "id": "sc-0879",
       "module": "13-sre-methodology",
       "source": "portal/quiz-data.js#sre[6]",
       "type": "quiz",
@@ -11151,7 +11626,7 @@
       ]
     },
     {
-      "id": "sc-0845",
+      "id": "sc-0880",
       "module": "13-sre-methodology",
       "source": "portal/quiz-data.js#sre[7]",
       "type": "quiz",
@@ -11163,7 +11638,7 @@
       ]
     },
     {
-      "id": "sc-0846",
+      "id": "sc-0881",
       "module": "13-sre-methodology",
       "source": "portal/quiz-data.js#sre[8]",
       "type": "quiz",
@@ -11175,7 +11650,7 @@
       ]
     },
     {
-      "id": "sc-0847",
+      "id": "sc-0882",
       "module": "13-sre-methodology",
       "source": "portal/quiz-data.js#sre[9]",
       "type": "quiz",
@@ -11187,7 +11662,7 @@
       ]
     },
     {
-      "id": "sc-0848",
+      "id": "sc-0883",
       "module": "14-cloud",
       "source": "portal/quiz-data.js#cloud[0]",
       "type": "quiz",
@@ -11199,7 +11674,7 @@
       ]
     },
     {
-      "id": "sc-0849",
+      "id": "sc-0884",
       "module": "14-cloud",
       "source": "portal/quiz-data.js#cloud[1]",
       "type": "quiz",
@@ -11211,7 +11686,7 @@
       ]
     },
     {
-      "id": "sc-0850",
+      "id": "sc-0885",
       "module": "14-cloud",
       "source": "portal/quiz-data.js#cloud[2]",
       "type": "quiz",
@@ -11223,7 +11698,7 @@
       ]
     },
     {
-      "id": "sc-0851",
+      "id": "sc-0886",
       "module": "14-cloud",
       "source": "portal/quiz-data.js#cloud[3]",
       "type": "quiz",
@@ -11235,7 +11710,7 @@
       ]
     },
     {
-      "id": "sc-0852",
+      "id": "sc-0887",
       "module": "14-cloud",
       "source": "portal/quiz-data.js#cloud[4]",
       "type": "quiz",
@@ -11247,7 +11722,7 @@
       ]
     },
     {
-      "id": "sc-0853",
+      "id": "sc-0888",
       "module": "14-cloud",
       "source": "portal/quiz-data.js#cloud[5]",
       "type": "quiz",
@@ -11259,7 +11734,7 @@
       ]
     },
     {
-      "id": "sc-0854",
+      "id": "sc-0889",
       "module": "14-cloud",
       "source": "portal/quiz-data.js#cloud[6]",
       "type": "quiz",
@@ -11271,7 +11746,7 @@
       ]
     },
     {
-      "id": "sc-0855",
+      "id": "sc-0890",
       "module": "14-cloud",
       "source": "portal/quiz-data.js#cloud[7]",
       "type": "quiz",
@@ -11283,7 +11758,7 @@
       ]
     },
     {
-      "id": "sc-0856",
+      "id": "sc-0891",
       "module": "14-cloud",
       "source": "portal/quiz-data.js#cloud[8]",
       "type": "quiz",
@@ -11295,7 +11770,7 @@
       ]
     },
     {
-      "id": "sc-0857",
+      "id": "sc-0892",
       "module": "14-cloud",
       "source": "portal/quiz-data.js#cloud[9]",
       "type": "quiz",
@@ -11307,7 +11782,7 @@
       ]
     },
     {
-      "id": "sc-0858",
+      "id": "sc-0893",
       "module": "15-aiops-llm",
       "source": "portal/quiz-data.js#aiops[0]",
       "type": "quiz",
@@ -11319,7 +11794,7 @@
       ]
     },
     {
-      "id": "sc-0859",
+      "id": "sc-0894",
       "module": "15-aiops-llm",
       "source": "portal/quiz-data.js#aiops[1]",
       "type": "quiz",
@@ -11331,7 +11806,7 @@
       ]
     },
     {
-      "id": "sc-0860",
+      "id": "sc-0895",
       "module": "15-aiops-llm",
       "source": "portal/quiz-data.js#aiops[2]",
       "type": "quiz",
@@ -11343,7 +11818,7 @@
       ]
     },
     {
-      "id": "sc-0861",
+      "id": "sc-0896",
       "module": "15-aiops-llm",
       "source": "portal/quiz-data.js#aiops[3]",
       "type": "quiz",
@@ -11355,7 +11830,7 @@
       ]
     },
     {
-      "id": "sc-0862",
+      "id": "sc-0897",
       "module": "15-aiops-llm",
       "source": "portal/quiz-data.js#aiops[4]",
       "type": "quiz",
@@ -11367,7 +11842,7 @@
       ]
     },
     {
-      "id": "sc-0863",
+      "id": "sc-0898",
       "module": "15-aiops-llm",
       "source": "portal/quiz-data.js#aiops[5]",
       "type": "quiz",
@@ -11379,7 +11854,7 @@
       ]
     },
     {
-      "id": "sc-0864",
+      "id": "sc-0899",
       "module": "15-aiops-llm",
       "source": "portal/quiz-data.js#aiops[6]",
       "type": "quiz",
@@ -11391,7 +11866,7 @@
       ]
     },
     {
-      "id": "sc-0865",
+      "id": "sc-0900",
       "module": "15-aiops-llm",
       "source": "portal/quiz-data.js#aiops[7]",
       "type": "quiz",
@@ -11403,7 +11878,7 @@
       ]
     },
     {
-      "id": "sc-0866",
+      "id": "sc-0901",
       "module": "15-aiops-llm",
       "source": "portal/quiz-data.js#aiops[8]",
       "type": "quiz",
@@ -11415,7 +11890,7 @@
       ]
     },
     {
-      "id": "sc-0867",
+      "id": "sc-0902",
       "module": "15-aiops-llm",
       "source": "portal/quiz-data.js#aiops[9]",
       "type": "quiz",

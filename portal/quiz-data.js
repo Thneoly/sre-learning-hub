@@ -1,13 +1,15 @@
 // quiz-data.js · 学习中心自测题库
 // 结构：window.QUIZ_DATA = { pca: [...], cka: [...], cks: [...], basics: [...],
 //   linux: [...], programming: [...], cicd: [...], otel: [...], logging: [...],
-//   middleware: [...], datastream: [...], sre: [...], cloud: [...], aiops: [...] }
+//   middleware: [...], datastream: [...], sre: [...], cloud: [...], aiops: [...],
+//   bigdata: [...] }
 // 每题对象：q(题干) / options(四选项) / answer(正确索引 0-3) / explain(解析)
 // PCA 对齐五域权重：可观测概念 4 题、Prometheus 基础 8 题、PromQL 13 题、
 // 插桩与 Exporter 6 题、架构与运维 9 题；CKA/CKS 按官方大纲五域分布。
 // 其余模块按各自章节主线命题：basics 20 题（Docker 10 + K8s 10）、linux 15 题、
 // programming 12 题、cicd 20 题、otel 12 题、logging 11 题、middleware 10 题、datastream 10 题、
-// sre 10 题、cloud 10 题、aiops 10 题。
+// sre 10 题、cloud 10 题、aiops 10 题、bigdata 15 题（HDFS 4 / YARN 3 / Hive 2 /
+// Spark 3 / Doris 2 / ZooKeeper 1）。
 
 window.QUIZ_DATA = {
 
@@ -2660,8 +2662,196 @@ window.QUIZ_DATA = {
       "answer": 3,
       "explain": "知识库是 RAG 的地基：按症状组织、字段结构化、命令可执行且与现网版本一致，检索命中率才高。易错点：数量堆砌不如质量治理——过时的旧文档被召回比没有文档更危险，定期演练校对要排进日历。"
     }
+  ],
+
+  // ========== bigdata：大数据平台（15 题，按 16-bigdata 各章命题）==========
+
+  bigdata: [
+
+    // --- HDFS：NameNode、块模型与丢失块排障（4 题）---
+
+    {
+      "q": "机架感知已正确配置时，HDFS 默认的 3 副本放置策略（BlockPlacementPolicyDefault）对一个由集群内节点（如 Spark task 所在 DataNode）写入的块是怎么摆放的？",
+      "options": [
+        "三个副本分别放在三个不同机架的随机 DataNode 上，容灾最大化优先",
+        "三个副本放在同一机架的三台不同 DataNode 上，节省核心交换机带宽",
+        "第 1 副本写在本机，第 2 副本放远端机架的随机 DN，第 3 副本放在与第 2 副本同机架的另一台 DN",
+        "三个副本全部由 NameNode 统一随机分配，与写入方所在位置无关"
+      ],
+      "answer": 2,
+      "explain": "三条设计动机：第 1 副本本机省一次网络传输（写吞吐）；第 2 副本跨机架保证机架级容灾；第 3 副本回到第 2 副本的机架——既不碰第三个机架（省核心交换机带宽），又不和第 2 副本同机。易错点：以为“跨三个机架最安全”，实际是在容灾与带宽之间取平衡。写入方是集群外客户端时，第 1 副本才是随机选 DN，第 2/3 副本规则不变。"
+    },
+    {
+      "q": "NameNode 重启后长时间停在 safemode，UI 显示 “The reported blocks 0.9950 has reached the threshold 0.999”。下面哪组判断与处置是正确的？",
+      "options": [
+        "safemode 只影响写入不影响读取说明集群健康，直接 hdfs dfsadmin -safemode leave 强制退出即可",
+        "safemode 是只读保护态：块报告覆盖比例到不了阈值就不会退出。应先 hdfs dfsadmin -report 确认 DataNode 是否全部在线注册，比例不动才考虑丢块；手动 leave 的前提是确认 DN 全部健康",
+        "卡在 safemode 说明块已经丢失，应立即 hdfs fsck / -delete 清理丢失块后再重启",
+        "safemode 是 NameNode 内存不足触发的保护机制，加大 NN 堆后自动退出"
+      ],
+      "answer": 1,
+      "explain": "safemode 的语义是“元数据里应有的块还没被 DN 报告确认，禁止一切修改（写/删/重命名/副本调整）”，避免 NN 在信息不全时误判大量 under-replicated 触发复制风暴。退出条件：DN 块报告覆盖比例 ≥ dfs.namenode.safemode.threshold-pct（默认 0.999）并保持 extension 时间（默认 30 秒）。卡住的典型原因：DN 没起来/没注册、确实丢了块、大集群块报告还在路上。强行 leave 后 missing blocks 该有还是会有，写流量还会立刻压上来；“一见 missing 就 -delete”是明令禁止的动作。"
+    },
+    {
+      "q": "关于 HDFS 小文件的实际代价，下面哪个说法是准确的？",
+      "options": [
+        "小文件只浪费 DataNode 磁盘空间，对 NameNode 没有影响",
+        "小文件的危害主要是 3 副本带来的存储开销翻三倍",
+        "一个 10KB 小文件在 NameNode 里占用的元数据比文件本身还小，可以忽略",
+        "官方口径每个文件/目录/块对象约占 NN 堆 150 字节；小文件的显性成本是 NN 堆与 GC，隐性成本还包括全量块报告变慢、重启重建映射变慢、fsck 跑几小时、MR/Spark 每个 task 打开文件的固定开销"
+      ],
+      "answer": 3,
+      "explain": "小文件的本质问题是“元数据规模 = 堆规模”：一个 10KB 文件至少是 inode + 块两个对象再加副本映射，元数据可达数据本身的 30 倍以上；同样 1PB 数据，用 1MB 小文件是 10 亿个块对象，任何 NN 都撑不住。易错点：只盯着磁盘空间——小文件在存储上并不“费盘”，费的是 NN 内存与一切要遍历元数据的操作。治理优先级：入口合并（治本）> 存量归并（INSERT OVERWRITE / ORC CONCATENATE）> HAR 归档。"
+    },
+    {
+      "q": "某集群一直没配机架感知脚本（net.topology.script.file.name），后来补配并重启了 NameNode。已有的 3 副本数据会怎样？",
+      "options": [
+        "已有副本不会自动搬家：放置策略只在写入那一刻生效；需要用 hadoop fs -setrep 触发重复制（或重写数据）纠正分布，Balancer 只搬数据量不纠正拓扑",
+        "NameNode 后台任务会自动把不合规的副本迁移到正确机架",
+        "hdfs balancer 会自动按新拓扑重新摆放所有副本",
+        "副本分布不需要处理，HDFS 读写时会自动绕开同机架的副本"
+      ],
+      "answer": 0,
+      "explain": "没配机架感知时全部节点都在 /default-rack，放置策略退化为随机，3 副本可能全落在同一机架，单机架断电即丢数据，且 NN 日志会持续告警拓扑不可用。后配脚本不会搬旧副本，因为 NN 没有“副本位置不合规就迁移”的后台任务——全量数据重写一遍网络的代价太高。发现手段是 hdfs fsck -blocks -locations -racks 看每块的 rack 分布；纠正手段是 setrep 触发重复制或 distcp 重写。"
+    },
+
+    // --- YARN：容器、队列与多租户调度（3 题）---
+
+    {
+      "q": "关于 YARN 的 Capacity Scheduler 与 Fair Scheduler，正确的说法是？",
+      "options": [
+        "Fair Scheduler 默认开启抢占，Capacity Scheduler 默认关闭",
+        "两者的抢占都默认开启，只是算法不同",
+        "两者的抢占默认都是关闭的，都需要显式开启（Capacity 要开 scheduler monitor 一族配置，Fair 要 preemption=true 并配 PreemptionTimeout），且误开抢占会把别人的长跑作业杀掉",
+        "Capacity Scheduler 不支持队列层级与 ACL"
+      ],
+      "answer": 2,
+      "explain": "高频坑：把“公平调度会抢资源”当成开箱即用。实际两者的抢占都默认关闭：Capacity 需要 yarn.resourcemanager.scheduler.monitor.enable 一族配置，Fair 需要 preemption=true 且配置 fairShare/minShare PreemptionTimeout（不配 timeout 就永不抢占）。抢占语义是“超过 guaranteed 的借用部分可被回收”，误开会把别人的长跑 Spark 作业杀一半（退出码 143），开之前要先在测试队列演练并确认业务有重试。队列树、ACL、rmadmin -refreshQueues 热更新两者都支持；新装机默认 Capacity。"
+    },
+    {
+      "q": "Spark on YARN 作业的 container 频繁被杀，日志报 “Container ... is running beyond virtual memory limits”，而堆内存明明还很富余。最合理的处置是？",
+      "options": [
+        "立即调大 spark.executor.memory（-Xmx），堆大自然不会超",
+        "这是 vmem-pmem-ratio（默认 2.1）对 JVM 应用过紧导致的经典“假 OOM”：社区通行做法是设 yarn.nodemanager.vmem-check-enabled=false，物理内存检查保留",
+        "把 yarn.nodemanager.resource.memory-mb 整机调大一倍",
+        "关闭 cgroup 隔离，改用 DefaultContainerExecutor"
+      ],
+      "answer": 1,
+      "explain": "JVM 应用的虚拟地址空间（堆外内存、线程栈、NIO direct buffer）远大于物理内存使用，2.1 倍比例经常被触发——这是 Hadoop 运维最经典的误杀。处置是关掉虚拟内存检查、保留物理内存检查；真报 “running beyond physical memory limits” 才去加内存（堆外按堆的 20~40% 预留）。盲目加 -Xmx 反而挤压堆外空间，让 RSS 更快顶到容器上限。"
+    },
+    {
+      "q": "YARN 集群监控里看到“vcore 使用率 100% 但宿主机 CPU 大量空闲”，同时某 container 退出码 137。下面解读正确的是？",
+      "options": [
+        "vcores 是硬限制，说明 CPU 真的打满了，应该扩容",
+        "137 是应用代码抛异常，看 stderr 找第一个 Caused by 即可",
+        "137 表示被抢占（SIGTERM）；0 以外的退出码都是磁盘满导致",
+        "不开 CPU cgroup 隔离时 vcores 只是记账配额不是硬限，不能当真实 CPU 水位看，要看宿主机 mpstat/top；退出码 137 = SIGKILL（物理内存超限被 NM 强杀或宿主 OOM killer），143 = SIGTERM（被抢占/管理员 kill）"
+      ],
+      "answer": 3,
+      "explain": "Container 的两个维度里内存才是硬限制：进程树物理内存超限，NM 先 SIGTERM 后 SIGKILL。vcores 默认只是调度账本。退出码速查：0 正常结束、1 应用异常看 stderr、137 SIGKILL（内存超限/宿主 OOM）、143 SIGTERM（被抢占、超限先杀、管理员 kill）。“内存打满、vcores 大量剩余”是 YARN 集群常态，容量规划按 memory-mb 做主轴。"
+    },
+
+    // --- Hive 与数仓分层（2 题）---
+
+    {
+      "q": "同一条 SQL（WHERE dt='2026-08-29' AND amount>100 GROUP BY city）在计算引擎完全相同的情况下，TextFile 表和 ORC 表的执行差距主要来自哪一层？",
+      "options": [
+        "文件读取层：ORC 先读 footer 统计，dt 靠分区裁剪跳过目录，amount>100 靠 stripe/row group 的 min-max（可加 bloom filter）整块跳过，且只反序列化用到的列；TextFile 必须把命中分区的所有行完整读入并解析全部字段",
+        "SQL 解析层：ORC 表的 SQL 会被自动重写成更优的语法",
+        "网络层：ORC 文件平均更小，传输更快是唯一原因",
+        "执行引擎层：查 ORC 表会自动切换到 Tez，查 TextFile 走 MR"
+      ],
+      "answer": 0,
+      "explain": "差距主要不在引擎而在文件读取层，IO 量与反序列化 CPU 差一个数量级很常见。列存压缩率高的原因也很朴素：同列数据类型相同、重复度高，排序后 RLE/字典编码效果远好于行存的混合类型字节流。生产 Hive 系用 ORC 居多的原因：Hive 原生优化（向量化、ACID）先落在 ORC、压缩与统计信息最全、compaction/CONCATENATE 只对 ORC 完整支持；主引擎是 Spark/Trino 则 Parquet 同样合理——跟着平台默认走，别混用。"
+    },
+    {
+      "q": "数仓分层的 ODS 层任务失败通常配最高级告警（电话），而 ADS 层单任务失败常常只开工单。背后的判断依据是？",
+      "options": [
+        "ODS 数据量最大，存储成本最高",
+        "ODS 任务跑得最慢，失败概率最高",
+        "影响面 × 恢复成本：ODS 是全链路的数据源头，它失败意味着 DWD/DWS/ADS 全部顺延、报表 SLA 整体风险，且重跑要回源重拉（代价最大、窗口最长）；ADS 失败通常只影响一张报表，数据仍在下层、重算是廉价的本地重算",
+        "ADS 层没有监控指标，只能靠人肉发现"
+      ],
+      "answer": 2,
+      "explain": "告警分级本质上是对“影响面 × 恢复成本”排序。分层是团队规范而非 Hive 功能，但对运维的影响实打实：任务依赖定位（沿血缘回溯有明确站牌，5 分钟定位是哪个环节的锅）、告警归层（没有分层语义只能“谁失败叫谁”，噪声大）、存储治理（ODS 短 TTL + ORC zstd + 可降副本，DWD 长期保留 3 副本，分层是配额与生命周期策略的作用域）。"
+    },
+
+    // --- Spark 架构与调优（3 题）---
+
+    {
+      "q": "Spark on YARN 报 “Container killed by YARN for exceeding memory limits ... Consider boosting spark.executor.memoryOverhead”，但 executor 堆（-Xmx 6g，容器上限 8GB）才用到一半。问题出在哪、怎么调？",
+      "options": [
+        "堆内存配置有误，把 spark.executor.memory 调到 8g 即可解决",
+        "是 Driver 的问题，把 deploy-mode 改成 cluster 就好",
+        "YARN 杀容器看的是进程 RSS 而不是 -Xmx：RSS = 堆 + metaspace + 线程栈 + netty 直接内存等。shuffle 拉取量大时堆外先膨胀，堆还有富余 RSS 已顶到容器上限。应调大 spark.executor.memoryOverhead（必要时减 executor-cores 降并发），而不是盲目加 -Xmx",
+        "调大 spark.sql.shuffle.partitions，让每个 task 的数据量变小"
+      ],
+      "answer": 2,
+      "explain": "这是“OOM 常在堆外”的经典场景。容器总内存 = spark.executor.memory（JVM 堆）+ memoryOverhead（默认 max(executor.memory×0.10, 384MB)）+ 可选 offHeap/PySpark 内存。加堆反而挤压堆外空间，OOM 会更频繁。K8s 上同一现象表现为 OOMKilled、Exit 137，处置相同：确认 request/limit = memory + overhead。"
+    },
+    {
+      "q": "Spark 数据倾斜三板斧的适用场景匹配，正确的一组是？",
+      "options": [
+        "小表能装下 → broadcast 绕过 shuffle；聚合倾斜 → 两阶段聚合（先按 (key, salt) 局部聚合再全局聚合）；join 倾斜且小表可膨胀 → 大表加盐打散、小表按 N 份复制补齐所有前缀",
+        "任何倾斜都优先加盐，broadcast 只用于小结果集返回",
+        "聚合倾斜用 broadcast，join 倾斜用两阶段聚合",
+        "三板斧必须同时叠加使用才有效"
+      ],
+      "answer": 0,
+      "explain": "口诀即选型依据。细节：加盐只对小表用（代价是小表膨胀 N 倍）；两阶段聚合的 partial_sum 只能压缩行数、压不了单 key 的原始体积，单 key 特别大时仍要先加盐；broadcast 的反噬是“小表”其实几百 MB 时会同时顶爆 Driver 和每个 Executor 的内存，比 shuffle 更危险。另有一类“假倾斜”：null/空串 key 堆积，用 WHERE key IS NOT NULL 拆出去单独处理，别上三板斧。Spark 3.x 先让 AQE（skewJoin）自动处理——它主要覆盖排序 join 的倾斜，聚合倾斜仍要手工两阶段。"
+    },
+    {
+      "q": "Spark 统一内存模型里，Execution 与 Storage 之间的动态借用规则是什么？这个不对称保护的是什么？",
+      "options": [
+        "双向对等：谁缺内存都可以抢占对方，被抢占方立刻无条件释放",
+        "Execution 缺内存时可以抢占 Storage 借走的部分（被借走的缓存块强制落盘/逐出）；反向 Storage 只能借用 Execution 当时空闲的部分，Execution 一需要就必须立刻归还——保护“正在运行的 task 不能被中断”，缓存丢了可以重算，task 失败则整个 stage 重来",
+        "Storage 优先级更高，缓存块永远不会被逐出",
+        "User Memory 也参与 Execution/Storage 之间的动态借用"
+      ],
+      "answer": 1,
+      "explain": "Execution 内存不够时 task 无法让步（算到一半的数据不能扔），只能挤掉可重建的缓存块腾地方；反向若 Storage 能抢占 Execution，缓存写入会随时杀掉正在执行的 task。一句话：可重算的资源永远让位于不可中断的计算。User Memory（用户对象/UDF）完全不参与借用，Spark 不管它——UDF 里塞大 dict 导致的堆内 OOM 就出在这里。"
+    },
+
+    // --- OLAP：Doris 与 StarRocks（2 题）---
+
+    {
+      "q": "同一份订单数据要做两件事：“审计明细留存（永不合并、可随时按新口径重算）”和“实时余额查询（按主键 upsert、点查要快）”。Doris 建表分别应选什么模型？",
+      "options": [
+        "都用 Duplicate 模型，靠 rollup 区分两种场景",
+        "都用 Unique + merge-on-read，一表两用",
+        "明细留存用 Aggregate（SUM），余额查询用 Duplicate",
+        "明细留存用 Duplicate（写最便宜、永不合并）；实时余额用 Unique + merge-on-write（写时用 delete bitmap 打掉旧版本，读路径接近纯明细表、点查快）"
+      ],
+      "answer": 3,
+      "explain": "三种模型语义：Duplicate 一行就是一行（写最便宜、读时聚合最贵）；Aggregate 同 key 按聚合函数在导入/compaction/查询多阶段合并（写放大换读加速）；Unique 同 key 后写覆盖先写。Unique 的 MoW/MoR 取舍是把合并成本放在写路径还是读路径：MoW 写放大明显但读快，实时画像/订单状态基本必选，配 sequence 列可声明乱序到达时按谁的新旧为准；MoR 写便宜读贵。容量规划口诀：明细层 Duplicate + 按天分区（删分区秒级回收空间），报表层 Aggregate/Unique + rollup，不要指望一张表既存全量明细又扛所有报表。"
+    },
+    {
+      "q": "Flink → Doris 链路的作业从 checkpoint 恢复后重放，Doris 侧出现大量 “Label Already Exists”。这是什么问题？",
+      "options": [
+        "导入事务堆积的故障信号，应立即删除这些 label 释放资源",
+        "正常现象：label 是 Stream Load 的幂等键，重复提交同一 label 直接返回 Label Already Exists 而不会写两遍；at-least-once 的上游正是靠这层去重达到端到端 exactly-once，不要去删 label",
+        "Doris FE 过载，需要重启 FE 清空 label 记录",
+        "说明 sink.enable-2pc 配置错误，必须关掉两阶段提交"
+      ],
+      "answer": 1,
+      "explain": "label = 前缀 + subtask + checkpointId，天然幂等。exactly-once 三前提缺一不可：source 可重放（Kafka offset 在 checkpoint）、算子状态随 checkpoint 持久化、sink 两阶段提交（先 precommit 写不可见数据，notifyCheckpointComplete 后才 commit 对查询可见）。恢复重放撞上已有 label 是幂等在起作用；真正要警惕的是 2PC 长时间不 commit 导致的导入事务堆积。这与 KafkaSink 的事务型 producer 是同一个模式，只是“事务”从 Kafka 事务日志换成了 label 的 precommit/commit。"
+    },
+
+    // --- ZooKeeper：协调服务（1 题）---
+
+    {
+      "q": "基于 ZooKeeper 的经典分布式锁（create -e -s /lock/node- 得到全局递增序号）中，等待者为什么只 watch “恰好比自己小一号”的节点，而不是 watch 整个 /lock 目录？",
+      "options": [
+        "watch 目录会被 ZooKeeper 拒绝，ZK 不支持目录级 watch",
+        "为了减少 znode 数量，节省服务端内存",
+        "只通知一个人：前驱释放/崩溃时只有下一个等待者被唤醒。若 watch 整个目录，任何节点变动都会唤醒全部 N 个等待者同时冲击 ZK——这就是羊群效应（herd effect）",
+        "因为顺序节点的 watch 在协议上只能设在序号比自己小的节点上"
+      ],
+      "answer": 2,
+      "explain": "临时 + 顺序节点是锁与选主的基石：临时节点把持有权与会话绑定（进程崩溃/断连即自动删除，无需人工清理），顺序节点由 ZK 保证分布式单调递增。等待链上“各 watch 自己的前驱”把唤醒做成链式，避免羊群效应。另注意 watch 是一次性的：触发即失效，收到事件后必须“重注册 + 全量读一次”处理丢失窗口；会话过期后所有 watch 与临时节点全部作废——这是大量“监听莫名失效”问题的根因。"
+    }
   ]
 };
 
-// 共 222 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
-// cicd 12 + otel 12 + logging 11 + middleware/datastream/sre/cloud/aiops 各 10）
+// 共 245 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
+// cicd 20 + otel 12 + logging 11 + middleware/datastream/sre/cloud/aiops 各 10 + bigdata 15）

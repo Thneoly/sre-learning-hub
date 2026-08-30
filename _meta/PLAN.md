@@ -96,6 +96,17 @@ portal/content.js                            [构建产物：由 build-content.p
 15-aiops-llm/04-agent-runbook-automation.md  [aiops]
 15-aiops-llm/labs/01-llm-troubleshoot-drill/{task.md,check.sh,solution.md}     [aiops]
 
+16-bigdata/00-bigdata-overview.md            [bd-mat-storage]
+16-bigdata/01-hdfs.md                        [bd-mat-storage]
+16-bigdata/02-yarn.md                        [bd-mat-storage]
+16-bigdata/03-hive-warehouse.md              [bd-mat-compute]
+16-bigdata/04-spark.md                       [bd-mat-compute]
+16-bigdata/05-olap-doris-starrocks.md        [bd-mat-olap]
+16-bigdata/06-zookeeper.md                   [bd-mat-olap]
+16-bigdata/labs/01-hdfs-pseudo/{task.md,check.sh,solution.md}            [bd-labs]
+16-bigdata/labs/02-spark-local/{task.md,check.sh,solution.md}            [bd-labs]
+16-bigdata/labs/03-doris-quickstart/{task.md,check.sh,solution.md}       [bd-labs]
+
 scripts/README.md + lib/common.sh            [scripts-setup·已生成]
 scripts/setup/（5 个文件）                    [scripts-setup·已生成]
 scripts/faults/（12 个 break-*.sh + FIXES.md）[scripts-faults·已生成]

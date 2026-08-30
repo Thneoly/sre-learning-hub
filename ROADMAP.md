@@ -1,4 +1,4 @@
-# 学习路线图 v2：25 周 · 9 阶段 · 9 个贯穿闭环
+# 学习路线图 v2：26 周 · 9 阶段 · 9 个贯穿闭环
 
 > 每周投入 8~10 小时。结构依据两份市场调研（`_meta/research-2026-08-*.md`）：
 > ① 学习顺序对齐社区路线图共识（地基→容器→编排→工程化→可观测→方法论）；
@@ -14,10 +14,10 @@
 阶段 3  工程化     周 11-12   06-cicd-iac-gitops
 阶段 4  安全+考证   周 13-14   07-cks → ★考 CKS
 阶段 5  可观测+考证 周 15-18   08-pca → ★考 PCA；09-otel；10-logging
-阶段 6  数据组件    周 19-21   11-middleware + 12-data-streaming
-阶段 7  方法论     周 22-23   13-sre-methodology
-阶段 8  云         周 24      14-cloud
-阶段 9  差异化     周 25      15-aiops-llm（+补 02/05 的 Go 选学）
+阶段 6  数据组件    周 19-22   11-middleware + 12-data-streaming + 16-bigdata
+阶段 7  方法论     周 23-24   13-sre-methodology
+阶段 8  云         周 25      14-cloud
+阶段 9  差异化     周 26      15-aiops-llm（+补 02/05 的 Go 选学）
 ```
 
 ## 每周计划与闭环
@@ -87,8 +87,17 @@
 | 19 | `11-middleware/nginx` + `mysql` + 两个 lab | 独立定位 502/504；主从搭建 |
 | 20 | `11-middleware/redis` + `mongodb` + 两个 lab | 讲清哨兵 failover 与副本集选举 |
 | 21 | `12-data-streaming/kafka` + `flink` + labs | 解释 ISR/KRaft；定位一次反压 |
+| 22 | `16-bigdata/00-03`（全景/HDFS/YARN/Hive）+ labs 01 | 讲清副本放置与 safemode；伪分布式 HDFS 跑通 |
 
 **🔁 闭环 6**：给业务加 MySQL+Redis 后端（Deployment+PVC+Service），exporter 接入 Prometheus，注入一次缓存雪崩场景排障。
+
+### 阶段 6 补充 · 大数据（第 22 周并入上表；进阶选学）
+
+| 材料 | 里程碑 |
+|---|---|
+| `16-bigdata/04-06`（Spark/OLAP/ZooKeeper）+ labs 02-03 | 跑一次数据倾斜加盐实验；Doris 建表导入查询 |
+
+> 大数据模块按 JD 调研定位为"大数据运维专线岗画像"（百度 20-30K·16薪一类岗位），非主线路径；目标这类岗位的学员把第 22 周展开成两周学完。
 
 ### 阶段 7 · 方法论（周 22-23）
 

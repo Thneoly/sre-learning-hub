@@ -1,4 +1,4 @@
-# Learning Hub — 云原生 SRE 学习中心（15 模块）
+# Learning Hub — 云原生 SRE 学习中心（16 模块）
 
 一套自包含的**学习材料 + 学习平台 + 练习平台**，专为以下情况设计：
 
@@ -33,6 +33,7 @@
 | 13 | `13-sre-methodology/` | 5 章 + 2 labs | **中级→高级分水岭**：SLO/错误预算、On-call、无责复盘、混沌工程 |
 | 14 | `14-cloud/` | 3 章 + 1 lab | 云平台：阿里云实操 + AWS 对照 + 认证路径 |
 | 15 | `15-aiops-llm/` | 4 章 + 1 lab | **差异化选修**：LLM 辅助排障、RAG 知识库、Agent skill、安全护栏 |
+| 16 | `16-bigdata/` | 7 章 + 3 labs | 大数据平台（运维专线岗画像）：HDFS/YARN/Hive 数仓/Spark/Doris·StarRocks/ZooKeeper |
 
 ## 能力支柱视图（"我是谁 / 补哪块"的叙事层）
 
@@ -40,7 +41,7 @@
 
 | 支柱 | 回答的岗位画像 | 覆盖模块 | 支柱的"一句话" |
 |---|---|---|---|
-| **云原生平台域** | 云原生运维 / 容器平台工程师 | 01-linux · 02-programming · 03-docker · 04-k8s · 05-cka · 07-cks · 11-middleware · 12-data-streaming · 14-cloud | 以容器为中心的平台栈：从内核底座到数据面组件 |
+| **云原生平台域** | 云原生运维 / 容器平台工程师 | 01-linux · 02-programming · 03-docker · 04-k8s · 05-cka · 07-cks · 11-middleware · 12-data-streaming · 14-cloud · 16-bigdata | 以容器为中心的平台栈：从内核底座到数据面与大数据组件 |
 | **DevOps 工程域** | DevOps 工程师 / 交付效率方向 | 06-cicd-iac-gitops（DevOps 概念/Git/GitLab CI/Jenkins/ArgoCD/Ansible/Terraform） | 优化软件交付流程：流动、反馈、持续学习（三步工作法） |
 | **可观测与 SRE 域** | SRE / 稳定性方向 | 08-pca · 09-otel · 10-logging · 13-sre-methodology | 优化系统可用性：指标/日志/追踪 + SLO/错误预算/混沌 |
 | **AIOps 智能域**（增值） | 智能运维 / AIOps 工程师 | 15-aiops-llm + scripts/faults 靶场 | 用 LLM 增强判断：辅助排障、RAG 知识库、Agent 护栏 |

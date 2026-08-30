@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SRE 学习中心 · 15 模块学习平台</title>
+<title>SRE 学习中心 · 16 模块学习平台</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -538,6 +538,24 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       labs: [
         { p: 'labs/01-llm-troubleshoot-drill', t: 'Lab 01 · LLM 辅助排障实战演练' }
       ]
+    },
+    {
+      id: 'bigdata', nav: '大数据', name: '大数据平台', dir: '16-bigdata',
+      desc: 'HDFS 存储与 NameNode 运维、YARN 资源调度、Hive 数仓分层、Spark 调优与数据倾斜、Doris/StarRocks 实时 OLAP、ZooKeeper 协调服务。',
+      chapters: [
+        { f: '00-bigdata-overview.md', t: '00 · 大数据全景：生态地图、三代架构与岗位画像' },
+        { f: '01-hdfs.md', t: '01 · HDFS：NameNode、块模型与丢失块排障' },
+        { f: '02-yarn.md', t: '02 · YARN：容器、队列与多租户调度' },
+        { f: '03-hive-warehouse.md', t: '03 · Hive 与数仓分层：metastore、ORC 与 ODS→ADS' },
+        { f: '04-spark.md', t: '04 · Spark 架构与调优：内存、shuffle 与数据倾斜' },
+        { f: '05-olap-doris-starrocks.md', t: '05 · OLAP 实时分析：Doris 与 StarRocks 的架构、模型与运维' },
+        { f: '06-zookeeper.md', t: '06 · ZooKeeper：分布式协调服务的原理与运维（以及它的退场）' }
+      ],
+      labs: [
+        { p: 'labs/01-hdfs-pseudo', t: 'Lab 01 · HDFS 伪分布式：块、小文件代价与 safemode' },
+        { p: 'labs/02-spark-local', t: 'Lab 02 · Spark local 模式：词频统计与数据倾斜加盐实验' },
+        { p: 'labs/03-doris-quickstart', t: 'Lab 03 · Doris 快速起步：Unique 模型、Stream Load 与幂等重放' }
+      ]
     }
   ];
 
@@ -789,7 +807,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     { h: '#/scenarios', t: '场景速查', src: 'SCENARIOS.md' },
     { h: '#/timer', t: '考试计时器' }
   ];
-  /* 学习阶段分组：侧栏按阶段组织 15 个模块；未列入分组的模块自动归入「其他」，避免漏项。 */
+  /* 学习阶段分组：侧栏按阶段组织 16 个模块；未列入分组的模块自动归入「其他」，避免漏项。 */
   var STAGES = [
     { cap: '地基', ids: ['linux', 'programming'] },
     { cap: '容器', ids: ['docker'] },
@@ -797,7 +815,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     { cap: '工程化', ids: ['cicd'] },
     { cap: '安全', ids: ['cks'] },
     { cap: '可观测', ids: ['pca', 'otel', 'logging'] },
-    { cap: '数据组件', ids: ['middleware', 'datastream'] },
+    { cap: '数据组件', ids: ['middleware', 'datastream', 'bigdata'] },
     { cap: '方法论', ids: ['sre'] },
     { cap: '云', ids: ['cloud'] },
     { cap: '差异化', ids: ['aiops'] }
@@ -818,7 +836,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     {
       name: '云原生平台域', role: '岗位画像：云原生运维 / 容器平台工程师',
       one: '以容器为中心的平台栈：从内核底座到数据面组件',
-      ids: ['linux', 'programming', 'docker', 'k8s', 'cka', 'cks', 'middleware', 'datastream', 'cloud'],
+      ids: ['linux', 'programming', 'docker', 'k8s', 'cka', 'cks', 'middleware', 'datastream', 'cloud', 'bigdata'],
       extra: null
     },
     {
@@ -851,7 +869,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     return { done: done, total: total };
   }
   function buildSidebar() {
-    var h = '<div class="brand"><div class="t1">SRE 学习中心</div><div class="t2">15 个模块 · Linux 到 AIOps</div></div>';
+    var h = '<div class="brand"><div class="t1">SRE 学习中心</div><div class="t2">16 个模块 · Linux 到大数据</div></div>';
     h += '<div class="nav-group"><div class="nav-cap">导航</div>';
     h += '<button class="nav-item" data-nav="#/overview">总览</button></div>';
     var staged = {};
@@ -932,7 +950,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       totalCh += MODULES[a].chapters.length;
       totalLab += MODULES[a].labs.length;
     }
-    var h = '<h1 class="pg">总览</h1><div class="sub">15 个模块按学习阶段推进：地基打底，容器与编排铺面，工程化与安全加深，可观测、数据组件、方法论、云与 AIOps 补全；CKA / CKS / PCA 三证逐个击破。逐项勾选自动保存进度。</div>';
+    var h = '<h1 class="pg">总览</h1><div class="sub">16 个模块按学习阶段推进：地基打底，容器与编排铺面，工程化与安全加深，可观测、数据组件（中间件、数据流、大数据）、方法论、云与 AIOps 补全；CKA / CKS / PCA 三证逐个击破。逐项勾选自动保存进度。</div>';
 
     if (!hasContent()) {
       h += '<div class="hintbox"><b>内置阅读器尚未就绪：</b>未检测到同目录 content.js。运行 portal/build-content.ps1 生成（在 portal 目录执行 ';
@@ -945,7 +963,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     h += '<div class="pnum" style="margin-top:6px">共 ' + totalCh + ' 章教程 · ' + totalLab + ' 个 lab · 进度存于 localStorage（键 hub-progress）</div></div>';
 
     h += '<h2 class="sec">能力支柱视图</h2><div class="card">';
-    h += '<div class="list-note" style="padding:0 0 4px">同一套 15 个模块的另一种看法：编号 = 学习顺序，支柱 = 能力画像（与根目录 README.md 的「能力支柱视图」表一致）。支柱完成度 = 支柱内各模块章节 + lab 勾选的汇总。</div>';
+    h += '<div class="list-note" style="padding:0 0 4px">同一套 16 个模块的另一种看法：编号 = 学习顺序，支柱 = 能力画像（与根目录 README.md 的「能力支柱视图」表一致）。支柱完成度 = 支柱内各模块章节 + lab 勾选的汇总。</div>';
     for (var p0 = 0; p0 < PILLARS.length; p0++) {
       var pl = PILLARS[p0];
       h += '<div class="pillar-row">';
@@ -1078,7 +1096,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       body += '<div class="card"><h3>生成 content.js</h3>';
       body += '<p>在 <code>portal</code> 目录执行（Windows PowerShell 5.1 即可）：</p>';
       body += codeBlock('powershell · [本地Windows]', 'cd <learning-hub>/portal\npowershell -ExecutionPolicy Bypass -File ./build-content.ps1');
-      body += '<p>脚本会递归收集 learning-hub 根目录下全部 15 个模块目录（01-linux 至 15-aiops-llm）的所有 .md（含 labs 的 task.md 与 solution.md，以及 11-middleware / 12-data-streaming 的子目录），并打包根目录的 SCENARIOS.md / README.md / ROADMAP.md，生成同目录 content.js（键为相对 learning-hub 根的正斜杠路径）。生成后回到本页刷新即可。</p></div>';
+      body += '<p>脚本会递归收集 learning-hub 根目录下全部 16 个模块目录（01-linux 至 16-bigdata）的所有 .md（含 labs 的 task.md 与 solution.md，以及 11-middleware / 12-data-streaming 的子目录），并打包根目录的 SCENARIOS.md / README.md / ROADMAP.md，生成同目录 content.js（键为相对 learning-hub 根的正斜杠路径）。生成后回到本页刷新即可。</p></div>';
     }
     document.getElementById('page').innerHTML = h + '<div class="card reader-card">' + body + '</div>';
   }
@@ -1100,9 +1118,10 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     datastream: '数据流 · Kafka / Flink',
     sre: 'SRE · 方法论与实践',
     cloud: '云计算 · 阿里云与 AWS',
-    aiops: 'AIOps · LLM 辅助运维'
+    aiops: 'AIOps · LLM 辅助运维',
+    bigdata: '大数据 · HDFS / YARN / Spark / Doris'
   };
-  var QUIZ_BANK_ORDER = ['pca', 'cka', 'cks', 'basics', 'linux', 'programming', 'cicd', 'otel', 'logging', 'middleware', 'datastream', 'sre', 'cloud', 'aiops'];
+  var QUIZ_BANK_ORDER = ['pca', 'cka', 'cks', 'basics', 'linux', 'programming', 'cicd', 'otel', 'logging', 'middleware', 'datastream', 'sre', 'cloud', 'aiops', 'bigdata'];
   var quizState = { bank: null, idx: 0, answers: [], finished: false };
 
   function bankName(id) {
