@@ -97,3 +97,16 @@ Prometheus UI / `amtool` 的交互结果，无法用只读 bash 脚本逐题判�
 - [ ] 每个代码块有运行位置标注
 - [ ] 自测题答案确实折叠
 - [ ] 没有占位符和空章节
+
+## 增补新模块时的联动检查单（2026-08 审计教训）
+
+新增/修改模块后，以下"记得过去的世界"的硬编码层必须逐一排查（grep 模块数与目录名）：
+
+1. `scripts/gen-vitepress-nav.mjs` 的 MODULES 数组（书站导航）
+2. `scripts/gen-skill-cards.mjs` 的 QUIZ_MODULE 映射与 QUIZ_ORDER（卡片归属）
+3. `portal/build-content.ps1` 的 $modules 数组（阅读器）
+4. `portal/index.html`：MODULES / STAGES / PILLARS / SCN_CATS（场景数据）/ 全部"N 个模块"文案
+5. `SCENARIOS.md` 是否需收录新模块的常见坑（跑 `node scripts/verify-scenarios.js` 验证）
+6. `README.md` / `ROADMAP.md` / `docs/index.md` / `package.json` / `scripts/README.md` 的计数与周数排期（周数不得双占/断档）
+7. 交叉引用计数三处联动：SCENARIOS 统计表 ↔ portal SCN_CATS ↔ 引用它的章节
+8. 内容文件不得出现靶场凭据（sudo 密码等，gitignore 防线不覆盖内容层）

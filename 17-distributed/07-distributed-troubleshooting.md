@@ -8,7 +8,7 @@
 - 能解释读路径为什么由一致性级别决定走哪条路，"读到旧数据"时先查级别再怀疑故障
 - 能默写 quorum 计算速查表，并对"失 quorum 现场"给出正确的第一反应（救一台，不是重组）
 - 能把现场故障对号入座到五类经典模式：脑裂 / 双主 / 日志空洞 / 时钟漂移条件竞争 / 再平衡风暴
-- 能说出分布式机制故障在全站 121 条场景索引里的分布位置，并从"现象"快速跳回本章
+- 能说出分布式机制故障在全站 191 条场景索引里的分布位置，并从"现象"快速跳回本章
 
 ## 1. 总方法：两条路径分解法
 
@@ -142,14 +142,15 @@ K8s 的现实：kubectl get 大部分根本不到 etcd——
 | lease 异常、时间戳倒挂、证书 not-yet-valid | 时钟条件竞争 | [01 章 §2](./01-failure-models-and-time.md) |
 | rebalance 刷屏、迁移期超时、整组停顿 | 再平衡风暴 | 第 05 章 §4 |
 
-## 4. 与 SCENARIOS.md 的衔接：121 条场景里的分布式故障
+## 4. 与 SCENARIOS.md 的衔接：191 条场景里的分布式故障
 
-[SCENARIOS.md](../SCENARIOS.md) 是全站"现象进门"索引（121 条）。分布式机制类故障集中在两个类目：
+[SCENARIOS.md](../SCENARIOS.md) 是全站"现象进门"索引（191 条）。分布式机制类故障集中在三个类目：
 
 | 类目 | 条数 | 直接命中分布式机制的 | 对应本章类别 |
 |---|---|---|---|
 | §1 集群与控制面 | 16 | 3 条：apiserver crash loop 连不上 etcd（【靶场】break-etcd-endpoint）；etcd `alarm NOSPACE` 只读；etcdctl snapshot 报错 | 写路径 ④⑦ 跳；etcd 运维 |
-| §4 存储与中间件 | 17 | 8 条：MySQL 主从延迟；Redis replica 闪断全量同步 / 三哨兵挂俩不切换；Mongo 两节点不能写、选举震荡；Kafka 频繁 rebalance、NotEnoughReplicas；Flink checkpoint 超时、状态目录丢失 | 日志空洞、quorum、脑旋、再平衡风暴、快照链路五类全部命中 |
+| §4 存储与中间件 | 58 | 原 8 条 + 16-bigdata 41 条：HDFS safemode 卡住 / 丢失块 runbook / 副本挤同机架；YARN 假 OOM 与 RM recovery；Spark OOM 在堆外 / 倾斜三板斧 / FetchFailed；Doris FE 选举阻塞、compaction 版本堆积、label 幂等；湖仓 commit 冲突、Hudi 积压、孤儿文件 | 日志空洞、quorum、脑旋、再平衡风暴、快照链路五类全部命中 |
+| §9 分布式与共识 | 29 | 本模块与 ZK 章：ZK 4lw 白名单 / 脑旋 / 扩容写不进 / 会话漂移锁丢 / watch 一次性；etcd 失 quorum 拒写 / 频繁切主 / 奇数原则；时钟跳变假尖刺 / 日志倒挂；锁误删 / zombie writer / lease 时钟；脑裂取证 / 失 quorum 先救一台 | 五类经典故障 + 共识、一致性、时钟、fencing 全套 |
 | §2/§3/§5/§6/§7/§8 | 88 | 间接相关若干（如 webhook fail-closed 属写路径②跳、证书过期是时间敏感故障） | 写路径①②跳 |
 
 用法（值班时的三步）：从 SCENARIOS 的"现象"进门执行"先查"那条命令 → 命中后若根因在分布式机制，回到本章第 3 节对号入座 → 需要讲清"为什么"时再进对应理论章（03 共识 / 04 事务 / 05 分片 / 06 gossip 与 fencing）。反向也要做：每次处理完真实故障，回 SCENARIOS 确认覆盖面（该文件"日常使用姿势"一节的纪律）。

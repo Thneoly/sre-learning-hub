@@ -63,7 +63,7 @@
 - **现象**：Deployment YAML 有两处独立问题，修好第一处才暴露第二处（排障练习） → 先查：先 Events 定位镜像层故障，再排查第二处 → 详见：05-cka/labs/18-crashloop-triage/task.md
 - **现象**：Pod 不 Ready 但看不出原因，需要完整 DNS/Service 链路排查演练 → 先查：dnsutils 调试 Pod 逐层验证 Service 名/FQDN/CoreDNS → 详见：05-cka/labs/17-dns-debugging/task.md（速查见同目录 solution.md 的"DNS 故障速查"节）
 
-## 4 存储与中间件（PVC Pending / 主从延迟 / 哨兵切换 / 连接打满）
+## 4 存储与中间件（PVC Pending / 主从延迟 / 哨兵切换 / 连接打满 / HDFS·YARN·Spark·Doris·湖仓）
 
 - **现象**：PVC 一直 Pending / 有 SC 也绑不上 → 先查：`kubectl get sc` + `describe pvc` 看 Events；storageClassName 的 `""` 与省略语义不同；WFFC 要先建 Pod → 详见：04-k8s-fundamentals/07-storage.md#常见坑
 - **现象**：Pod 卡 ContainerCreating 报 Multi-Attach error；Retain 的 PV 一直 Released；PVC 扩容报错 → 先查：RWO 卷未 detach（失联节点可强删 volumeattachment）；Released 需清 claimRef；SC 开 allowVolumeExpansion 且只升不降 → 详见：04-k8s-fundamentals/07-storage.md#常见坑
@@ -82,6 +82,47 @@
 - **现象**：Kafka 大量 NotEnoughReplicasException 写入失败 → 先查：ISR 收缩到 min.insync.replicas 以下——先救 ISR，别调小 min.insync → 详见：12-data-streaming/kafka/02-replication-and-reliability.md#常见坑
 - **现象**：Flink checkpoint 一直 timeout/failed，反压面板全红找不到瓶颈 → 先查：反压让 barrier 走不动；找第一个 busy≈1000 的算子（受害者不背锅） → 详见：12-data-streaming/flink/02-deployment-and-exactly-once.md#6. 反压：原理与定位
 - **现象**：Flink Pod 重建后作业状态全丢；savepoint 恢复报 cannot map → 先查：状态目录别指向容器内 file:///tmp；算子要固定 .uid() → 详见：12-data-streaming/flink/02-deployment-and-exactly-once.md#常见坑
+- **现象**：HDFS NameNode 重启后卡在 safemode 十几分钟，UI 显示 reported blocks 未达 0.999 → 先查：`hdfs dfsadmin -safemode get` + `-report` 看 Live Nodes 与块报告进度；手动 leave 的前提是 DN 全部在线 → 详见：16-bigdata/01-hdfs.md#6. 运维核心一：safemode 的语义与进出条件
+- **现象**：NN UI 报 Missing/Corrupt Blocks > 0，用户读文件报 Could not obtain block → 先查：`hdfs fsck / -list-corruptfileblocks` 拿清单再按 runbook 走——先确认 DN 是否暂时离线（多数 missing 等 10~30 分钟自愈），严禁一见 missing 就 `-delete` → 详见：16-bigdata/01-hdfs.md#7. 运维核心二：丢失块 / 损坏块的处理流程
+- **现象**：UnderReplicatedBlocks 暴涨，疑似 DN 批量故障 → 先查：DN 判死要约 10.5 分钟，机器重启/网络抖动属短暂离线——先等 DN 回来，多数自己落回去 → 详见：16-bigdata/01-hdfs.md#3. DataNode：心跳、块报告与"死"的判定
+- **现象**：fsck 显示某文件的 3 副本全落在同一机架，单机架断电即丢数据 → 先查：`hdfs fsck /path -blocks -locations -racks`——没配机架感知全体落 /default-rack；存量数据要 setrep 触发重复制，Balancer 只搬量不纠拓扑 → 详见：16-bigdata/01-hdfs.md#4. 块模型：128MB 块、3 副本放置与纠删码
+- **现象**：文件一直处于 `.tmp` 写不进去，或报 lease 相关错误 → 先查：writer 崩溃后租约未回收——`hdfs debug recoverLease -path <file>`，或等硬限自动回收 → 详见：16-bigdata/01-hdfs.md#常见坑
+- **现象**：NN 频繁 Full GC、RPC p99 抖动，重启回放 edits 比预期长一倍 → 先查：小文件把堆吃满（每对象约 150B）+ checkpoint 失效 edits 无限增长——治理小文件与 checkpoint，短期加堆只买时间 → 详见：16-bigdata/01-hdfs.md#9. 小文件：量化危害与治理
+- **现象**：新上线的 DataNode 磁盘利用率长期 5%，没人写它 → 先查：新节点空盘属预期——排 Balancer 计划，`-setBalancerBandwidth` 错峰跑（搬迁流量与业务读写抢盘和网卡） → 详见：16-bigdata/01-hdfs.md#8. 运维核心三：Balancer 与数据再平衡
+- **现象**：YARN 作业一直 ACCEPTED，一个 container 都不动 → 先查：`yarn queue -status` + `yarn application -status`——队列满 / 单容器申请超 maximum-allocation / AM 被 am-percent 卡住 → 详见：16-bigdata/02-yarn.md#常见坑
+- **现象**：container 报 `running beyond virtual memory limits` 被 NM 杀（最经典"假 OOM"） → 先查：vmem-pmem-ratio 默认 2.1 对 JVM 堆外过紧——`yarn.nodemanager.vmem-check-enabled=false`（物理内存检查保留） → 详见：16-bigdata/02-yarn.md#2. 资源模型：Container = memory + vcores
+- **现象**：container 报 `running beyond physical memory limits`，退出码 137/143 → 先查：真超内存——executor/AM 的堆外按堆的 20~40% 预留，提高该角色 memory 配置 → 详见：16-bigdata/02-yarn.md#常见坑
+- **现象**：大队列里几百个小应用全在 ACCEPTED，队列明明还有资源 → 先查：`maximum-am-resource-percent` 默认 0.1 被 AM 占满——按负载形态调大，或把 Spark Thrift Server 类常驻应用挪独立队列 → 详见：16-bigdata/02-yarn.md#1. 三个角色：RM 全局调度、NM 本地执行、每应用一个 AM
+- **现象**：`yarn rmadmin -refreshQueues` 报错 → 先查：root 直接子队列 capacity 总和必须恒等于 100、不能删还有运行应用的队列（刷新失败不会弄挂 RM，放心改） → 详见：16-bigdata/02-yarn.md#6. 运维：队列配置热更新
+- **现象**：RM 主备切换后所有运行中作业失败重提 → 先查：HA 开了 recovery 没开——`yarn.resourcemanager.recovery.enabled=true` + ZK StateStore，否则切换=全集群作业清零 → 详见：16-bigdata/02-yarn.md#7. RM HA 与重启恢复
+- **现象**：beeline 卡在 `Connecting to jdbc:hive2://...` 数分钟，已建立的查询跟着变慢 → 先查：`ss -tn state established '( sport = :10000 )' | wc -l` 对比 max worker threads，HS2 Web UI Sessions 页查僵尸 session 与 idle 超时 → 详见：16-bigdata/03-hive-warehouse.md#8.2 HS2 连接打满排障
+- **现象**：Hive metastore 首次启动报 schema 版本不匹配 → 先查：元数据库未初始化或版本不配——`schematool -dbType mysql -initSchema`（升级用 `-upgradeSchema`） → 详见：16-bigdata/03-hive-warehouse.md#常见坑
+- **现象**：动态分区插入报 Dynamic partition strict mode → 先查：默认 strict 要求至少一个静态分区列——临时 `SET hive.exec.dynamic.partition.mode=nonstrict;`，长期在入仓脚本固定保留一级静态分区 → 详见：16-bigdata/03-hive-warehouse.md#常见坑
+- **现象**：ACID 事务表越查越慢，表目录下 delta 目录越堆越多 → 先查：`SHOW COMPACTIONS` 与 compactor worker 是否在跑——例行 `ALTER TABLE ... COMPACT`，delta 堆积直接拖垮读性能 → 详见：16-bigdata/03-hive-warehouse.md#7. ACID 事务表的演进
+- **现象**：查询明明带 dt 过滤却全表扫 → 先查：分区列被函数/别名包裹（如 `where dt=to_date(x)`）无法编译期常量折叠——`EXPLAIN` 看 Num rows 验证裁剪是否生效 → 详见：16-bigdata/03-hive-warehouse.md#常见坑
+- **现象**：误删表后恢复 metastore 备份，业务仍报错 → 先查：MySQL 元数据与 HDFS 文件撕裂（孤儿目录/表定义"复活"）——恢复 runbook 写清以哪边为准 + SHOW TABLES 抽查与关键分区 count 比对 → 详见：16-bigdata/03-hive-warehouse.md#8.1 metastore 本质是一个 MySQL 库
+- **现象**：Spark on YARN 报 `Container killed by YARN for exceeding memory limits`（K8s 上为 OOMKilled 137），executor 堆明明没用满 → 先查：RSS=堆+堆外超容器预算，netty 直接内存先膨胀——调 `spark.executor.memoryOverhead` 而不是盲目加大 -Xmx（容器上限 = memory + overhead） → 详见：16-bigdata/04-spark.md#7.3 高频故障表
+- **现象**：一个 stage 99% 的 task 秒级完成，个别 task 跑几十分钟且 Spill (disk) 十几 GB → 先查：数据倾斜——`EXPLAIN` 定位倾斜的 Exchange；null/空 key 先拆出去，再按口诀选 broadcast/两阶段聚合/加盐，先让 AQE 试 → 详见：16-bigdata/04-spark.md#5. 数据倾斜三板斧
+- **现象**：Spark 开了 dynamicAllocation 后 `FetchFailed` / `Map output lost` 反复出现，stage 反复重算 → 先查：executor 被回收后 shuffle 输出丢失——YARN 配 ESS（NM 常驻 7337），K8s 开 shuffleTracking → 详见：16-bigdata/04-spark.md#6. 动态资源分配与 external shuffle service
+- **现象**：broadcast join 把 Driver 打挂 → 先查："小表"实际几百 MB——调低 autoBroadcastJoinThreshold 或去掉 broadcast 提示 → 详见：16-bigdata/04-spark.md#常见坑
+- **现象**：Spark client 模式提交后关掉终端作业就死 → 先查：Driver 跑在提交机——生产用 cluster 模式（或 nohup/tmux 托管） → 详见：16-bigdata/04-spark.md#常见坑
+- **现象**：Driver 报 `Total size of serialized results > spark.driver.maxResultSize` → 先查：collect/take 往 Driver 拉了太多数据——改为 write 落盘，别把结果收回 Driver → 详见：16-bigdata/04-spark.md#7.3 高频故障表
+- **现象**：Spark 作业挂了却没有 4040 UI 可复盘（生产 Driver 一闪而过） → 先查：eventLog + History Server（18080）离线回放 stages/executors 全量页面——eventLog.dir 放 HDFS 并常驻 SHS → 详见：16-bigdata/04-spark.md#7.2 History Server 部署
+- **现象**：Doris 建表报 not enough backends / 副本不足 → 先查：默认 `replication_num=3` 而可用 BE 不够——实验表显式 `"replication_num"="1"`；生产扩 BE 而不是降副本 → 详见：16-bigdata/05-olap-doris-starrocks.md#常见坑
+- **现象**：Doris BE 注册后 `SHOW BACKENDS` 里 Alive=false → 先查：BE 日志——宿主机 `vm.max_map_count` 太低、ulimit 不够或 FE/BE 网络不通 → 详见：16-bigdata/05-olap-doris-starrocks.md#常见坑
+- **现象**：Doris 导入报 too many versions，compaction score 持续升高 → 先查：高频小批量导入让版本数超过合并能力——攒大批次降导入频率；不治会一路串成 Flink 反压 → Kafka lag → 详见：16-bigdata/05-olap-doris-starrocks.md#6.2 BE 磁盘与 compaction
+- **现象**：Doris FE Leader 宕机 30 秒，建表/导入提交全阻塞 → 先查：follower 多数派重选主期间元数据写阻塞是预期；FE 至少 3 个 FOLLOWER，OBSERVER 不参与 quorum 不算数 → 详见：16-bigdata/05-olap-doris-starrocks.md#6.1 FE 元数据与 Leader 选举
+- **现象**：Doris Stream Load 经 FE 8030 报 307 或 401 → 先查：FE 重定向到 BE 而 curl 不透传 Authorization 头——直发 BE 8040，或 `curl --location-trusted` → 详见：16-bigdata/05-olap-doris-starrocks.md#常见坑
+- **现象**：Flink 作业恢复重放后 Doris 大量 `Label Already Exists` → 先查：label 幂等 + 2PC 的正常表现，表里不会写两遍——核对 label 生成规则（前缀+checkpointId）即可，不要删 label → 详见：16-bigdata/05-olap-doris-starrocks.md#5. 导入通道：Stream Load 与 Flink Connector（串回 exactly-once）
+- **现象**：Doris 一张大报表把线上小查询拖死 → 先查：大查询与线上查询共享 BE 无隔离——资源标签分组（物理隔离）/ workload group 限流，大回刷错峰 → 详见：16-bigdata/05-olap-doris-starrocks.md#6.3 查询排队与资源隔离
+- **现象**：Doris FE 全部重启后起不来 → 先查：bdb 元数据损坏或过半丢失——从 image 检查点 + 备份恢复；FE 也要当有状态系统做备份（纪律同 etcd） → 详见：16-bigdata/05-olap-doris-starrocks.md#常见坑
+- **现象**：Iceberg 并发写报 commit 冲突；或湖表越写越慢、计划阶段就耗时 → 先查：多 writer 争同一表的 catalog 锁 + 小文件/manifest 碎片化——减少并发 writer、按分区隔离写，`rewrite_data_files`/`rewrite_manifests` 定时跑 → 详见：16-bigdata/07-lakehouse-table-formats.md#常见坑
+- **现象**：time travel 报 snapshot 不存在 → 先查：被 expire 清掉了——先查 `table.snapshots` 元数据表确认保留窗口，要长回溯调大 `history.expire.max-snapshot-age-ms` → 详见：16-bigdata/07-lakehouse-table-formats.md#常见坑
+- **现象**：Hudi MOR 表查询越来越慢 → 先查：compaction 积压——看 timeline 上 compaction requested 是否长期未执行；调度独立 compaction，临时用 read_optimized 查询 → 详见：16-bigdata/07-lakehouse-table-formats.md#常见坑
+- **现象**：Hudi 增量消费突然断流/丢数据 → 先查：cleaning 把保留窗口清得太狠——调大 `hoodie.cleaner.commits.retained`，按下游重放需求定 → 详见：16-bigdata/07-lakehouse-table-formats.md#常见坑
+- **现象**：Flink 写湖恢复后疑似重复数据，湖上无主文件增多 → 先查：checkpoint 被关或间隔过长，sink 提交与 checkpoint 脱钩——恢复 checkpoint 配置；孤儿文件用 `remove_orphan_files` 清（先核对无长事务） → 详见：16-bigdata/07-lakehouse-table-formats.md#7. 与 12-data-streaming 的衔接：exactly-once 落到湖写入路径
+- **现象**：Flink checkpoint 超时，第一嫌疑人是湖 commit / catalog 挂了写全阻塞 → 先查：对象存储限流（429/503）与 catalog 锁竞争——catalog 是湖表的 NameNode，HMS 路线的备份纪律等同 etcd → 详见：16-bigdata/07-lakehouse-table-formats.md#6.4 catalog 选型：HMS、REST catalog、Nessie
+- **现象**：湖表 snapshot/manifest 膨胀想监控，却发现没有 exporter 可装 → 先查：表格式无常驻进程——读 Iceberg 只读元数据表（snapshots/files/manifests）巡检推 Pushgateway 变 gauge，接既有告警体系 → 详见：16-bigdata/07-lakehouse-table-formats.md#6.2 snapshot / manifest 膨胀监控（指标与告警思路）
 
 ## 5 性能与资源（CPU 高 / 内存涨 / OOM / 磁盘满 / 限流）
 
@@ -152,6 +193,38 @@
 - **现象**：--cap-drop ALL 后 nginx 起不来；非 root 写 volume 报拒绝 → 先查：监听 80 需 NET_BIND_SERVICE（或改 8080）；卷初拷属主是 root，chown 后降权 → 详见：03-docker/06-security-best-practices.md#常见坑
 - **现象**：seccomp/AppArmor/gVisor/Kata Pod 起不来（profile not found / cannot load / runsc 未注册） → 先查：profile 路径与节点放置；annotation 容器名精确匹配；RuntimeClass 键名与 handler 一致 → 详见：07-cks/02-system-hardening.md#常见坑
 
+## 9 分布式与共识（ZK 脑旋 / 失 quorum / 脑裂双主 / 锁误删 / 时钟漂移）
+
+- **现象**：ZK 的 `mntr`/`stat` 发过去没反应，`srvr` 却正常 → 先查：3.5+ 四字命令白名单默认只放行 `srvr`——配 `4lw.commands.whitelist`，或走 admin server 8080 的 HTTP JSON → 详见：16-bigdata/06-zookeeper.md#6.1 四字命令与 admin server
+- **现象**：HBase/HDFS 频繁重新选主，ZK 的 Mode 频繁变化、latency 尖刺（脑旋） → 先查：JVM 长 GC / 事务日志盘 fsync 慢 / 网络抖动——dataLogDir 独立低延迟盘、堆给 3~4GB 缩 GC、对 Mode 变化做告警 → 详见：16-bigdata/06-zookeeper.md#6.3 脑旋与脑裂防护
+- **现象**：ZK 加了一台节点，集群反而写不进了 → 先查：多数派从 2 变 3，滚动重启窗口凑不齐过半——一次只加一台、等它同步完成再动下一台；扩容走 3→5 跳过 4 → 详见：16-bigdata/06-zookeeper.md#6.5 扩容为什么必须逐台重启
+- **现象**：业务报"锁丢了"但持有进程还活着 → 先查：会话被服务端判死（GC 停顿/网络分区），临时节点已删、新主已选出——会话超时按业务最长暂停调 + 下游 fencing token 拒绝旧持有者 → 详见：16-bigdata/06-zookeeper.md#4. watch 一次性触发与会话：最容易踩语义坑的地方
+- **现象**：ZK watch 时灵时不灵，配置变更偶尔收不到通知 → 先查：watch 是一次性触发且会话过期后全部作废——收到事件立即"重注册+全量读"，或用 Curator Cache 类封装 → 详见：16-bigdata/06-zookeeper.md#4. watch 一次性触发与会话：最容易踩语义坑的地方
+- **现象**：客户端写 >1MB 数据到 znode 报错，被误判为"ZK 不稳定" → 先查：`jute.maxbuffer` 默认 ~1MB 且客户端+全部服务端要同步调大；正确姿势是 ZK 只放指针、大内容放对象存储/DB → 详见：16-bigdata/06-zookeeper.md#6.2 jute.maxbuffer：大 znode 的坑
+- **现象**：ZK 集群起不来，日志报无法过半（unable to form quorum） → 先查：`dataDir/myid` 与 zoo.cfg 的 `server.N` 是否一一对应、起来的节点是否够过半、端口是否通 → 详见：16-bigdata/06-zookeeper.md#常见坑
+- **现象**："集群健康"（进程都在）却持续报错 → 先查：健康检查要区分"进程在"与"过半在"——看 ZK 的 Mode、etcd `endpoint health`（它本身就是一次提交提案的写探针） → 详见：17-distributed/00-distributed-overview.md#1.3 部分故障：集群健康不是 0/1
+- **现象**：跨节点日志"应答的时间比请求还早"，事件顺序拼不出来 → 先查：三步对表法量出偏差量再读时间线；关键链路用 trace_id/offset/revision 串联，别用墙钟排序 → 详见：17-distributed/01-failure-models-and-time.md#5. 运维含义：日志时间戳对齐的坑
+- **现象**：网络流量大盘突然出现尖刺，设备侧却无感知 → 先查：目标端时钟跳变让 rate() 的分母（样本时间戳差）错位——查 `node_timex_sync_status` 与 offset 斜率，排除后再谈容量 → 详见：17-distributed/01-failure-models-and-time.md#2.2 为什么监控看斜率、不看绝对差
+- **现象**：节点反复"被判定宕机又回来"，依赖方跟着反复切主 → 先查：长 GC/慢盘造出的时序故障（ZK 脑旋元凶）——先治慢（缩 GC、独立日志盘），再谈调超时 → 详见：17-distributed/01-failure-models-and-time.md#常见坑
+- **现象**：新节点加入集群被拒，报证书/授权失败 → 先查：该机时钟偏离导致证书校验不过——先修 NTP 再排证书链 → 详见：17-distributed/01-failure-models-and-time.md#常见坑
+- **现象**："写完立刻读不到"工单被升级成集群故障 → 先查：五步排查先定性——读路径连的是谁（主/从/缓存）、什么一致性级别；串行读/本地读/读从库读到旧值是"按合同履约"不是故障 → 详见：17-distributed/02-consistency-models.md#5. 运维含义："读到了旧数据"先查一致性级别，再怀疑故障
+- **现象**：把 ZK 当强一致读用，偶发读到旧配置 → 先查：ZK 默认本地读是顺序一致（可能旧值）——要"读己之写"先 `sync()`，或改走带版本号的 watch 通知 → 详见：17-distributed/02-consistency-models.md#3. 现实系统落位表
+- **现象**：kubectl get 正常但 create/apply 全超时，apiserver 本身 Running → 先查：etcd 失 quorum（读走 watch cache 所以还通）——`etcdctl endpoint status` 数存活成员 vs quorum，先救一台别急重建 → 详见：17-distributed/03-consensus-and-replication.md#常见坑
+- **现象**：控制面频繁切主、component 状态反复跳变，磁盘又没告警 → 先查：WAL fsync 慢 → 心跳/选举超时（脑旋）——etcd 独占低延迟盘、调大 election-timeout、对 leader 变化告警 → 详见：17-distributed/03-consensus-and-replication.md#常见坑
+- **现象**：共识集群加了第 4 个成员，以为"更稳"了 → 先查：N=4 容错与 N=3 相同、确认成本反而更高——奇数原则，扩容走 3→5；etcd 先 `--learner` 追平再 promote → 详见：17-distributed/03-consensus-and-replication.md#2.2 N=3 容 1、N=5 容 2：两张账要分开算
+- **现象**：消费者明明做了幂等还是出现重复订单 → 先查：只挡了"消息重投"，没挡"两个来源写同一业务键"（定时任务+消息并发）——最后一道防线永远在数据库唯一键约束上 → 详见：17-distributed/04-distributed-transactions.md#6. 幂等设计模式速查
+- **现象**：Flink 作业频繁报事务超时 / 数据延迟可见 → 先查：`transaction.timeout.ms` ≤ checkpoint 间隔——调大事务超时或调小 checkpoint 间隔，且不超过 broker 的 `transaction.max.timeout.ms` → 详见：17-distributed/04-distributed-transactions.md#5.1 Flink：把 2PC 装进 checkpoint
+- **现象**：版本号乐观锁用时间戳，偶发失效（旧写覆盖新写） → 先查：时钟回拨/漂移让版本回退——换单调递增整数或数据库自增，别用任何墙钟当版本 → 详见：17-distributed/04-distributed-transactions.md#常见坑
+- **现象**：扩容后集群反而更慢/超时（Redis 迁槽、任何再平衡） → 先查：迁移流量撞业务高峰 + MIGRATE 大批次阻塞源节点单线程——低峰 + 小批量（10~100 key/批）+ 限速 + 可暂停 → 详见：17-distributed/05-sharding-and-rebalancing.md#4. 再平衡的运维代价与窗口选择
+- **现象**：Redis 迁槽迁到一半放弃，整个集群写失败 → 先查：`cluster-require-full-coverage=yes` 下有槽无归属即整层拒写——要么完成要么显式 `SETSLOT` 归还，别留孤儿中间态 → 详见：17-distributed/05-sharding-and-rebalancing.md#常见坑
+- **现象**：新加的 Kafka broker 空转，磁盘 0 增长 → 先查：分区是静态元数据，扩容不自动迁移老分区——KafkaRebalance（add-brokers）或 `kafka-reassign-partitions.sh` 显式搬 → 详见：17-distributed/05-sharding-and-rebalancing.md#常见坑
+- **现象**："拿了 Redis/ZK 锁就认为绝对安全"，下游偶发重复扣款/发货 → 先查：zombie writer——旧持有者从长 GC 醒来继续写下游，quorum 管不到下游——下游加 fencing token 原子校验（只接受更大令牌） → 详见：17-distributed/06-gossip-membership-fencing.md#4.4 Fencing token：让旧主"写不进去"
+- **现象**：SETNX 拿锁、释放时直接 DEL，删掉了别人的锁（双主开端） → 先查：自己已超时、锁已被新持有者接手——SET 带唯一 token + Lua 比对令牌再删 → 详见：17-distributed/06-gossip-membership-fencing.md#常见坑
+- **现象**：lease 到期判定写在客户端本地时钟上，两侧同时认为自己持有 → 先查：NTP 步进/回拨——租约要服务端统一计时（etcd lease 模式）或单调钟；租约只能收窄僵尸窗口，清零靠 fencing → 详见：17-distributed/06-gossip-membership-fencing.md#4.3 租约 lease：有时限的授权
+- **现象**：5 成员共识集群挂 3 台，同事提议"把剩下 2 台组成新集群继续写" → 先查：不可写≠丢数据——已提交条目在过半成员上大概率仍在；先抢修任一台，重组等于人为制造双写史 → 详见：17-distributed/07-distributed-troubleshooting.md#2. quorum 计算速查表
+- **现象**：一半成员互相失联但各自"活着"，写超时集中在部分客户端（疑似脑裂） → 先查：从一台机器分别 ping/telnet 全部成员取分区证据；比对各成员 term/epoch 与 leader 认知（`endpoint status`/`srvr`/`rs.status()`） → 详见：17-distributed/07-distributed-troubleshooting.md#3.1 脑裂（分区两侧各自主）
+- **现象**：etcd `proposals_failed_total` 持续上涨 / WAL fsync p99 抬高 → 先查：quorum 交互在失败（磁盘慢/网络/失多数派前兆）——`/metrics` 摘这两项，下一步 iostat await/util 查盘 → 详见：17-distributed/07-distributed-troubleshooting.md#1.1 写路径 = 协调者 → quorum 确认链
+
 ---
 
 ## 使用说明：配合 faults 靶场做限时演练
@@ -191,11 +264,12 @@
 | 1 集群与控制面 | 16 |
 | 2 网络与 DNS | 17 |
 | 3 工作负载 | 14 |
-| 4 存储与中间件 | 17 |
+| 4 存储与中间件 | 58 |
 | 5 性能与资源 | 12 |
 | 6 交付流水线 | 12 |
 | 7 可观测 | 18 |
 | 8 安全 | 15 |
-| **合计** | **121** |
+| 9 分布式与共识 | 29 |
+| **合计** | **191** |
 
 其中标【靶场】（scripts/faults 可直接注入演练）的条目：12 条，与 FIXES.md 的 12 个故障一一对应。

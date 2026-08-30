@@ -659,6 +659,47 @@ Kafka 消费组频繁 rebalance / broker 磁盘满写入失败 / under-replicate
 Kafka 大量 NotEnoughReplicasException 写入失败,ISR 收缩到 min.insync.replicas 以下——先救 ISR，别调小 min.insync,scenario
 Flink checkpoint 一直 timeout/failed，反压面板全红找不到瓶颈,反压让 barrier 走不动；找第一个 busy≈1000 的算子（受害者不背锅）,scenario
 Flink Pod 重建后作业状态全丢；savepoint 恢复报 cannot map,状态目录别指向容器内 file:///tmp；算子要固定 .uid(),scenario
+HDFS NameNode 重启后卡在 safemode 十几分钟，UI 显示 reported blocks 未达 0.999,`hdfs dfsadmin -safemode get` + `-report` 看 Live Nodes 与块报告进度；手动 leave 的前提是 DN 全部在线,scenario
+NN UI 报 Missing/Corrupt Blocks &gt; 0，用户读文件报 Could not obtain block,`hdfs fsck / -list-corruptfileblocks` 拿清单再按 runbook 走——先确认 DN 是否暂时离线（多数 missing 等 10~30 分钟自愈），严禁一见 missing 就 `-delete`,scenario
+UnderReplicatedBlocks 暴涨，疑似 DN 批量故障,DN 判死要约 10.5 分钟，机器重启/网络抖动属短暂离线——先等 DN 回来，多数自己落回去,scenario
+fsck 显示某文件的 3 副本全落在同一机架，单机架断电即丢数据,`hdfs fsck /path -blocks -locations -racks`——没配机架感知全体落 /default-rack；存量数据要 setrep 触发重复制，Balancer 只搬量不纠拓扑,scenario
+文件一直处于 `.tmp` 写不进去，或报 lease 相关错误,writer 崩溃后租约未回收——`hdfs debug recoverLease -path &lt;file&gt;`，或等硬限自动回收,scenario
+NN 频繁 Full GC、RPC p99 抖动，重启回放 edits 比预期长一倍,小文件把堆吃满（每对象约 150B）+ checkpoint 失效 edits 无限增长——治理小文件与 checkpoint，短期加堆只买时间,scenario
+新上线的 DataNode 磁盘利用率长期 5%，没人写它,新节点空盘属预期——排 Balancer 计划，`-setBalancerBandwidth` 错峰跑（搬迁流量与业务读写抢盘和网卡）,scenario
+YARN 作业一直 ACCEPTED，一个 container 都不动,`yarn queue -status` + `yarn application -status`——队列满 / 单容器申请超 maximum-allocation / AM 被 am-percent 卡住,scenario
+"container 报 `running beyond virtual memory limits` 被 NM 杀（最经典""假 OOM""）",vmem-pmem-ratio 默认 2.1 对 JVM 堆外过紧——`yarn.nodemanager.vmem-check-enabled=false`（物理内存检查保留）,scenario
+container 报 `running beyond physical memory limits`，退出码 137/143,真超内存——executor/AM 的堆外按堆的 20~40% 预留，提高该角色 memory 配置,scenario
+大队列里几百个小应用全在 ACCEPTED，队列明明还有资源,`maximum-am-resource-percent` 默认 0.1 被 AM 占满——按负载形态调大，或把 Spark Thrift Server 类常驻应用挪独立队列,scenario
+`yarn rmadmin -refreshQueues` 报错,root 直接子队列 capacity 总和必须恒等于 100、不能删还有运行应用的队列（刷新失败不会弄挂 RM，放心改）,scenario
+RM 主备切换后所有运行中作业失败重提,HA 开了 recovery 没开——`yarn.resourcemanager.recovery.enabled=true` + ZK StateStore，否则切换=全集群作业清零,scenario
+beeline 卡在 `Connecting to jdbc:hive2://...` 数分钟，已建立的查询跟着变慢,`ss -tn state established '( sport = :10000 )' | wc -l` 对比 max worker threads，HS2 Web UI Sessions 页查僵尸 session 与 idle 超时,scenario
+Hive metastore 首次启动报 schema 版本不匹配,元数据库未初始化或版本不配——`schematool -dbType mysql -initSchema`（升级用 `-upgradeSchema`）,scenario
+动态分区插入报 Dynamic partition strict mode,默认 strict 要求至少一个静态分区列——临时 `SET hive.exec.dynamic.partition.mode=nonstrict;`，长期在入仓脚本固定保留一级静态分区,scenario
+ACID 事务表越查越慢，表目录下 delta 目录越堆越多,`SHOW COMPACTIONS` 与 compactor worker 是否在跑——例行 `ALTER TABLE ... COMPACT`，delta 堆积直接拖垮读性能,scenario
+查询明明带 dt 过滤却全表扫,分区列被函数/别名包裹（如 `where dt=to_date(x)`）无法编译期常量折叠——`EXPLAIN` 看 Num rows 验证裁剪是否生效,scenario
+误删表后恢复 metastore 备份，业务仍报错,"MySQL 元数据与 HDFS 文件撕裂（孤儿目录/表定义""复活""）——恢复 runbook 写清以哪边为准 + SHOW TABLES 抽查与关键分区 count 比对",scenario
+Spark on YARN 报 `Container killed by YARN for exceeding memory limits`（K8s 上为 OOMKilled 137），executor 堆明明没用满,RSS=堆+堆外超容器预算，netty 直接内存先膨胀——调 `spark.executor.memoryOverhead` 而不是盲目加大 -Xmx（容器上限 = memory + overhead）,scenario
+一个 stage 99% 的 task 秒级完成，个别 task 跑几十分钟且 Spill (disk) 十几 GB,数据倾斜——`EXPLAIN` 定位倾斜的 Exchange；null/空 key 先拆出去，再按口诀选 broadcast/两阶段聚合/加盐，先让 AQE 试,scenario
+Spark 开了 dynamicAllocation 后 `FetchFailed` / `Map output lost` 反复出现，stage 反复重算,executor 被回收后 shuffle 输出丢失——YARN 配 ESS（NM 常驻 7337），K8s 开 shuffleTracking,scenario
+broadcast join 把 Driver 打挂,"""小表""实际几百 MB——调低 autoBroadcastJoinThreshold 或去掉 broadcast 提示",scenario
+Spark client 模式提交后关掉终端作业就死,Driver 跑在提交机——生产用 cluster 模式（或 nohup/tmux 托管）,scenario
+Driver 报 `Total size of serialized results &gt; spark.driver.maxResultSize`,collect/take 往 Driver 拉了太多数据——改为 write 落盘，别把结果收回 Driver,scenario
+Spark 作业挂了却没有 4040 UI 可复盘（生产 Driver 一闪而过）,eventLog + History Server（18080）离线回放 stages/executors 全量页面——eventLog.dir 放 HDFS 并常驻 SHS,scenario
+Doris 建表报 not enough backends / 副本不足,"默认 `replication_num=3` 而可用 BE 不够——实验表显式 `""replication_num""=""1""`；生产扩 BE 而不是降副本",scenario
+Doris BE 注册后 `SHOW BACKENDS` 里 Alive=false,BE 日志——宿主机 `vm.max_map_count` 太低、ulimit 不够或 FE/BE 网络不通,scenario
+Doris 导入报 too many versions，compaction score 持续升高,高频小批量导入让版本数超过合并能力——攒大批次降导入频率；不治会一路串成 Flink 反压 → Kafka lag,scenario
+Doris FE Leader 宕机 30 秒，建表/导入提交全阻塞,follower 多数派重选主期间元数据写阻塞是预期；FE 至少 3 个 FOLLOWER，OBSERVER 不参与 quorum 不算数,scenario
+Doris Stream Load 经 FE 8030 报 307 或 401,FE 重定向到 BE 而 curl 不透传 Authorization 头——直发 BE 8040，或 `curl --location-trusted`,scenario
+Flink 作业恢复重放后 Doris 大量 `Label Already Exists`,label 幂等 + 2PC 的正常表现，表里不会写两遍——核对 label 生成规则（前缀+checkpointId）即可，不要删 label,scenario
+Doris 一张大报表把线上小查询拖死,大查询与线上查询共享 BE 无隔离——资源标签分组（物理隔离）/ workload group 限流，大回刷错峰,scenario
+Doris FE 全部重启后起不来,bdb 元数据损坏或过半丢失——从 image 检查点 + 备份恢复；FE 也要当有状态系统做备份（纪律同 etcd）,scenario
+Iceberg 并发写报 commit 冲突；或湖表越写越慢、计划阶段就耗时,多 writer 争同一表的 catalog 锁 + 小文件/manifest 碎片化——减少并发 writer、按分区隔离写，`rewrite_data_files`/`rewrite_manifests` 定时跑,scenario
+time travel 报 snapshot 不存在,被 expire 清掉了——先查 `table.snapshots` 元数据表确认保留窗口，要长回溯调大 `history.expire.max-snapshot-age-ms`,scenario
+Hudi MOR 表查询越来越慢,compaction 积压——看 timeline 上 compaction requested 是否长期未执行；调度独立 compaction，临时用 read_optimized 查询,scenario
+Hudi 增量消费突然断流/丢数据,cleaning 把保留窗口清得太狠——调大 `hoodie.cleaner.commits.retained`，按下游重放需求定,scenario
+Flink 写湖恢复后疑似重复数据，湖上无主文件增多,checkpoint 被关或间隔过长，sink 提交与 checkpoint 脱钩——恢复 checkpoint 配置；孤儿文件用 `remove_orphan_files` 清（先核对无长事务）,scenario
+Flink checkpoint 超时，第一嫌疑人是湖 commit / catalog 挂了写全阻塞,对象存储限流（429/503）与 catalog 锁竞争——catalog 是湖表的 NameNode，HMS 路线的备份纪律等同 etcd,scenario
+湖表 snapshot/manifest 膨胀想监控，却发现没有 exporter 可装,表格式无常驻进程——读 Iceberg 只读元数据表（snapshots/files/manifests）巡检推 Pushgateway 变 gauge，接既有告警体系,scenario
 CPU 高，不知下一步看什么,top 的 %Cpu(s) 行先分支——us/sy/wa/st 四路走法（用户态火焰图/内核态上下文切换/IO 等待/虚拟化窃取）,scenario
 load 很高但 CPU 大量 idle；kill -9 杀不死进程,load 含 D 状态任务，`ps` 分 R/D 状态再下结论，/proc/PID/stack 看等待点,scenario
 容器 CPU 使用率不高但响应周期性卡顿,cgroup CFS 节流，看 cpu.stat 的 nr_throttled，提高 limit,scenario
@@ -716,6 +757,35 @@ readOnlyRootFilesystem 后应用崩,应用要写 /tmp、/var/log，emptyDir 挂�
 开启加密后老 Secret 在 etcd 里仍明文,加密只对新写入生效，全量重写（get -o json | replace），按 ns 分批,scenario
 --cap-drop ALL 后 nginx 起不来；非 root 写 volume 报拒绝,监听 80 需 NET_BIND_SERVICE（或改 8080）；卷初拷属主是 root，chown 后降权,scenario
 seccomp/AppArmor/gVisor/Kata Pod 起不来（profile not found / cannot load / runsc 未注册）,profile 路径与节点放置；annotation 容器名精确匹配；RuntimeClass 键名与 handler 一致,scenario
+ZK 的 `mntr`/`stat` 发过去没反应，`srvr` 却正常,3.5+ 四字命令白名单默认只放行 `srvr`——配 `4lw.commands.whitelist`，或走 admin server 8080 的 HTTP JSON,scenario
+HBase/HDFS 频繁重新选主，ZK 的 Mode 频繁变化、latency 尖刺（脑旋）,JVM 长 GC / 事务日志盘 fsync 慢 / 网络抖动——dataLogDir 独立低延迟盘、堆给 3~4GB 缩 GC、对 Mode 变化做告警,scenario
+ZK 加了一台节点，集群反而写不进了,多数派从 2 变 3，滚动重启窗口凑不齐过半——一次只加一台、等它同步完成再动下一台；扩容走 3→5 跳过 4,scenario
+"业务报""锁丢了""但持有进程还活着",会话被服务端判死（GC 停顿/网络分区），临时节点已删、新主已选出——会话超时按业务最长暂停调 + 下游 fencing token 拒绝旧持有者,scenario
+ZK watch 时灵时不灵，配置变更偶尔收不到通知,"watch 是一次性触发且会话过期后全部作废——收到事件立即""重注册+全量读""，或用 Curator Cache 类封装",scenario
+"客户端写 &gt;1MB 数据到 znode 报错，被误判为""ZK 不稳定""",`jute.maxbuffer` 默认 ~1MB 且客户端+全部服务端要同步调大；正确姿势是 ZK 只放指针、大内容放对象存储/DB,scenario
+ZK 集群起不来，日志报无法过半（unable to form quorum）,`dataDir/myid` 与 zoo.cfg 的 `server.N` 是否一一对应、起来的节点是否够过半、端口是否通,scenario
+"""集群健康""（进程都在）却持续报错","健康检查要区分""进程在""与""过半在""——看 ZK 的 Mode、etcd `endpoint health`（它本身就是一次提交提案的写探针）",scenario
+"跨节点日志""应答的时间比请求还早""，事件顺序拼不出来",三步对表法量出偏差量再读时间线；关键链路用 trace_id/offset/revision 串联，别用墙钟排序,scenario
+网络流量大盘突然出现尖刺，设备侧却无感知,目标端时钟跳变让 rate() 的分母（样本时间戳差）错位——查 `node_timex_sync_status` 与 offset 斜率，排除后再谈容量,scenario
+"节点反复""被判定宕机又回来""，依赖方跟着反复切主",长 GC/慢盘造出的时序故障（ZK 脑旋元凶）——先治慢（缩 GC、独立日志盘），再谈调超时,scenario
+新节点加入集群被拒，报证书/授权失败,该机时钟偏离导致证书校验不过——先修 NTP 再排证书链,scenario
+"""写完立刻读不到""工单被升级成集群故障","五步排查先定性——读路径连的是谁（主/从/缓存）、什么一致性级别；串行读/本地读/读从库读到旧值是""按合同履约""不是故障",scenario
+把 ZK 当强一致读用，偶发读到旧配置,"ZK 默认本地读是顺序一致（可能旧值）——要""读己之写""先 `sync()`，或改走带版本号的 watch 通知",scenario
+kubectl get 正常但 create/apply 全超时，apiserver 本身 Running,etcd 失 quorum（读走 watch cache 所以还通）——`etcdctl endpoint status` 数存活成员 vs quorum，先救一台别急重建,scenario
+控制面频繁切主、component 状态反复跳变，磁盘又没告警,WAL fsync 慢 → 心跳/选举超时（脑旋）——etcd 独占低延迟盘、调大 election-timeout、对 leader 变化告警,scenario
+"共识集群加了第 4 个成员，以为""更稳""了",N=4 容错与 N=3 相同、确认成本反而更高——奇数原则，扩容走 3→5；etcd 先 `--learner` 追平再 promote,scenario
+消费者明明做了幂等还是出现重复订单,"只挡了""消息重投""，没挡""两个来源写同一业务键""（定时任务+消息并发）——最后一道防线永远在数据库唯一键约束上",scenario
+Flink 作业频繁报事务超时 / 数据延迟可见,`transaction.timeout.ms` ≤ checkpoint 间隔——调大事务超时或调小 checkpoint 间隔，且不超过 broker 的 `transaction.max.timeout.ms`,scenario
+版本号乐观锁用时间戳，偶发失效（旧写覆盖新写）,时钟回拨/漂移让版本回退——换单调递增整数或数据库自增，别用任何墙钟当版本,scenario
+扩容后集群反而更慢/超时（Redis 迁槽、任何再平衡）,迁移流量撞业务高峰 + MIGRATE 大批次阻塞源节点单线程——低峰 + 小批量（10~100 key/批）+ 限速 + 可暂停,scenario
+Redis 迁槽迁到一半放弃，整个集群写失败,`cluster-require-full-coverage=yes` 下有槽无归属即整层拒写——要么完成要么显式 `SETSLOT` 归还，别留孤儿中间态,scenario
+新加的 Kafka broker 空转，磁盘 0 增长,分区是静态元数据，扩容不自动迁移老分区——KafkaRebalance（add-brokers）或 `kafka-reassign-partitions.sh` 显式搬,scenario
+"""拿了 Redis/ZK 锁就认为绝对安全""，下游偶发重复扣款/发货",zombie writer——旧持有者从长 GC 醒来继续写下游，quorum 管不到下游——下游加 fencing token 原子校验（只接受更大令牌）,scenario
+SETNX 拿锁、释放时直接 DEL，删掉了别人的锁（双主开端）,自己已超时、锁已被新持有者接手——SET 带唯一 token + Lua 比对令牌再删,scenario
+lease 到期判定写在客户端本地时钟上，两侧同时认为自己持有,NTP 步进/回拨——租约要服务端统一计时（etcd lease 模式）或单调钟；租约只能收窄僵尸窗口，清零靠 fencing,scenario
+"5 成员共识集群挂 3 台，同事提议""把剩下 2 台组成新集群继续写""",不可写≠丢数据——已提交条目在过半成员上大概率仍在；先抢修任一台，重组等于人为制造双写史,scenario
+"一半成员互相失联但各自""活着""，写超时集中在部分客户端（疑似脑裂）",从一台机器分别 ping/telnet 全部成员取分区证据；比对各成员 term/epoch 与 leader 认知（`endpoint status`/`srvr`/`rs.status()`）,scenario
+etcd `proposals_failed_total` 持续上涨 / WAL fsync p99 抬高,quorum 交互在失败（磁盘慢/网络/失多数派前兆）——`/metrics` 摘这两项，下一步 iostat await/util 查盘,scenario
 关于 SLI、SLO、SLA 三者的关系，下面哪种说法是正确的？,答案：SLI 是对服务状态的度量指标，SLO 是基于 SLI 设定的目标值，SLA 是写进合同、违反后有业务后果的协议。解析：考察点是可观测三大概念的定义链：SLI（指标，如成功率、P99 延迟）→ SLO（对 SLI 的目标，如 99.9% 可用）→ SLA（带违约责任的合同条款）。,quiz quiz-pca
 Google SRE 的“四大黄金信号（four golden signals）”指的是哪一组？,答案：延迟、流量、错误、饱和度。解析：黄金信号是 latency、traffic、errors、saturation，是 PCA 可观测概念域的高频考点。,quiz quiz-pca
 Prometheus 采用 pull（拉取）模型采集指标，相比 push 模型的主要优势不包括以下哪项？,答案：Prometheus 自身发生故障后恢复，不会丢失目标端已经缓冲的历史数据。解析：考察 pull 与 push 模型对比。,quiz quiz-pca
