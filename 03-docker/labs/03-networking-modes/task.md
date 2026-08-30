@@ -4,7 +4,7 @@
 
 ## 场景
 
-作为网络工程师出身的你，接手一台 Docker VM 后被两个"灵异现象"困扰过：同一主机的两个容器有时能用名字互 ping、有时不能；`-p 8083:80` 明明没改 nginx 配置，外部就能访问了。这次你要把 Docker 的四种网络模式（bridge / host / none / container）逐一跑一遍，并顺着 `iptables -t nat` 把端口映射的转发链路亲手找出来——这条 DNAT 链路和 Kubernetes 的 kube-proxy userspace 模式、Calico 的 nat-outgoing 是同一套内核机制。
+假设你是刚接手一台 Docker VM 的网络工程师，被两个"灵异现象"困扰：同一主机的两个容器有时能用名字互 ping、有时不能；`-p 8083:80` 明明没改 nginx 配置，外部就能访问了。这次你要把 Docker 的四种网络模式（bridge / host / none / container）逐一跑一遍，并顺着 `iptables -t nat` 把端口映射的转发链路亲手找出来——这条 DNAT 链路和 Kubernetes 的 kube-proxy userspace 模式、Calico 的 nat-outgoing 是同一套内核机制。
 
 ## 任务清单
 

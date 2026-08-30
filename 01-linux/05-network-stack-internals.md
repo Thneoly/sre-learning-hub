@@ -2,7 +2,7 @@
 
 > 模块：01-linux 深入 ｜ 建议时长：5 小时 ｜ 关联认证：CKA-网络（Service/kube-proxy 底座）/ CKS-网络策略（Calico 规则即 netfilter）
 
-本章是把你的网络优势变现的一章：交换机路由器你已经懂"线上的包"，这里补上"内核里的包"。K8s 网络（Service、NetworkPolicy、CNI）几乎全部建立在本章机制之上。
+本章面向有网络基础的学习者：交换机路由器那套"线上的包"，这里补上"内核里的包"。K8s 网络（Service、NetworkPolicy、CNI）几乎全部建立在本章机制之上。
 
 ## 学习目标
 

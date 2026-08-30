@@ -350,7 +350,7 @@ FullAccess 意味着可以删除账号下**所有** bucket 的所有对象（含
 涨。按量实例停止后仍计算计算资源费（vCPU/内存），只有**释放（DeleteInstance/AutoRelease）**才停止计费；若是"节省停机模式"则不再收计算费只收磁盘费，但实例规格不再保留。真正省钱：临时任务用完即删、配自动释放时间（`--AutoReleaseTime`）、Spot 跑可中断负载、长期负载转包月。
 </details>
 
-5. ACK 里选 Terway 而不是 Flannel，对你这个网络背景的人意味着什么？
+5. ACK 里选 Terway 而不是 Flannel，对有网络背景的工程师意味着什么？
 <details><summary>答案</summary>
 
 Terway 下 Pod 网络直接使用 VPC 的 ENI/辅助 IP，Pod IP 是 VPC 内"真 IP"：安全组可以直接作用于 Pod、RDS 白名单可以精确到 Pod 网段、VPC FlowLog 能看到 Pod 级流量、性能少一层 overlay 封装。Flannel 是 VXLAN overlay，Pod IP 与 VPC 无关，一切跨平面访问都要过 node 的 SNAT。你已经懂 ENI 和 overlay，Terway 相当于"把 K8s 网络平面合并进 VPC"，排障时可以直接用 VPC 工具链。
