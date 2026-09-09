@@ -7,7 +7,7 @@
 // PCA 对齐五域权重：可观测概念 4 题、Prometheus 基础 8 题、PromQL 13 题、
 // 插桩与 Exporter 6 题、架构与运维 9 题；CKA/CKS 按官方大纲五域分布。
 // 其余模块按各自章节主线命题：basics 20 题（Docker 10 + K8s 10）、linux 15 题、
-// programming 12 题、cicd 20 题、otel 12 题、logging 11 题、middleware 10 题、datastream 10 题、
+// programming 12 题、cicd 28 题、otel 12 题、logging 11 题、middleware 10 题、datastream 10 题、
 // sre 10 题、cloud 10 题、aiops 10 题、bigdata 20 题（HDFS 4 / YARN 3 / Hive 2 /
 // Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓表格式 5）、distributed 15 题（CAP 与一致性 3 /
 // 共识与 Raft 4 / 分布式事务与幂等 3 / 分片再平衡 2 / Gossip 故障检测与脑裂防护 3）。
@@ -1602,7 +1602,7 @@ window.QUIZ_DATA = {
     }
   ],
 
-  // ========== CI/CD 与 IaC / GitOps（20 题）==========
+  // ========== CI/CD 与 IaC / GitOps（28 题）==========
 
   cicd: [
     {
@@ -1824,6 +1824,94 @@ window.QUIZ_DATA = {
       ],
       "answer": 1,
       "explain": "「08 · Helm」第 4 节：注解只是“时机”标记，资源类型任选；Job“跑一次直到成功”的语义与迁移吻合，Deployment 没有终点做 hook 永远等不完，CronJob 不能当 hook。hook 失败或等待超时会让整个 install/upgrade 失败、主资源不更新——这正是 pre-upgrade 迁移没成功就不动应用的保护逻辑，也是“安装卡住”排障时先看 jobs/pods 的原因；普通 Job 只是 chart 资源，Helm 并不等它。"
+    },
+    {
+      "q": "CI 需要向 Harbor 私有项目 push/pull 镜像，凭据方案选机器人账户（Robot Account）而非个人账号或共享 ci 用户，核心理由是？",
+      "options": [
+                "机器人账户是项目级凭据，权限按动作最小化勾选、可设过期时间、可随时吊销——泄漏影响面＝权限面，且审计里机器与人不混淆",
+                "机器人账户是系统级全局账户，创建一次对所有项目生效，最省事",
+                "机器人账户权限天然大于个人账号，CI 不用再配任何权限",
+                "个人账号更安全，因为人有安全意识，机器没有"
+      ],
+      "answer": 0,
+      "explain": "「09 · Harbor」3.2 节的对比表：个人账号人离职一禁全线 CI 爆炸、审计全是人名；共享 ci 用户权限全项目粒度太粗、轮换靠自觉；机器人账户项目级、可过期（如 90 天）、可吊销、secret 在 UI 随时可查。配套原则：每个项目一套机器人、一台 CI 一套；docker login 用户名要填完整的 robot$项目+名。"
+    },
+    {
+      "q": "Harbor 的 Tag Retention 策略与复制规则（Replication）的区别，正确的是？",
+      "options": [
+                "retention 管理本仓库内 tag 的生命周期（按规则删旧 tag 引用，磁盘空间要等 GC 才真正释放）；复制是 Harbor 之间同步镜像（push/pull 双向、事件或定时触发），不删除任何内容",
+                "两者都是磁盘清理策略，只是入口不同",
+                "retention 会把旧 tag 自动复制到备份 Harbor，实现容灾",
+                "复制规则执行完后，源仓库的镜像会被自动删除以节省空间"
+      ],
+      "answer": 0,
+      "explain": "「09 · Harbor」3.3/3.4 节：retention 按规则清理 tag（典型：** 保最近 10 个、v*.*.* 全保、latest 永久），执行由 jobservice 异步完成、支持 DRY RUN；删的是 artifact 引用，blob 要等 GC 才释放磁盘。复制规则声明“源过滤器 → 目标 registry → 触发方式”，push 推给远端、pull 从远端拉回，用于跨机房容灾与离线环境收编镜像；注意复制只是仓库层冗余，不等于可用性冗余。"
+    },
+    {
+      "q": "Harbor 项目策略里的 Prevent vulnerable images from running（阻止拉取有漏洞镜像）开关，生效机制与代价是？",
+      "options": [
+                "在 pull 请求的 token 签发环节直接拒绝扫描结果超阈值的镜像；好处是所有客户端一视同仁，代价是可用性押在扫描结果上——CI 必须先扫后推，且无修复版本的 CRITICAL 会把自己锁死，开启前要配好忽略策略",
+                "它会自动删除有漏洞的镜像并释放磁盘空间",
+                "它在集群 apiserver 的 admission 阶段拦截 Pod 创建，与 Harbor 本身无关",
+                "开启后带漏洞的镜像连 push 都会被拒绝，根本进不了仓库"
+      ],
+      "answer": 0,
+      "explain": "「09 · Harbor」第 4 节：这是仓库侧闸门，token 环节拒绝 pull，覆盖所有以它为仓库的客户端（含没配准入的集群、裸 docker 主机）；代价一是先推后扫的镜像在扫描完成前会被拉断（CI 编排要“推 → 扫描完成 → 再部署”），二是无修复版的 CRITICAL 会锁死自己（类比 trivy 的 --ignore-unfixed）。它与集群准入（Kyverno/policy-controller）互补不互替：仓库挡“经我这条路径的”，admission 挡“这个集群的一切创建路径”。"
+    },
+    {
+      "q": "SonarQube 中 Quality Gate 与 Quality Profile 的区别与依赖关系，正确的是？",
+      "options": [
+                "Profile 是规则集（每种语言一份，决定激活哪些规则），Gate 是一组“度量 ≥/≤ 阈值”的通过条件；链条是 规则 → 分析 → 度量 → 门禁条件",
+                "两者是同一概念的两种叫法，都是规则集合",
+                "Gate 决定扫描哪些代码文件，Profile 决定流水线是否失败",
+                "Profile 只在商业版存在，Community Build 只有 Gate"
+      ],
+      "answer": 0,
+      "explain": "「10 · SonarQube」第 2 节的依赖链：Profile（出厂 Sonar way，copy 后改规则/severity，支持继承）由分析器执行产出 issue 与度量，Gate（默认 Sonar way，条件全部定义在新代码上：Coverage ≥80%、Duplicated lines <3% 等）拿度量做判定。新建 gate 可设为默认，项目也可单独指定。"
+    },
+    {
+      "q": "关于 SonarQube 重复率 duplicated_lines_density 的检测算法与分母，正确的说法是？",
+      "options": [
+                "连续 ≥10 行 token 序列相同才判为重复块（跨文件也比对）；分母 lines 统计物理行（含注释行）——改名/换空格骗不过 token 比对，但往重复块里堆注释行确实能稀释比率",
+                "任意两行代码相同就计入重复，所以重复率通常极高",
+                "分母用的是剔除注释与空行的 ncloc，加注释无法影响重复率",
+                "重复检测只在单个文件内部进行，跨文件复制粘贴检测不到"
+      ],
+      "answer": 0,
+      "explain": "「10 · SonarQube」3.4 节：10 行阈值是检测粒度（避免惯用三行样板的噪音）；token 比对剔除空白与命名差异，但注释行计入 lines 分母，这正是该指标可被操纵的一面——code review 看到“重复块里塞满注释行”要警惕，真正解法只有抽公共函数。Sonar way 要求新代码重复率 <3%，存量可以慢慢还。"
+    },
+    {
+      "q": "CI 里 sonar-scanner 不加与加上 sonar.qualitygate.wait=true 的本质区别是？",
+      "options": [
+                "不加时 scanner 上传完报告立刻 exit 0（发射后不管），门禁结果只在 UI 上，pipeline 全绿；加上后 scanner 轮询等待服务端门禁状态，FAILED 映射为非零退出码，job 红、下游 stage 不跑",
+                "该参数让扫描跑得更慢但更仔细，结果不受影响",
+                "不加它时分析结果不会上传到 SonarQube 服务端",
+                "加上它以后门禁就不再依赖 Quality Gate 的条件配置"
+      ],
+      "answer": 0,
+      "explain": "「10 · SonarQube」4.2 节：这是“质量门禁”从报表升格为闸门的那一个参数——同一份门禁数据，没有它 MR 合并不受任何影响。配套 sonar.qualitygate.timeout（默认 300 秒）控制等待上限，服务端慢时调大而不是去掉；还要确认 job 未设 allow_failure: true，否则红了也不挡合并。"
+    },
+    {
+      "q": "镜像版本晋升到各环境，PR-based 晋升与 ArgoCD Image Updater 自动跟新的分工，正确的是？",
+      "options": [
+                "prod 及一切要审批的环境用 PR-based（MR 评审 + git log 完整审计，出事 revert 即回滚）；dev/test 高频跟新与预览环境可给 Image Updater，但 write-back 范围绝不含 prod 目录",
+                "生产更应该用 Image Updater，上线越快越好，审计可以事后补",
+                "两者必须同时开启，否则 ArgoCD 无法同步镜像",
+                "PR-based 晋升不支持回滚，出问题只能靠 Image Updater 回退"
+      ],
+      "answer": 0,
+      "explain": "「11 · 交付平台」§3 对比表：生产变更的核心成本是坏变更的排查与恢复，不是那几分钟时延。自动跟新的失败模式是“坏镜像自动铺满环境、与人工提交互相覆盖”——评审被 allow-list 正则替代，写错即自动事故直达环境。组合实践：test 由主干流水线末尾自动改 overlay（merge 本身已是评审），prod 只认人工 MR 且把 newTag 换成 digest；另注意 Image Updater 项目近年处于维护状态，收益以工具可长期运维为前提。"
+    },
+    {
+      "q": "质量门禁、签名验证、漏洞闸门“三道门”的放置位置，合理的是？",
+      "options": [
+                "质量门禁只放 CI（代码属性，与运行时无关）；签名验证 CI 快速失败 + prod admission 强制（身份判定不容例外，admission 拦住一切创建 Pod 的路径）；漏洞闸门 CI 入库阻断 + 仓库侧持续重扫兜底（漏洞是移动靶，admission 一次性判定会留时间窗）",
+                "三道门都放 admission，集群侧拦截最安全、一劳永逸",
+                "三道门都只放 CI，admission 只会拖慢调度，毫无价值",
+                "质量门禁放 admission 可以保证运行中的代码持续保持高质量"
+      ],
+      "answer": 0,
+      "explain": "「11 · 交付平台」§5 的三条底层逻辑：CI 门是约定、admission 门是强制——手 kubectl apply 一个野镜像，CI 门全不设防，所以“确认身份”（签名）这种不容例外的规则适合下沉 admission；admission 的代价是它成了集群关键路径（fail-closed 后端不可达时全集群建不了 Pod、验签增加调度延迟），检测型检查放进来零收益只放大故障面；漏洞是移动靶，正确形态是入库阻断 + 仓库重扫 + 运行时巡检的三层时态。"
     }
   ],
 
@@ -3097,6 +3185,6 @@ window.QUIZ_DATA = {
   ]
 };
 
-// 共 265 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
-// cicd 20 + otel 12 + logging 11 + middleware/datastream/sre/cloud/aiops 各 10 +
+// 共 273 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
+// cicd 28 + otel 12 + logging 11 + middleware/datastream/sre/cloud/aiops 各 10 +
 // bigdata 20（HDFS 4 / YARN 3 / Hive 2 / Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓 5）+ distributed 15）

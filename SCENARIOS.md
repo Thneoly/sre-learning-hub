@@ -139,7 +139,7 @@
 - **现象**：nginx 报 Too many open files / worker_connections are not enough → 先查：worker_rlimit_nofile 与 systemd LimitNOFILE；反代每请求占 2 个连接槽 → 详见：11-middleware/nginx/01-architecture-and-process-model.md#常见坑
 - **现象**：压测偶发 502 且报 Cannot assign requested address；调大 somaxconn 无效 → 先查：upstream 未配 keepalive 致源端口耗尽；listen backlog 默认 511 更小 → 详见：11-middleware/nginx/03-performance-troubleshooting.md#常见坑
 
-## 6 交付流水线（CI 挂了 / ArgoCD 不同步 / 漂移 / Terraform state 锁）
+## 6 交付流水线（CI 挂了 / ArgoCD 不同步 / 漂移 / 镜像仓库 / 质量门禁 / Terraform state 锁）
 
 - **现象**：git push 被拒 non-fast-forward；detached HEAD 上的提交切分支后不见 → 先查：先 `pull --rebase`；`git reflog` 找回 hash，慌的时候先 reflog 别乱 reset → 详见：06-cicd-iac-gitops/01-git-deep-dive.md#常见坑（救命操作见同文件 #5. 救命操作：stash 与 reflog）
 - **现象**：GitLab CI job 一直 pending 提示 no runner；docker build 连不上 daemon → 先查：job tags 与 runner 标签匹配、`gitlab-runner verify`；dind 设 `DOCKER_TLS_CERTDIR=""` 或挂 socket → 详见：06-cicd-iac-gitops/02-gitlab-ci.md#常见坑
@@ -151,6 +151,23 @@
 - **现象**：Terraform plan 显示 -/+ 要重建资源 → 先查：改了不可更新字段（cidr/镜像），评估停机或分批迁移 → 详见：06-cicd-iac-gitops/06-terraform.md#常见坑
 - **现象**：apply 时卡在 Acquiring state lock → 先查：上次 apply 异常退出未释放锁，确认无 apply 在跑后 force-unlock → 详见：06-cicd-iac-gitops/06-terraform.md#常见坑
 - **现象**：怀疑有人绕过 IaC 手改了云资源 → 先查：`terraform plan -detailed-exitcode`（exit 2=有漂移），nightly 跑 CI 告警 → 详见：06-cicd-iac-gitops/06-terraform.md#5. 漂移检测：state 说的和云上不一致
+- **现象**：docker push Harbor 报 `server gave HTTP response to HTTPS client` → 先查：http 部署但客户端按 https 连——daemon.json 配 insecure-registries，或给 Harbor 上 TLS → 详见：06-cicd-iac-gitops/09-harbor.md#常见坑
+- **现象**：Harbor docker login 报 unauthorized 但密码没输错 → 先查：机器人用户名没带 `robot$项目+名` 全称，或 secret 复制带空格——用户名完整复制 UI 里的值，必要时重新生成 secret → 详见：06-cicd-iac-gitops/09-harbor.md#常见坑
+- **现象**：Harbor 装完 UI 打不开、`docker compose ps` 里 core 反复重启 → 先查：内存不足（全家桶约 4G）或 harbor.yml 缩进错——`docker logs harbor-core` 看报错行，释放内存后重来 → 详见：06-cicd-iac-gitops/09-harbor.md#常见坑
+- **现象**：Harbor 勾了"阻止拉取有漏洞镜像"后，CI 推完镜像立即被集群拉取失败 → 先查：push 后扫描未完成，镜像处于未评估状态——CI 改为"推 → 扫描完成 → 再触发部署"，或对 CI 专用项目关掉该开关 → 详见：06-cicd-iac-gitops/09-harbor.md#常见坑
+- **现象**：Harbor retention 删了 20 个旧 tag，磁盘一点没降 → 先查：retention 只删 artifact 引用，blob 要 GC 才释放——先 DRY RUN 预估再 GC NOW（在线执行不必停推拉） → 详见：06-cicd-iac-gitops/09-harbor.md#7.1 磁盘回收（retention → gc 两步走）
+- **现象**：Harbor 复制规则一直 Failed → 先查：目标 registry 凭据失效/网络不通/TLS 不信任——编辑规则点 Test Connection，jobservice 日志看具体错误 → 详见：06-cicd-iac-gitops/09-harbor.md#常见坑
+- **现象**：SonarQube 的 Elasticsearch 起不来，日志报 max virtual memory areas 不足 → 先查：vm.max_map_count 未调——`sysctl -w vm.max_map_count=524288` 并持久化（最高频安装故障） → 详见：06-cicd-iac-gitops/10-sonarqube.md#常见坑
+- **现象**：sonar-scanner 报 Missing blame information / Could not find ref → 先查：浅克隆拿不到全量历史——CI 里 `GIT_DEPTH: "0"`（本地跑则别用 --depth clone） → 详见：06-cicd-iac-gitops/10-sonarqube.md#常见坑
+- **现象**：CI 里 SonarQube 分析成功但门禁从不阻塞 → 先查：没加 `sonar.qualitygate.wait=true`（scanner 发射后不管），或 job 设了 allow_failure: true → 详见：06-cicd-iac-gitops/10-sonarqube.md#常见坑
+- **现象**：SonarQube coverage 永远 0% → 先查：没把覆盖率报告喂给 scanner——按语言配 `sonar.<lang>.coverage.reportPaths`，且 CI 先跑测试再跑 sonar → 详见：06-cicd-iac-gitops/10-sonarqube.md#常见坑
+- **现象**：首次给老仓库接 SonarQube，第二天"门禁永远红" → 先查：首次分析全部算"新代码"——先跑基线分析再启用严格门禁，或临时用宽松 gate 过渡 → 详见：06-cicd-iac-gitops/10-sonarqube.md#常见坑
+- **现象**：MR 里看不到 SonarQube 行内评论 → 先查：用的 Community Build（免费版无 PR 分析/装饰）——走 pipeline 阻塞形态（wait=true 挡合并）或上商业版 → 详见：06-cicd-iac-gitops/10-sonarqube.md#4.3 PR decoration：MR 页内联评论
+- **现象**：晋升靠复制粘贴 YAML 到"生产目录"，环境差异越来越说不清 → 先查：差异不可 review、无审计——base+overlays + 晋升 MR，差异显式可评审 → 详见：06-cicd-iac-gitops/11-delivery-platform.md#常见坑（交付平台反模式清单）
+- **现象**：门禁只在 CI，部署侧裸奔，有人手 kubectl apply 野镜像直达 prod → 先查：CI 门只约束走流水线的人——签名验证下沉 prod admission（Kyverno verifyImages），CI 门负责快速反馈 → 详见：06-cicd-iac-gitops/11-delivery-platform.md#5. 供应链三道门的放置位置
+- **现象**：Image Updater 与人工提交互相覆盖，"谁放的行"说不清 → 先查：自动跟新覆盖了评审结论——write-back 只授权 dev/test 目录，prod 只认人工 MR（建议 digest 形式） → 详见：06-cicd-iac-gitops/11-delivery-platform.md#3. 晋升策略：PR-based vs 自动跟新
+- **现象**：镜像引用用浮动 tag（latest），回滚失效、扫的不是跑的 → 先查：tag 可覆盖、不可复现——CI 产出用 commit SHA tag，prod 钉 digest → 详见：06-cicd-iac-gitops/11-delivery-platform.md#常见坑（交付平台反模式清单）
+- **现象**：告警通知风暴刷屏，值班麻木、真告警被淹没 → 先查：通知无分级——分级路由 + grouping/inhibit + 静默窗口三件套，CI 通知只报失败 → 详见：06-cicd-iac-gitops/11-delivery-platform.md#6.3 分级路由与通知治理
 - **现象**：CI 里 kubectl/命令行为和本地不一样（cron/runner 环境） → 先查：cron 与 CI 的 PATH 极简，脚本内绝对路径或重设 PATH → 详见：02-programming/01-shell-fundamentals.md#常见坑
 - **现象**：批量 ssh 脚本卡死在某台机器 → 先查：`-o ConnectTimeout=5 BatchMode=yes`（TCP 黑洞无超时） → 详见：02-programming/02-shell-ops-patterns.md#常见坑
 
@@ -266,10 +283,10 @@
 | 3 工作负载 | 14 |
 | 4 存储与中间件 | 58 |
 | 5 性能与资源 | 12 |
-| 6 交付流水线 | 12 |
+| 6 交付流水线 | 29 |
 | 7 可观测 | 18 |
 | 8 安全 | 15 |
 | 9 分布式与共识 | 29 |
-| **合计** | **191** |
+| **合计** | **208** |
 
 其中标【靶场】（scripts/faults 可直接注入演练）的条目：12 条，与 FIXES.md 的 12 个故障一一对应。

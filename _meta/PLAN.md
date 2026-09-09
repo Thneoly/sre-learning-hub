@@ -67,6 +67,15 @@ scripts/gen-skill-cards.mjs                  [cards·已生成：技能卡生成
 06-cicd-iac-gitops/labs/01-gitlab-ci-pipeline/{task.md,check.sh,solution.md}   [cicd-labs]
 06-cicd-iac-gitops/labs/02-argocd-gitops/{task.md,check.sh,solution.md}        [cicd-labs]
 06-cicd-iac-gitops/labs/03-ansible-playbook/{task.md,check.sh,solution.md}     [cicd-labs]
+06-cicd-iac-gitops/09-harbor.md                       [cicd-capstone·新补：企业镜像仓库/项目权限/复制/扫描/签名]
+06-cicd-iac-gitops/10-sonarqube.md                    [cicd-capstone·新补：质量门禁/重复代码/技术债/CI 集成]
+06-cicd-iac-gitops/11-delivery-platform.md            [cicd-capstone·新补：多环境晋升/PR 流水线/供应链闸门/通知/面板聚合]
+06-cicd-iac-gitops/labs/04-harbor-registry/{task.md,check.sh,solution.md}      [cicd-capstone·新补]
+06-cicd-iac-gitops/labs/05-sonarqube-gate/{task.md,check.sh,solution.md}       [cicd-capstone·新补]
+06-cicd-iac-gitops/labs/06-supply-chain-gates/{task.md,check.sh,solution.md}   [cicd-capstone·新补：cosign 签名闸门+Trivy 漏洞闸门]
+06-cicd-iac-gitops/labs/07-environment-promotion/{task.md,check.sh,solution.md} [cicd-capstone·新补：建新环境+ArgoCD 晋升+飞书通知]
+06-cicd-iac-gitops/labs/08-helm-chart/{task.md,check.sh,solution.md}          [cicd-capstone·新补：落实 08 章实战]
+06-cicd-iac-gitops/labs/09-terraform-local/{task.md,check.sh,solution.md}     [cicd-capstone·新补：local provider+多环境 tfvars+漂移]
 
 07-cks/00~06 章 + labs/01-10                 [cks·已生成]
 

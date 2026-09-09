@@ -370,7 +370,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     },
     {
       id: 'cicd', nav: 'CI/CD & IaC', name: 'CI/CD 与 IaC、GitOps', dir: '06-cicd-iac-gitops',
-      desc: 'DevOps 理念、Git 对象模型与救命操作、GitLab CI、Jenkins 与 GitHub Actions、ArgoCD 拉模式交付、Ansible、Terraform 与 Kustomize。',
+      desc: 'DevOps 理念、Git 对象模型与救命操作、GitLab CI、Jenkins 与 GitHub Actions、ArgoCD 拉模式交付、Ansible、Terraform、Kustomize、Helm，Harbor 镜像仓库与 SonarQube 质量门禁，最终在端到端交付平台总装。',
       chapters: [
         { f: '00-devops-concepts.md', t: '00 · DevOps 理念：从"墙"到流水线' },
         { f: '01-git-deep-dive.md', t: '01 · Git 深入：对象模型、分支本质与救命操作' },
@@ -380,12 +380,21 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
         { f: '05-ansible.md', t: '05 · Ansible：无 agent 的配置管理' },
         { f: '06-terraform.md', t: '06 · Terraform：有状态的资源编排' },
         { f: '07-kustomize.md', t: '07 · Kustomize：无模板的多环境 Manifest 管理' },
-        { f: '08-helm.md', t: '08 · Helm：Chart 打包、Release 生命周期与生产纪律' }
+        { f: '08-helm.md', t: '08 · Helm：Chart 打包、Release 生命周期与生产纪律' },
+        { f: '09-harbor.md', t: '09 · Harbor：企业镜像仓库' },
+        { f: '10-sonarqube.md', t: '10 · SonarQube：代码质量门禁' },
+        { f: '11-delivery-platform.md', t: '11 · 端到端交付平台：全链路总装' }
       ],
       labs: [
         { p: 'labs/01-gitlab-ci-pipeline', t: 'Lab 01 · GitLab CI 流水线：lint → build → test → 镜像构建' },
         { p: 'labs/02-argocd-gitops', t: 'Lab 02 · ArgoCD GitOps：自动同步与漂移自愈' },
-        { p: 'labs/03-ansible-playbook', t: 'Lab 03 · Ansible Playbook：批量部署 nginx + 站点配置 + 健康检查' }
+        { p: 'labs/03-ansible-playbook', t: 'Lab 03 · Ansible Playbook：批量部署 nginx + 站点配置 + 健康检查' },
+        { p: 'labs/04-harbor-registry', t: 'Lab 04 · Harbor 私有镜像仓库：项目、机器人账户、保留策略与漏洞扫描' },
+        { p: 'labs/05-sonarqube-gate', t: 'Lab 05 · SonarQube 质量门禁：让重复代码挡住流水线' },
+        { p: 'labs/06-supply-chain-gates', t: 'Lab 06 · 供应链闸门：cosign 签名验证 + Trivy 漏洞阈值，并让它们挡住 deploy' },
+        { p: 'labs/07-environment-promotion', t: 'Lab 07 · 多环境晋升：Kustomize overlay + ArgoCD 分级同步 + 飞书通知' },
+        { p: 'labs/08-helm-chart', t: 'Lab 08 · Helm Chart 全生命周期：打包、坏升级、回滚与 OCI 分发' },
+        { p: 'labs/09-terraform-local', t: 'Lab 09 · Terraform local provider：状态、双环境、漂移与强制重建' }
       ]
     },
     {
@@ -1748,9 +1757,9 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
   }
 
   /* ================= 场景速查 =================
-     数据逐条转录自 learning-hub 根目录 SCENARIOS.md（191 条，其中 12 条标【靶场】）。
+     数据逐条转录自 learning-hub 根目录 SCENARIOS.md（208 条，其中 12 条标【靶场】）。
      每条数组：[0]=现象，[1]=先查，[2]=详见，[3]=1 表示靶场条目。
-     分类默认收起，点开时才渲染条目，避免一次挂 191 条拖慢页面。 */
+     分类默认收起，点开时才渲染条目，避免一次挂 208 条拖慢页面。 */
   var SCN_CATS = [
     { t: '1 集群与控制面', sub: 'kubectl 不通 / 节点 NotReady / 组件挂 / 证书 / etcd / 升级', items: [
       ['不知从哪下手排集群故障', '`kubectl get nodes` 通不通，按“五层定位法”选层（集群→对象→容器→节点服务→系统）', '05-cka/06-node-maintenance-troubleshooting.md#2. 排错决策树：五层定位法'],
@@ -1879,7 +1888,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ['nginx 报 Too many open files / worker_connections are not enough', 'worker_rlimit_nofile 与 systemd LimitNOFILE；反代每请求占 2 个连接槽', '11-middleware/nginx/01-architecture-and-process-model.md#常见坑'],
       ['压测偶发 502 且报 Cannot assign requested address；调大 somaxconn 无效', 'upstream 未配 keepalive 致源端口耗尽；listen backlog 默认 511 更小', '11-middleware/nginx/03-performance-troubleshooting.md#常见坑']
     ] },
-    { t: '6 交付流水线', sub: 'CI 挂了 / ArgoCD 不同步 / 漂移 / Terraform state 锁', items: [
+    { t: '6 交付流水线', sub: 'CI 挂了 / ArgoCD 不同步 / 漂移 / 镜像仓库 / 质量门禁 / Terraform state 锁', items: [
       ['git push 被拒 non-fast-forward；detached HEAD 上的提交切分支后不见', '先 `pull --rebase`；`git reflog` 找回 hash，慌的时候先 reflog 别乱 reset', '06-cicd-iac-gitops/01-git-deep-dive.md#常见坑（救命操作见同文件 #5. 救命操作：stash 与 reflog）'],
       ['GitLab CI job 一直 pending 提示 no runner；docker build 连不上 daemon', 'job tags 与 runner 标签匹配、`gitlab-runner verify`；dind 设 `DOCKER_TLS_CERTDIR=""` 或挂 socket', '06-cicd-iac-gitops/02-gitlab-ci.md#常见坑'],
       ['deploy-prod 阶段拿不到密码变量', '变量设了 protected 而 tag 不在 Protected tags', '06-cicd-iac-gitops/02-gitlab-ci.md#常见坑'],
@@ -1890,6 +1899,23 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ['Terraform plan 显示 -/+ 要重建资源', '改了不可更新字段（cidr/镜像），评估停机或分批迁移', '06-cicd-iac-gitops/06-terraform.md#常见坑'],
       ['apply 时卡在 Acquiring state lock', '上次 apply 异常退出未释放锁，确认无 apply 在跑后 force-unlock', '06-cicd-iac-gitops/06-terraform.md#常见坑'],
       ['怀疑有人绕过 IaC 手改了云资源', '`terraform plan -detailed-exitcode`（exit 2=有漂移），nightly 跑 CI 告警', '06-cicd-iac-gitops/06-terraform.md#5. 漂移检测：state 说的和云上不一致'],
+      ['docker push Harbor 报 `server gave HTTP response to HTTPS client`', 'http 部署但客户端按 https 连——daemon.json 配 insecure-registries，或给 Harbor 上 TLS', '06-cicd-iac-gitops/09-harbor.md#常见坑'],
+      ['Harbor docker login 报 unauthorized 但密码没输错', '机器人用户名没带 `robot$项目+名` 全称，或 secret 复制带空格——用户名完整复制 UI 里的值，必要时重新生成 secret', '06-cicd-iac-gitops/09-harbor.md#常见坑'],
+      ['Harbor 装完 UI 打不开、`docker compose ps` 里 core 反复重启', '内存不足（全家桶约 4G）或 harbor.yml 缩进错——`docker logs harbor-core` 看报错行，释放内存后重来', '06-cicd-iac-gitops/09-harbor.md#常见坑'],
+      ['Harbor 勾了"阻止拉取有漏洞镜像"后，CI 推完镜像立即被集群拉取失败', 'push 后扫描未完成，镜像处于未评估状态——CI 改为"推 → 扫描完成 → 再触发部署"，或对 CI 专用项目关掉该开关', '06-cicd-iac-gitops/09-harbor.md#常见坑'],
+      ['Harbor retention 删了 20 个旧 tag，磁盘一点没降', 'retention 只删 artifact 引用，blob 要 GC 才释放——先 DRY RUN 预估再 GC NOW（在线执行不必停推拉）', '06-cicd-iac-gitops/09-harbor.md#7.1 磁盘回收（retention → gc 两步走）'],
+      ['Harbor 复制规则一直 Failed', '目标 registry 凭据失效/网络不通/TLS 不信任——编辑规则点 Test Connection，jobservice 日志看具体错误', '06-cicd-iac-gitops/09-harbor.md#常见坑'],
+      ['SonarQube 的 Elasticsearch 起不来，日志报 max virtual memory areas 不足', 'vm.max_map_count 未调——`sysctl -w vm.max_map_count=524288` 并持久化（最高频安装故障）', '06-cicd-iac-gitops/10-sonarqube.md#常见坑'],
+      ['sonar-scanner 报 Missing blame information / Could not find ref', '浅克隆拿不到全量历史——CI 里 `GIT_DEPTH: "0"`（本地跑则别用 --depth clone）', '06-cicd-iac-gitops/10-sonarqube.md#常见坑'],
+      ['CI 里 SonarQube 分析成功但门禁从不阻塞', '没加 `sonar.qualitygate.wait=true`（scanner 发射后不管），或 job 设了 allow_failure: true', '06-cicd-iac-gitops/10-sonarqube.md#常见坑'],
+      ['SonarQube coverage 永远 0%', '没把覆盖率报告喂给 scanner——按语言配 `sonar.<lang>.coverage.reportPaths`，且 CI 先跑测试再跑 sonar', '06-cicd-iac-gitops/10-sonarqube.md#常见坑'],
+      ['首次给老仓库接 SonarQube，第二天"门禁永远红"', '首次分析全部算"新代码"——先跑基线分析再启用严格门禁，或临时用宽松 gate 过渡', '06-cicd-iac-gitops/10-sonarqube.md#常见坑'],
+      ['MR 里看不到 SonarQube 行内评论', '用的 Community Build（免费版无 PR 分析/装饰）——走 pipeline 阻塞形态（wait=true 挡合并）或上商业版', '06-cicd-iac-gitops/10-sonarqube.md#4.3 PR decoration：MR 页内联评论'],
+      ['晋升靠复制粘贴 YAML 到"生产目录"，环境差异越来越说不清', '差异不可 review、无审计——base+overlays + 晋升 MR，差异显式可评审', '06-cicd-iac-gitops/11-delivery-platform.md#常见坑（交付平台反模式清单）'],
+      ['门禁只在 CI，部署侧裸奔，有人手 kubectl apply 野镜像直达 prod', 'CI 门只约束走流水线的人——签名验证下沉 prod admission（Kyverno verifyImages），CI 门负责快速反馈', '06-cicd-iac-gitops/11-delivery-platform.md#5. 供应链三道门的放置位置'],
+      ['Image Updater 与人工提交互相覆盖，"谁放的行"说不清', '自动跟新覆盖了评审结论——write-back 只授权 dev/test 目录，prod 只认人工 MR（建议 digest 形式）', '06-cicd-iac-gitops/11-delivery-platform.md#3. 晋升策略：PR-based vs 自动跟新'],
+      ['镜像引用用浮动 tag（latest），回滚失效、扫的不是跑的', 'tag 可覆盖、不可复现——CI 产出用 commit SHA tag，prod 钉 digest', '06-cicd-iac-gitops/11-delivery-platform.md#常见坑（交付平台反模式清单）'],
+      ['告警通知风暴刷屏，值班麻木、真告警被淹没', '通知无分级——分级路由 + grouping/inhibit + 静默窗口三件套，CI 通知只报失败', '06-cicd-iac-gitops/11-delivery-platform.md#6.3 分级路由与通知治理'],
       ['CI 里 kubectl/命令行为和本地不一样（cron/runner 环境）', 'cron 与 CI 的 PATH 极简，脚本内绝对路径或重设 PATH', '02-programming/01-shell-fundamentals.md#常见坑'],
       ['批量 ssh 脚本卡死在某台机器', '`-o ConnectTimeout=5 BatchMode=yes`（TCP 黑洞无超时）', '02-programming/02-shell-ops-patterns.md#常见坑']
     ] },
@@ -2012,7 +2038,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     var h = '<h1 class="pg">场景速查</h1>';
     h += '<div class="sub">按故障现象组织的排障索引：出事时从「现象」进门，先执行「先查」的命令再决定下一步，「详见」直达对应章节。共 ' + total + ' 条 · 其中 ' + drills + ' 条标 <span class="scn-badge">靶场</span>（对应 scripts/faults 故障注入脚本，可配合做限时演练）。与 ROADMAP（按学习顺序）互补：ROADMAP 回答「接下来学什么」，本页回答「现在挂了去哪查」。</div>';
     h += '<div class="scn-src">数据来源：learning-hub 根目录 <code>SCENARIOS.md</code> · <a href="../SCENARIOS.md" target="_blank" rel="noopener">原文</a> · <button class="mini" data-nav="#/read/SCENARIOS.md">阅读器打开</button></div>';
-    h += '<div class="scn-ops"><button class="mini" data-scn="expand">展开全部</button><button class="mini" data-scn="collapse">收起全部</button><span>分类默认收起，点开才渲染条目，191 条也不拖慢页面</span></div>';
+    h += '<div class="scn-ops"><button class="mini" data-scn="expand">展开全部</button><button class="mini" data-scn="collapse">收起全部</button><span>分类默认收起，点开才渲染条目，208 条也不拖慢页面</span></div>';
     for (var c = 0; c < SCN_CATS.length; c++) {
       var cat = SCN_CATS[c];
       var dn = 0;

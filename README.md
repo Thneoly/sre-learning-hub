@@ -23,7 +23,7 @@
 | 03 | `03-docker/` | 7 章 + 8 labs | 容器原理：namespace/cgroup/镜像分层/网络/安全/运行时生态 |
 | 04 | `04-k8s-fundamentals/` | 14 章 | **原理层**：架构与控制循环、Pod、网络、存储、调度、RBAC、etcd |
 | 05 | `05-cka/` | 7 章 + 20 labs + 题库手册 | CKA 备考：缺口补全（RBAC/kubeadm/etcd 备份）+ 考试策略 |
-| 06 | `06-cicd-iac-gitops/` | 9 章 + 3 labs | **工程化**：DevOps 概念、Git、GitLab CI、Jenkins/GHA、ArgoCD、Ansible+Jinja2、Terraform、Kustomize、Helm |
+| 06 | `06-cicd-iac-gitops/` | 12 章 + 9 labs | **工程化**：DevOps 概念、Git、GitLab CI、Jenkins/GHA、ArgoCD、Ansible+Jinja2、Terraform、Kustomize、Helm、**Harbor、SonarQube、交付平台 capstone（多环境晋升/供应链闸门/飞书通知/面板聚合）** |
 | 07 | `07-cks/` | 7 章 + 10 labs | CKS 备考：加固、审计、Falco/Trivy/AppArmor/gVisor/加密 |
 | 08 | `08-pca/` | 7 章 + 2 题集 | PCA 备考：Prometheus 架构、PromQL(28%)、告警、Grafana |
 | 09 | `09-otel/` | 6 章 + 3 labs | OpenTelemetry(1.x 行业事实标准)：三信号、Collector、K8s 自动注入 |

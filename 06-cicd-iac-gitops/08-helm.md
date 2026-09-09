@@ -242,8 +242,11 @@ helm template demo demo-chart | grep 'kind:' | sort -u
 ### 步骤 3：values 驱动加 probes/resources
 
 ```bash
-# [master] 1) 出厂 values.yaml 自带 resources: {}，重复键会让 helm 直接报错，先删再追加
+# [master] 1) 出厂 values.yaml 自带 resources: {}，重复键会让 helm 直接报错，先删再追加；
+#            出厂还自带 livenessProbe/readinessProbe 默认块（工厂模板 with 块会渲染），
+#            不删的话 --set probes.enabled=false 时探针不消失、渲染产物出现重复键，一并删掉
 sed -i '/^resources: {}/d' demo-chart/values.yaml
+sed -i '/^livenessProbe:/,+7d' demo-chart/values.yaml
 cat >> demo-chart/values.yaml <<'EOF'
 probes:
   enabled: true
@@ -330,15 +333,15 @@ curl -s http://localhost:5000/v2/               # 预期：{}
 
 sed -i 's/^version: 0.1.0/version: 0.2.0/' demo-chart/Chart.yaml   # bump chart 版本
 helm package demo-chart                          # 预期：产出 demo-chart-0.2.0.tgz
-helm push demo-chart-0.2.0.tgz oci://localhost:5000/charts
+helm push demo-chart-0.2.0.tgz oci://localhost:5000/charts --plain-http
 curl -s http://localhost:5000/v2/charts/demo-chart/tags/list   # 预期：{"tags":["0.2.0"]}
 
-helm show chart oci://localhost:5000/charts/demo-chart --version 0.2.0   # 装前先看元数据
-helm upgrade --install demo2 oci://localhost:5000/charts/demo-chart --version 0.2.0 -n helm-demo --wait
+helm show chart oci://localhost:5000/charts/demo-chart --version 0.2.0 --plain-http   # 装前先看元数据
+helm upgrade --install demo2 oci://localhost:5000/charts/demo-chart --version 0.2.0 --plain-http -n helm-demo --wait
 helm list -n helm-demo                           # 预期：demo 与 demo2 两个 release
 ```
 
-说明：registry 只在 master 本机可达（localhost 被视为 insecure，免 TLS 配置）；要从其他节点拉需换 master IP 并配 insecure registry，见 03-docker/labs/08 的提示 1。生产上的 `helm diff` 插件另装：`helm plugin install https://github.com/databus23/helm-diff`，然后 `helm diff upgrade demo ./demo-chart -n helm-demo` 先看 patch 再动手。
+说明：registry 只在 master 本机可达（localhost 免 TLS 证书，但新版 helm 不再对 localhost 自动降级 http，明文 registry 的 push/show/pull/install 都要带 `--plain-http`——不带会报 `downgrades scheme from https`）；要从其他节点拉需换 master IP 并配 insecure registry，见 03-docker/labs/08 的提示 1。生产上的 `helm diff` 插件另装：`helm plugin install https://github.com/databus23/helm-diff`，然后 `helm diff upgrade demo ./demo-chart -n helm-demo` 先看 patch 再动手。
 
 ### 步骤 7：清理
 
