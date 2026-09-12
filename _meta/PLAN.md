@@ -95,6 +95,10 @@ scripts/gen-skill-cards.mjs                  [cards·已生成：技能卡生成
 11-middleware/mysql（3章+lab）                [mw-mysql·已生成]
 11-middleware/redis（3章+lab）                [mw-redis·已生成]
 11-middleware/mongodb（3章+lab）              [mw-mongo·已生成·待复核]
+11-middleware/postgresql/01-architecture-and-mvcc.md   [pg-mat·新补：进程模型/WAL/MVCC vs InnoDB/vacuum]
+11-middleware/postgresql/02-replication-and-ha.md      [pg-mat·新补：流复制/逻辑复制/Patroni/pgbouncer]
+11-middleware/postgresql/03-tuning-troubleshooting.md  [pg-mat·新补：EXPLAIN/连接打满/bloat/备份/exporter]
+11-middleware/postgresql/labs/01-streaming-replication/{task.md,check.sh,solution.md}  [pg-lab·新补]
 
 12-data-streaming/kafka（3章+lab）            [bd-kafka·已生成]
 12-data-streaming/flink（2章+lab）            [bd-flink·已生成]
@@ -130,6 +134,11 @@ scripts/gen-skill-cards.mjs                  [cards·已生成：技能卡生成
 16-bigdata/labs/02-spark-local/{task.md,check.sh,solution.md}            [bd-labs]
 16-bigdata/labs/03-doris-quickstart/{task.md,check.sh,solution.md}       [bd-labs]
 16-bigdata/labs/04-lakehouse-flink-paimon/{task.md,check.sh,solution.md}    [lakehouse·新补]
+16-bigdata/08-clickhouse.md                      [ch·新补：列存/MergeTree/副本分布式表/merge/物化视图；07 章内加 Arrow 一节]
+16-bigdata/labs/05-clickhouse-cluster/{task.md,check.sh,solution.md}        [ch·新补]
+
+02-programming/06-celery-task-queue.md            [celery·新补：broker 选型/worker 模型/积压监控/幂等]
+02-programming/labs/03-celery-tasks/{task.md,check.sh,solution.md}          [celery·新补]
 
 17-distributed/00-distributed-overview.md            [dist-mat-a]
 17-distributed/01-failure-models-and-time.md         [dist-mat-a]

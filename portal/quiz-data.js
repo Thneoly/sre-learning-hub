@@ -1,15 +1,19 @@
 // quiz-data.js · 学习中心自测题库
 // 结构：window.QUIZ_DATA = { pca: [...], cka: [...], cks: [...], basics: [...],
-//   linux: [...], programming: [...], cicd: [...], otel: [...], logging: [...],
-//   middleware: [...], datastream: [...], sre: [...], cloud: [...], aiops: [...],
-//   bigdata: [...], distributed: [...] }
+//   linux: [...], programming: [...], celery: [...], cicd: [...], otel: [...],
+//   logging: [...], middleware: [...], pg: [...], datastream: [...], sre: [...],
+//   cloud: [...], aiops: [...], bigdata: [...], clickhouse: [...], distributed: [...] }
 // 每题对象：q(题干) / options(四选项) / answer(正确索引 0-3) / explain(解析)
 // PCA 对齐五域权重：可观测概念 4 题、Prometheus 基础 8 题、PromQL 13 题、
 // 插桩与 Exporter 6 题、架构与运维 9 题；CKA/CKS 按官方大纲五域分布。
 // 其余模块按各自章节主线命题：basics 20 题（Docker 10 + K8s 10）、linux 15 题、
-// programming 12 题、cicd 28 题、otel 12 题、logging 11 题、middleware 10 题、datastream 10 题、
-// sre 10 题、cloud 10 题、aiops 10 题、bigdata 20 题（HDFS 4 / YARN 3 / Hive 2 /
-// Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓表格式 5）、distributed 15 题（CAP 与一致性 3 /
+// programming 12 题、celery 8 题、cicd 28 题、otel 12 题、logging 11 题、
+// middleware 10 题、pg 12 题（MVCC 双实现 2 / work_mem 与缓存 2 / 复制槽与同步复制 2 /
+// 逻辑复制 1 / Patroni 脑裂防护 1 / pgbouncer 1 / EXPLAIN 1 / vacuum 与 bloat 1 / 连接打满 1）、
+// datastream 10 题、sre 10 题、cloud 10 题、aiops 10 题、bigdata 20 题（HDFS 4 / YARN 3 /
+// Hive 2 / Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓表格式 5）、clickhouse 12 题（列存三因子 2 /
+// MergeTree 四引擎与排序键 3 / 主键非索引与跳数索引 2 / 双表架构 1 / 副本与 ZK 2 /
+// too many parts 1 / 对比 Doris 1）、distributed 15 题（CAP 与一致性 3 /
 // 共识与 Raft 4 / 分布式事务与幂等 3 / 分片再平衡 2 / Gossip 故障检测与脑裂防护 3）。
 
 window.QUIZ_DATA = {
@@ -1602,6 +1606,99 @@ window.QUIZ_DATA = {
     }
   ],
 
+  // ========== Celery：分布式任务队列（8 题）==========
+
+  celery: [
+    {
+      "q": "判断一个需求该不该上任务队列，三个典型场景与口诀是？",
+      "options": [
+                "异步化（慢动作出请求路径）、削峰（队列蓄水 worker 匀速消化）、定时（beat 集中调度）；口诀：动作慢（秒级以上）、结果可以晚到、允许重试",
+                "只要接口超过 100ms 就应该上队列",
+                "任务队列只用于定时任务，异步化和削峰是消息网关的职责",
+                "队列是免费的抽象，任何调用都值得先入队再执行"
+      ],
+      "answer": 0,
+      "explain": "队列把『慢』换成了『复杂度』：消息可能重复、可能延迟、需要监控积压。三者缺一（比如必须同步给用户看结果）就别硬上——把队列当 RPC 用（每个请求都 .get() 等结果）是反模式清单里的名场面。"
+    },
+    {
+      "q": "Celery 在 Redis 与 RabbitMQ 之间选 broker，正确的取舍是？",
+      "options": [
+                "Redis 有原生 AMQP ack，可靠性高于 RabbitMQ",
+                "已有 Redis、任务可幂等、允许极端情况重复——用 Redis 顺手；任务长、路由复杂、重复执行代价高——RabbitMQ 的原生 ack 语义值得多养一套集群",
+                "两者语义完全等价，选哪个只看性能压测",
+                "RabbitMQ 不支持持久化，重要队列必须用 Redis AOF"
+      ],
+      "answer": 1,
+      "explain": "Redis broker 的『确认』是 kombu 模拟的（取走的消息塞 unacked hash），且有可见性超时陷阱；持久化上 AOF everysec 最坏丢约 2 秒的 enqueue。RabbitMQ 原生 AMQP ack：连接断开未确认消息自动重投，处理中的消息不会被『超时抢走』——这正是长任务场景该选它的理由。"
+    },
+    {
+      "q": "Redis broker 下『任务执行时长超过 visibility_timeout』为什么是最危险的配置？",
+      "options": [
+                "超时的任务会被直接丢弃，业务静默少数据",
+                "还在正常执行的消息也会被判『超时未确认』而重新投递——同一条任务被两个 worker 同时执行，且系统层面没有任何报错，重复是静默的",
+                "只是日志里多一条 warning，不影响执行",
+                "visibility_timeout 只影响 result backend 的读取，与消息投递无关"
+      ],
+      "answer": 1,
+      "explain": "铁律：visibility_timeout 必须大于最长任务的执行时间（含重试链）。做不到就拆短任务或换 RabbitMQ（原生 ack，无超时重投语义）。worker 假死时的故障发现时间也等于 visibility_timeout——设 1 小时意味着任务可能延迟 1 小时才被别人接手。"
+    },
+    {
+      "q": "prefork / gevent / threads 三种 worker 池的 -c 语义与适用，正确的是？",
+      "options": [
+                "-c 在三种池里都表示线程数",
+                "prefork 的 -c 是子进程数（CPU 密集）；gevent 的 -c 是绿色线程数、可设数百上千（IO 密集，依赖 monkey patch）；threads 受 GIL 约束无真并行",
+                "gevent 适合 CPU 密集任务，因为协程切换比进程便宜",
+                "-c 越大越好，worker 的野心决定吞吐上限"
+      ],
+      "answer": 1,
+      "explain": "容量规划从下游承受力倒推，不从 worker 野心正推：gevent -c 1000 意味着瞬时对外连接也可能是 1000，数据库和第三方 API 先被打挂。gevent 的另一个坑：任务陷入未 patch 的 C 层同步调用会卡住整个 worker。"
+    },
+    {
+      "q": "新扩容的 Celery worker 一直接不到任务，最可能的原因是？",
+      "options": [
+                "worker_prefetch_multiplier 默认 4：老 worker 提前囤了 c×4 条消息在本地，新 worker 只能干等",
+                "Redis 的 list 是无序的，新 worker 排在队尾",
+                "新 worker 需要重启 broker 才能加入消费组",
+                "任务被 flower 截胡了"
+      ],
+      "answer": 0,
+      "explain": "prefetch 对『几千条 1 秒任务』是吞吐优化，对『每条 10 分钟任务』是灾难——长任务场景固定配 worker_prefetch_multiplier=1（公平分发）并重启全部 worker。这也是反模式清单里『快任务被慢任务堵死』的姊妹坑。"
+    },
+    {
+      "q": "acks_late=True 到底买到了什么、付出了什么？",
+      "options": [
+                "买到恰好一次投递：既不丢也不重",
+                "买到『不丢』（worker 半路被 kill 时任务重新投递），付出『可能重』——至少一次语义；所有配了 acks_late 的任务一律按『会被执行两次』设计：task_id 去重、业务唯一键、写文件先写临时名再原子 rename",
+                "买到更快的执行速度，因为 ack 被延迟了",
+                "与默认 early ack 完全等价，只是日志更详细"
+      ],
+      "answer": 1,
+      "explain": "early ack 是至多一次（崩了就丢），acks_late 是至少一次（崩了就重）——确认时机只是在丢失与重复之间选边，两全的唯一出路是 at-least-once + 下游幂等（17-distributed/04 拆穿的『恰好一次真相』在任务队列里的化身）。配套 task_reject_on_worker_lost 决定 worker 进程被杀时是否立即 requeue。"
+    },
+    {
+      "q": "LLEN=500 该不该报警？正确的判断方法与排障三板斧是？",
+      "options": [
+                "绝对条数超过 500 就该报 P1",
+                "按消化时间判断：积压消化时间 ≈ LLEN ÷ 完成速率（吞吐 100 条/s 时 500 只是 5 秒的浪；吞吐 1 条/s 时是数小时的病）；三板斧：LLEN 看积压在不在 → inspect ping 看 worker 活没活 → inspect active + 日志看任务是卡死还是在慢跑",
+                "只要 LLEN 大于 0 就说明系统异常",
+                "用 flower 的界面截图数量直接对比昨日"
+      ],
+      "answer": 1,
+      "explain": "告警阈值按『预计消化时长』设，不按绝对条数设（PromQL 上即 backlog / rate(完成计数)）。三板斧能区分『没人在干活』（worker 挂了）与『干不过来』（扩容/优化）。把 LLEN 暴露成 Gauge 与自定义 exporter 思路一致，也可直接用 redis_exporter 抓队列 key。"
+    },
+    {
+      "q": "celery beat 与 crontab 的对比，以及 beat 的单点纪律，正确的是？",
+      "options": [
+                "beat 与 crontab 一样可以每台机器各跑一份，天然高可用",
+                "beat 把定时收敛成与异步任务同链路、可观测可重试的消息流（错过同样不补，但错过的是『消息』而非『执行』）；beat 必须只跑一个实例——两个 beat 会对同一条 crontab 各发一次消息，所有定时任务翻倍执行；HA 靠单副本 + 快速拉起",
+                "beat 会自动补发停机期间错过的任务",
+                "beat 跟着 worker 一起被 HPA 扩容是标准做法"
+      ],
+      "answer": 1,
+      "explain": "beat 是调度消息的『生产者』而非消费者，队列深度与它无关，绝不能进按队列深度伸缩的 HPA。K8s 上 worker 的正确伸缩信号是队列深度（KEDA Redis Lists scaler 或 LLEN 自定义指标）——IO 密集 worker 积压上万条时 CPU 可能不到 10%，原生 CPU HPA 完全不会扩容。"
+    }
+  ],
+
   // ========== CI/CD 与 IaC / GitOps（28 题）==========
 
   cicd: [
@@ -2290,6 +2387,143 @@ window.QUIZ_DATA = {
       ],
       "answer": 2,
       "explain": "三节点（一主两从）是最小生产单元；primary 挂掉后其余成员多数派选出新 primary（默认心跳/超时秒级），期间集群只读。易错点：arbiter 只投票不存数据，两数据节点 + arbiter 能选举但存储无冗余；读偏好 secondaryPreferred 常用于分流读。"
+    }
+  ],
+
+  // ========== PostgreSQL：MVCC / 复制与 HA / 排障（12 题）==========
+
+  pg: [
+    {
+      "q": "PostgreSQL 与 InnoDB（MySQL）两种 MVCC 实现的对比，正确的是？",
+      "options": [
+                "PG 把旧版本就地留在表里（dead tuple 等 vacuum 回收）；InnoDB 用『当前行 + undo 链』，旧版本在 undo 表空间里沿 roll_ptr 回溯拼装",
+                "两者都把旧版本搬进独立的回滚段，实现完全相同",
+                "PG 用 undo 链，InnoDB 用就地多版本",
+                "InnoDB 的旧版本留在数据页里靠 purge 线程定期标记"
+      ],
+      "answer": 0,
+      "explain": "推论链是本模块最重要的一句话：PG 没有 undo 回滚段 → 回滚只在 clog 标记 aborted（近似 O(1)），但垃圾留在表里 → 表/索引膨胀（bloat）、事务 ID 回卷、长事务 + 复制槽拖死 vacuum。InnoDB 相反：回滚慢（顺 undo 链反向执行），但 purge 后空间归还。长事务的受害者也不同：PG 是表和索引本身，MySQL 是 undo 表空间。"
+    },
+    {
+      "q": "PG 回滚一个跑了两小时的大事务几乎瞬间完成，为什么？这个优点换来了什么代价？",
+      "options": [
+                "PG 有专门的回滚线程池并行执行撤销",
+                "回滚只是把该事务在 clog（pg_xact）里标记为 aborted，它写入的元组立刻对所有人不可见；代价是这些死元组仍躺在数据页里占空间，必须等 VACUUM 回收，期间表膨胀、扫描变慢",
+                "大事务会被 PG 自动拆小，所以回滚快",
+                "回滚慢是 InnoDB 的特性，PG 回滚同样要反向执行但用了内存盘"
+      ],
+      "answer": 1,
+      "explain": "『误以为 ROLLBACK 会立刻释放空间』是 pg/01 常见坑表里的一条：回滚后照样等 vacuum，大事务拆小才是正解。对照：InnoDB 回滚代价与事务大小成正比，但回滚完空间随 purge 归还、表不因回滚膨胀。"
+    },
+    {
+      "q": "关于 PG 的 work_mem，正确的认知是？",
+      "options": [
+                "每个连接一份，所以调大到 64MB 也很安全",
+                "每个排序/哈希节点一份（还要乘并行 worker 数）：一条查询三个排序节点就是 3×work_mem，64MB 在 200 并发下潜在 38GB，是 OOM 元凶",
+                "它是共享内存，全体连接复用同一块",
+                "work_mem 与 MySQL 的 innodb_buffer_pool 一样是全局缓存"
+      ],
+      "answer": 1,
+      "explain": "和 MySQL 盲目调大 sort_buffer_size 是同款 OOM 元凶。保持默认 4MB、靠索引消排序是正道。另一个内存陷阱：shared_buffers 经验值只给物理内存 25%（double cache：同一份数据在 OS page cache 与 shared_buffers 各一份）；effective_cache_size 不分配任何内存，只是告诉优化器 OS cache 大概多大。"
+    },
+    {
+      "q": "为什么 MySQL 的 buffer pool 建议给内存的 50%~70%，而 PG 的 shared_buffers 通常只给 25%？",
+      "options": [
+                "PG 的作者比较保守，25% 是历史误会",
+                "PG 的读走 read()/write()，同一份数据天然存在 OS page cache 与 shared_buffers 两份（double cache），shared_buffers 偏大只是把命中地点从内核搬到用户态、挤掉的 OS cache 还有别的用处，边际收益递减；MySQL 自己管理全部页缓存，内存不给 buffer pool 就浪费",
+                "PG 不使用操作系统缓存",
+                "MySQL 8.0 之后 buffer pool 已不建议超过 10%"
+      ],
+      "answer": 1,
+      "explain": "PG 的内存观是『shared_buffers 一份 + 相信 OS cache』，并用 effective_cache_size（设为内存的 50%~70%）把这个事实告诉优化器。命中率也要两层一起看：pg_stat_database 的 blks_hit 只算 shared_buffers 这一层。"
+    },
+    {
+      "q": "PG 物理复制槽（replication slot）的作用与风险，正确的是？",
+      "options": [
+                "复制槽只是性能加速器，没有副作用",
+                "让备库向主库『预订』WAL：主库不回收该槽未确认的 WAL，断线备库恢复后可继续追平；代价是备库/CDC 消费端停摆时主库 pg_wal 持续堆积拖满磁盘——PG13+ 用 max_slot_wal_keep_size 兜底（超限槽进 lost 状态，磁盘保住）",
+                "复制槽会把 WAL 自动压缩归档，所以永远不会占磁盘",
+                "槽只对逻辑复制有意义，物理流复制用不到"
+      ],
+      "answer": 1,
+      "explain": "『Flink CDC 作业挂一晚、PG 主库磁盘告警』的经典元凶就是逻辑复制槽：confirmed_flush_lsn 由消费端推进，作业停摆位点不动，一晚的写入量全堆在 pg_wal。纪律：监控 pg_replication_slots 的 retained 字节与 wal_status，废弃槽 pg_drop_replication_slot。"
+    },
+    {
+      "q": "配了 synchronous_commit=on 后主库所有写入直接挂起（不是变慢），第一嫌疑是？",
+      "options": [
+                "备库网络延迟太大",
+                "synchronous_standby_names 名单里的名字与备库 primary_conninfo 的 application_name 不完全一致——主库认为没有可用同步备库，所有提交无限等待；pg_stat_replication 里看不到匹配名",
+                "WAL 段文件写满了",
+                "synchronous_commit=on 在 PG 里本来就是串行排队"
+      ],
+      "answer": 1,
+      "explain": "同步复制第一大坑：名字对不上时写入全部卡死。PG 的同步控制粒度到每个事务的提交点（off/local/remote_write/on/remote_apply 五档 × FIRST/ANY 名单语法），比 MySQL 半同步的整库开关细——remote_write 是备库收到未 fsync（主备同时断电才丢），on 是备库已 fsync。"
+    },
+    {
+      "q": "Patroni + etcd 防脑裂的两层机制，正确的描述是？",
+      "options": [
+                "靠主库自己检测网络分区并停止服务，与 etcd 无关",
+                "leader key 是 etcd 里带 TTL 的原子锁（真相源在 DCS）：续约失败 Patroni 会主动 demote 本地 PG（宁可停写也不许『没有授权仍自称主库』）；etcd 本身多数派存活才能写，分区时少数派侧谁也抢不到锁——双主无从发生。边界：DCS 整体不可用时集群收敛到『无人是主、全部只读』，可用性让位于一致性",
+                "Patroni 用 quorum 复制数据文件，所以不会脑裂",
+                "旧主恢复后会自动删除新主的数据重新同步"
+      ],
+      "answer": 1,
+      "explain": "与 Redis 哨兵的本质差异：哨兵是『观察者视角、允许发生再纠正』（主库自己不知道被换，靠 min-replicas-to-write 缩小窗口），Patroni 是『发生前就没收权柄』。failover 时候选副本通过 DCS 的 CAS 写抢 leader key，先比 optime/leader 的 LSN（数据最全者优先），旧主回归走 demote + pg_rewind 拉回分叉 WAL。"
+    },
+    {
+      "q": "PG 逻辑复制（发布/订阅）与物理流复制的边界，不正确的是？",
+      "options": [
+                "物理复制传页级 WAL，要求同大版本；逻辑复制解码成行级变更，可跨大版本（PG14→16 升级经典姿势）",
+                "逻辑复制不复制 DDL，两边 schema 要手工同步；UPDATE/DELETE 要复制则表必须有主键（或 REPLICA IDENTITY）",
+                "逻辑复制也是 PG 对接大数据 CDC 链路的底层机制（Debezium/Flink CDC 靠 logical decoding + 复制槽）",
+                "逻辑复制按整个实例复制，不能按表筛选"
+      ],
+      "answer": 3,
+      "explain": "逻辑复制的单位恰恰是表级（CREATE PUBLICATION ... FOR TABLE），订阅端还可写（多源汇聚）。物理复制才是整个实例一起复制。CDC 场景的 SRE 关注点与备库断线同构：消费端停摆 → 槽位点不动 → 主库 WAL 堆积。"
+    },
+    {
+      "q": "为什么说『MySQL 的连接池是治理，PG 的连接池是刚需』？",
+      "options": [
+                "两者都是锦上添花的组件，中小规模都可以不装",
+                "PG 每连接一个进程：几千连接的 fork、每进程数 MB 内存与调度开销先杀死机器，pgbouncer（transaction 池）解决的是生存问题；MySQL 线程模型下几百直连可忍，ProxySQL 更多承担路由/防火墙/查询改写的治理职能",
+                "MySQL 不支持连接池",
+                "pgbouncer 只能工作在 session 模式"
+      ],
+      "answer": 1,
+      "explain": "pgbouncer 用一个事件驱动单线程进程（同 nginx 模型）把 1000 客户端连接复用到几十个服务端连接。transaction 模式复用率最高，但边界要背：跨事务的会话状态（SET/RESET、会话级 advisory lock、LISTEN/NOTIFY）会被别人踩，named prepared statements 需要 pgbouncer 1.21+。"
+    },
+    {
+      "q": "读 PG 的 EXPLAIN (ANALYZE, BUFFERS) 输出，正确的方法论是？",
+      "options": [
+                "cost 与 rows 是实测值，直接按 total 排序找慢节点",
+                "cost/rows 是优化器估算，(actual time=... rows=... loops=...) 才是实测——rows 与 actual 差一个数量级说明统计过期要 ANALYZE；外层节点看到的行数 = rows×loops（新手最常忘乘法）；Buffers 的 shared read 是穿过缓存读的页数，优化前后对比它比对比时间更抗噪音",
+                "Seq Scan 一出现就说明 SQL 写错了",
+                "Index Only Scan 一定不会回堆，比 Index Scan 永远快"
+      ],
+      "answer": 1,
+      "explain": "节点对照：Seq Scan=type=ALL 全表扫、Index Only Scan=覆盖索引、Sort+溢盘=Using filesort。Index Only Scan 的 PG 特色坑：只有页在 visibility map 里标记 all-visible（由 vacuum 维护）才真正免回堆——Heap Fetches 很大就是 vacuum 落后让它退化成了 Index Scan，『vacuum 不只是清理，还维护访问路径』的直接证据。"
+    },
+    {
+      "q": "PG 表膨胀（bloat）与 vacuum 的因果，错误的是？",
+      "options": [
+                "autovacuum 触发阈值 ≈ 50 + 0.2×n_live_tup，0.2 对 1 亿行的大表是灾难（要攒 2000 万死元组），按表收紧 scale_factor 是标准动作",
+                "『vacuum 报告跑了但 dead tuples 不降』三大主因：长事务的 xmin horizon、复制槽 pin 住老 LSN、idle in transaction",
+                "VACUUM 只把空间登记进 FSM 供复用，基本不还给操作系统；中间的空洞要收缩必须重建整表——VACUUM FULL 全程 ACCESS EXCLUSIVE（连 SELECT 都挡），生产用 pg_repack 在线重建（影子表+触发器+短锁切换，同 gh-ost/pt-osc 思路）",
+                "DELETE 千万行后磁盘没变小是故障，重启实例即可回收"
+      ],
+      "answer": 3,
+      "explain": "死元组原地保留是 PG 的设计（无 undo），磁盘不回落是预期行为。索引比表更容易膨胀：UPDATE 若非 HOT（更新列被索引引用或新版本放不进原页），每个索引都要追加新项——别把高频更新的列建进索引。"
+    },
+    {
+      "q": "PG 报 `sorry, too many clients already`，正确的处置优先级是？",
+      "options": [
+                "立即调大 max_connections（PG 可在线 SET GLOBAL 生效）",
+                "先 pg_stat_activity 按 state 分型再决定杀谁：active 看 wait_event 与 EXPLAIN、别盲杀；idle 逼近上限=连接池泄漏；idle in transaction 是头号罪犯（阻碍 vacuum + 持锁），先留证据再 pg_terminate_backend；长期方案是 pgbouncer transaction 池把进程数与业务并发解耦",
+                "直接重启数据库释放连接",
+                "把应用全部改成串行执行"
+      ],
+      "answer": 1,
+      "explain": "对照 MySQL 的 1040：MySQL 侧凶手常是 Sleep 泄漏与 DNS 反解析，PG 侧因进程更贵，答案几乎总是『应用直连改 pgbouncer transaction 池』。兜底参数 idle_in_transaction_session_timeout 只杀『事务中』的空闲（对应 mysql/03 的 wait_timeout 思路）。注意 PG 改 max_connections 要重启实例，不像 MySQL 能 SET GLOBAL 救急。"
     }
   ],
 
@@ -2999,6 +3233,143 @@ window.QUIZ_DATA = {
     }
   ],
 
+  // ========== ClickHouse：列存 / MergeTree / 分布式表（12 题）==========
+
+  clickhouse: [
+    {
+      "q": "列存对分析查询数量级加速的『三个乘法因子』是？",
+      "options": [
+                "多线程、大内存、SSD 缓存",
+                "只读用到的列（宽表上百列时 IO 差一个数量级）+ 压缩率（同列同类型、按排序键聚簇后 RLE/字典/Delta 编码发挥）+ 向量化执行（SIMD 一次处理一批同类型值）",
+                "索引数量多、事务日志短、锁粒度小",
+                "列存其实不快，快的是 ClickHouse 的 Java JIT"
+      ],
+      "answer": 1,
+      "explain": "对应 05 章『报表为什么不放 MySQL 上跑』的物理根源。经验量级：行存文本 1x 的数据列存 LZ4/ZSTD 后 5~10x 起步，按排序键聚簇后更高（原理与 03 章 ORC/Parquet 同源）。ClickHouse 被称『向量化鼻祖』，Doris/StarRocks 2.x 的向量化引擎都向它看齐。"
+    },
+    {
+      "q": "ClickHouse 为什么做不了 OLTP？",
+      "options": [
+                "因为它不支持 SQL 标准",
+                "按主键取一行要把所有列的 part 文件拼回来，点查是『定位粒度再扫描』而非 B+ 树的 2 次页 IO；数据不可变（immutable part）意味着没有原地更新，改一行等于重写整个列块（mutation）——列存用『单行昂贵』换『一批极快』",
+                "因为它没有事务日志",
+                "因为它只能单节点部署"
+      ],
+      "answer": 1,
+      "explain": "高并发点查明细请走 MySQL/Redis（11 模块）。反转场景：按主键前缀做大范围扫描并聚合时，列存只读 2~3 列 + 压缩块顺序读 + 向量化，比 B+ 树快 1~2 个数量级——行存优化『到一行的路径』，列存优化『过一批列的吞吐』。"
+    },
+    {
+      "q": "MergeTree 家族四种引擎与合并语义的匹配，正确的是？",
+      "options": [
+                "MergeTree：同排序键行永不合并（原始明细，对应 Doris Duplicate）；ReplacingMergeTree(ver)：同排序键保留 version 最大一行；SummingMergeTree：同排序键数值列求和；AggregatingMergeTree：按 AggregateFunction 状态合并（含精确/近似去重）",
+                "MergeTree 会自动去重，适合做主键表",
+                "SummingMergeTree 在查询时实时求和，不依赖后台 merge",
+                "ReplacingMergeTree 的去重是写时同步完成的"
+      ],
+      "answer": 0,
+      "explain": "共同底座：写入只生成不可变 part，后台 merge 把小 part 周期性合并成大 part（LSM 血统，与 Paimon 主键表同族）。差别只在『合并时对同键行做什么』。排序键（ORDER BY）是表定义里最重要的字段：同时决定物理顺序（压缩率与扫描裁剪）、稀疏索引内容、Replacing/Summing 的合并键。"
+    },
+    {
+      "q": "ReplacingMergeTree『去重没生效』，查出新旧两行，原因是？",
+      "options": [
+                "去重只在后台 merge 碰巧把新旧版本合进同一个 part 时发生——异步、不保证时机；没合并前旧行还在，查询要 FINAL 或 argMax(col, ver) / GROUP BY 现场收敛",
+                "ReplacingMergeTree 需要每天手动执行 VACUUM",
+                "版本列必须是字符串类型才能比较",
+                "去重只在副本数大于 2 时生效"
+      ],
+      "answer": 0,
+      "explain": "所以 ReplacingMergeTree 不是『实时 upsert』：Doris Unique + merge-on-write 是写时打掉旧版本（读路径干净），CH 没有等价的零代价路径，mutation（ALTER ... UPDATE/DELETE）是整 part 重写的重操作。要写时收敛就别选 CH。"
+    },
+    {
+      "q": "『ClickHouse 的主键不是索引』的正确理解是？",
+      "options": [
+                "主键（ORDER BY 前缀）是排序描述而非行级索引：稀疏索引每 8192 行（index_granularity）记一个条目，只能回答『哪些区间可能命中』，命中后要扫整个 granule——按主键前缀做范围聚合极快，按主键点查单行则要为这一行解压上万个邻居，比 B+ 树差几个数量级",
+                "ClickHouse 的主键就是 B+ 树，行为与 MySQL 完全一致",
+                "主键只影响写入顺序，与查询无关",
+                "每行都有一个主键条目，所以主键查询永远最快"
+      ],
+      "answer": 0,
+      "explain": "运维推论：点查明细走 MySQL/Redis，CH 的主键设计面向『前缀过滤 + 大扫描收敛』。对不在排序键里的列，用跳数索引（minmax/set/bloom_filter）补『跳过不相关粒度』的能力——它同样不是定位行，且只对建索引之后写入的数据生效，存量要 MATERIALIZE INDEX（整 part 重写）。"
+    },
+    {
+      "q": "本地表 + Distributed 双表架构的写入路径，正确的是？",
+      "options": [
+                "Distributed 表本身就存数据，不需要本地表",
+                "每个节点建本地表（真正存数据），再建同名 Distributed 表当路由视图（不存数据，只记 cluster 名、目标本地表、分片键）；INSERT 默认异步（insert_distributed_sync=0）——先落发起节点本地缓冲，后台再发各分片，发起节点崩溃这批数据可能丢",
+                "Distributed 表会把查询自动路由到 MySQL",
+                "写入必须同步等所有分片确认，否则报错"
+      ],
+      "answer": 1,
+      "explain": "要求不丢的链路设 insert_distributed_sync=1，或接受 at-least-once 由上游重放（副本表按 block 哈希去重，与 Doris label 幂等同构，只是幂等键从显式 label 换成隐式数据哈希、窗口有限）。扩容是手工活：新增分片后历史数据不自动搬迁，只能重灌或按再平衡窗口手工迁移。"
+    },
+    {
+      "q": "ReplicatedMergeTree 对 ZK/Keeper 的依赖，正确的是？",
+      "options": [
+                "ZK 只是可选的监控组件，挂了不影响写入",
+                "复制不是集群级功能而是表引擎前缀：副本间靠 ZK/Keeper 协调 merge 领选、复制日志与写入去重（block 哈希）；ZK 挂掉后副本表降级只读（is_readonly）、写入被拒、merge 停摆，但已落盘数据不丢——ZK 只存协调状态不是存储服务",
+                "ReplicatedMergeTree 用 Raft 在节点间直接复制，不需要外部协调",
+                "ZK 挂掉时副本表会自动切换成可写模式"
+      ],
+      "answer": 1,
+      "explain": "告警优先级与 etcd 同级。新部署直接用内置的 ClickHouse Keeper（去 JVM、Raft 实现、协议兼容 ZK）。普通（非 Replicated）本地表不受 ZK 故障影响——『复制是表级属性』的直接体现。"
+    },
+    {
+      "q": "两个节点的 ReplicatedMergeTree『数据没复制』或『互相丢 part』，最可能的原因是？",
+      "options": [
+                "磁盘 IO 太慢，part 还在队列里",
+                "建表时 zk_path 或 replica 名写错：zk_path 不同 = 两组独立副本（不复制），replica 名相同 = 互踢（同副本名认领冲突）——zk_path 相同 + replica 名不同才是一组副本",
+                "ClickHouse 版本太旧不支持复制",
+                "Distributed 表的分片键选错了"
+      ],
+      "answer": 1,
+      "explain": "新集群第一周的经典事故。{shard}/{replica} 来自每节点 macros 配置，zk_path 按 /clickhouse/tables/{shard}/表名 规范写。Doris 的对照：副本由 FE 的调度器自动 clone 补齐，CH 没有这个『自动维修工』——副本掉了要自己看 system.replicas 队列、必要时 fetch 补数。"
+    },
+    {
+      "q": "ClickHouse 报 `Too many parts. Merges are processing significantly slower than inserts.` 的因果链与治理，正确的是？",
+      "options": [
+                "磁盘坏块导致 part 损坏，换盘即可",
+                "高频小 INSERT 产 parts 的速度持续超过 merge 消化速度 → 超软阈值写入被 delay、超硬阈值（parts_to_throw_insert）INSERT 直接报错 → 上游 Flink sink 反压 → checkpoint 超时 → Kafka 消费 lag。治理：攒大批次（万行/MB 级）、小写入方开 async_insert、评估 background_pool_size 与磁盘 IO",
+                "parts 数是固定上限，建表时就要调大",
+                "该报错说明需要立刻重启 ClickHouse"
+      ],
+      "answer": 1,
+      "explain": "与 Doris 的 too many versions 是同一个病在不同引擎的名字：微批太碎，版本/部件数超过后台合并能力。预防性指标：system.asynchronous_metrics 的 MaxPartCountForPartition 持续上涨即预警。每次 INSERT 至少产生一个 part（与行数无关）是铁律。"
+    },
+    {
+      "q": "ClickHouse 与 Doris/StarRocks 的运维复杂度『形状差异』，正确的总结是？",
+      "options": [
+                "两者复杂度完全相同，只是命令行风格不同",
+                "Doris 的复杂度在『组件』（FE/BE 两类角色，FE 元数据要 HA 与备份纪律）；ClickHouse 的复杂度在『每张表自带架构』——分片数、副本路径、排序键、引擎族、merge 参数全是表级决策，错误会在几百张表里各自复发",
+                "ClickHouse 完全免运维，Doris 需要专职团队",
+                "Doris 的 FE 是无状态的，不需要备份"
+      ],
+      "answer": 1,
+      "explain": "人手少的团队这是比 join 能力更硬的取舍依据。扩容对照：Doris BE 上线即自动均衡 tablet；CH 加分片只影响新写入路由，历史数据手工迁移（规划期就要把分片数留足）。选型结论沿用 05 章：单表极限聚合选 CH，多表 join 与低运维成本选 Doris/StarRocks。"
+    },
+    {
+      "q": "ClickHouse 物化视图（MV）的三个工程要点，错误的是？",
+      "options": [
+                "MV 挂在本地表的写入路径上：先过 MV 的 SELECT 算出聚合行写入目标表、再落基表；顺序纪律是『先建 MV 再写入』——给已有数据的表补 MV 用 POPULATE 有并发竞态，生产用『新建 MV + 手动回填 + 双写切换』",
+                "count distinct 这类不可加聚合用 AggregatingMergeTree + AggregateFunction 类型（写入 uniqState()、查询 uniqMerge()），普通 SummingMergeTree 存不了中间态",
+                "MV 可以链式触发形成 pipeline，一层慢整条慢，排障沿 system.query_log 的 insert 链逐段看",
+                "MV 自己存数据并自动回填历史，建完即覆盖全表"
+      ],
+      "answer": 3,
+      "explain": "MV 本身不存数据（目标表 + 触发它的 MV 是两级结构，两表都要在），且只处理创建之后的数据。与 Doris Aggregate 模型『写时预聚合』语义相同，区别是 Doris 是表内建模型、CH 是自由拼装的三件套——多了『目标表引擎选错/两套 schema 漂移』这类自找的运维面。"
+    },
+    {
+      "q": "ClickHouse 备份的正确姿势与『副本不是备份』的边界，正确的是？",
+      "options": [
+                "有三副本就不需要备份，删库指令不会在副本上执行",
+                "删库指令在副本上同样复制——纪律等同 MySQL：原生 FREEZE 对 part 打硬链接快照（秒级省空间）再归档对象存储，或用 clickhouse-backup 封装；别忘了表结构——ZK 里只有协调状态没有 DDL，建表语句要从 SHOW CREATE TABLE 定期导出",
+                "mutation 可以当作备份手段，改错了再改回来",
+                "备份只能停机做，在线备份会损坏 part"
+      ],
+      "answer": 1,
+      "explain": "恢复靠 ATTACH 从备份目录挂回；新版另有原生 BACKUP/RESTORE 语句走向成熟（能力矩阵随版本变，落地前对文档）。system 库是可观测性入口：system.parts/merges/mutations/replicas/query_log 各管一摊，内置 Prometheus 端点开箱即用。"
+    }
+  ],
+
   // ========== 分布式理论（15 题）==========
 
   distributed: [
@@ -3185,6 +3556,8 @@ window.QUIZ_DATA = {
   ]
 };
 
-// 共 273 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
-// cicd 28 + otel 12 + logging 11 + middleware/datastream/sre/cloud/aiops 各 10 +
-// bigdata 20（HDFS 4 / YARN 3 / Hive 2 / Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓 5）+ distributed 15）
+// 共 305 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
+// celery 8 + cicd 28 + otel 12 + logging 11 + middleware 10 + pg 12 +
+// datastream/sre/cloud/aiops 各 10 +
+// bigdata 20（HDFS 4 / YARN 3 / Hive 2 / Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓 5）+
+// clickhouse 12 + distributed 15）

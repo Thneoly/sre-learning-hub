@@ -63,7 +63,7 @@
 - **现象**：Deployment YAML 有两处独立问题，修好第一处才暴露第二处（排障练习） → 先查：先 Events 定位镜像层故障，再排查第二处 → 详见：05-cka/labs/18-crashloop-triage/task.md
 - **现象**：Pod 不 Ready 但看不出原因，需要完整 DNS/Service 链路排查演练 → 先查：dnsutils 调试 Pod 逐层验证 Service 名/FQDN/CoreDNS → 详见：05-cka/labs/17-dns-debugging/task.md（速查见同目录 solution.md 的"DNS 故障速查"节）
 
-## 4 存储与中间件（PVC Pending / 主从延迟 / 哨兵切换 / 连接打满 / HDFS·YARN·Spark·Doris·湖仓）
+## 4 存储与中间件（PVC Pending / 主从延迟 / 哨兵切换 / 连接打满 / HDFS·YARN·Spark·Doris·ClickHouse·湖仓）
 
 - **现象**：PVC 一直 Pending / 有 SC 也绑不上 → 先查：`kubectl get sc` + `describe pvc` 看 Events；storageClassName 的 `""` 与省略语义不同；WFFC 要先建 Pod → 详见：04-k8s-fundamentals/07-storage.md#常见坑
 - **现象**：Pod 卡 ContainerCreating 报 Multi-Attach error；Retain 的 PV 一直 Released；PVC 扩容报错 → 先查：RWO 卷未 detach（失联节点可强删 volumeattachment）；Released 需清 claimRef；SC 开 allowVolumeExpansion 且只升不降 → 详见：04-k8s-fundamentals/07-storage.md#常见坑
@@ -71,6 +71,14 @@
 - **现象**：MySQL 所在盘 `No space left on device` → 先查：df → du 找大头 → `PURGE BINARY LOGS`（严禁 rm 物理文件，ibdata/undo 删了实例即毁） → 详见：11-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（磁盘满）
 - **现象**：MySQL 主从延迟（Seconds_Behind_Source 增长），或复制中断报 1062/1032 → 先查：延迟先判型（平稳=单线程重放慢 / 阶梯=大事务）；1062/1032 用 GTID 空事务跳过，不一致重搭 → 详见：11-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（主从延迟）；11-middleware/mysql/02-backup-replication.md#常见坑
 - **现象**：MySQL EXPLAIN 看着没问题但就是慢；加了索引不走 → 先查：EXPLAIN ANALYZE 看真实耗时；统计信息过期/隐式类型转换/列上函数 → 详见：11-middleware/mysql/03-tuning-troubleshooting.md#常见坑
+- **现象**：PG 表体积只增不减，DELETE 千万行后磁盘没变 → 先查：死元组原地保留是设计（无 undo 回滚段），vacuum 只标记复用基本不还给 OS——`pg_stat_user_tables` 看 n_dead_tup/dead_pct，per-table 收紧 autovacuum 阈值，重灾区 pg_repack → 详见：11-middleware/postgresql/03-tuning-troubleshooting.md#5. vacuum 与 bloat 深讲
+- **现象**：PG 主库 `pg_wal` 目录暴涨、磁盘告警（Flink CDC 作业挂一晚常是元凶） → 先查：复制槽（含 CDC 槽）pin 住 WAL——`pg_replication_slots` 看 retained 与 wal_status；`max_slot_wal_keep_size` 兜底 → 详见：11-middleware/postgresql/02-replication-and-ha.md#复制槽：防 WAL 清理的双刃剑
+- **现象**：PG 配了同步复制后写入全部挂起（卡死不是变慢） → 先查：`synchronous_standby_names` 与备库 `application_name` 是否完全一致——名单不匹配时主库认为没有同步备库，所有提交无限等待 → 详见：11-middleware/postgresql/02-replication-and-ha.md#常见坑
+- **现象**：PG 报 `sorry, too many clients already`，或连接数上 500 后 CPU sys 飙升 → 先查：`pg_stat_activity` 按 state 分型——idle in transaction 是头号罪犯（阻碍 vacuum+持锁）先杀再查应用；长期方案 pgbouncer transaction 池 → 详见：11-middleware/postgresql/03-tuning-troubleshooting.md#3. 连接打满排障
+- **现象**：白天一条 ALTER TABLE 后 PG 全站超时 → 先查：慢查询挡住 DDL 的 ACCESS EXCLUSIVE，DDL 在队列里又挡住身后所有读（锁队列不分读写公平排队）——DDL 会话先 `SET lock_timeout='5s'` → 详见：11-middleware/postgresql/03-tuning-troubleshooting.md#4. 锁等待：pg_locks 与 lock_timeout
+- **现象**：PG autovacuum 显示在跑但 dead_tup 不降 → 先查：三大阻碍者——长事务 xmin horizon / 复制槽 pin 住老 LSN / idle in transaction；`pg_stat_activity` 看最老 xact → 详见：11-middleware/postgresql/03-tuning-troubleshooting.md#5.2 表为什么会膨胀
+- **现象**：从 MySQL 转 PG，想防"事务 ID 回卷"这颗最易漏建的雷 → 先查：`age(datfrozenxid)` 库级/表级两张口径——超 1.5 亿 warning、逼近 16 亿 critical（三级防线：autovacuum freeze / failsafe / 拒绝写） → 详见：11-middleware/postgresql/01-architecture-and-mvcc.md#4. 事务 ID 回卷（wraparound）
+- **现象**：Patroni 集群"全只读不切换" → 先查：etcd 失去多数派（挂 2/3）——DCS 是唯一真相源，修 DCS 是唯一正解；容量规划保证 etcd 奇数多机房分布 → 详见：11-middleware/postgresql/02-replication-and-ha.md#3. Patroni + etcd：高可用架构
 - **现象**：Redis 磁盘满后所有写报错；或每分钟固定点延迟尖刺 → 先查：`stop-writes-on-bgsave-error` 是保护先修磁盘；`latest_fork_usec` 监控 fork 耗时 → 详见：11-middleware/redis/02-persistence-and-ha.md#常见坑
 - **现象**：Redis replica 闪断一次就全量同步；三哨兵挂俩不切换 → 先查：repl-backlog-size 按断线时长×写流量调大；哨兵需 ≥3 且奇数凑 majority → 详见：11-middleware/redis/02-persistence-and-ha.md#常见坑
 - **现象**：Redis 突发超时但 SLOWLOG 是空的 → 先查：四类元凶按序过筛——慢命令 → fork 卡顿 → swap（碎片率<1）→ AOF fsync 慢 → 详见：11-middleware/redis/03-caching-patterns-troubleshooting.md#3. 阻塞点排查：单线程模型下的四类元凶
@@ -123,8 +131,14 @@
 - **现象**：Flink 写湖恢复后疑似重复数据，湖上无主文件增多 → 先查：checkpoint 被关或间隔过长，sink 提交与 checkpoint 脱钩——恢复 checkpoint 配置；孤儿文件用 `remove_orphan_files` 清（先核对无长事务） → 详见：16-bigdata/07-lakehouse-table-formats.md#7. 与 12-data-streaming 的衔接：exactly-once 落到湖写入路径
 - **现象**：Flink checkpoint 超时，第一嫌疑人是湖 commit / catalog 挂了写全阻塞 → 先查：对象存储限流（429/503）与 catalog 锁竞争——catalog 是湖表的 NameNode，HMS 路线的备份纪律等同 etcd → 详见：16-bigdata/07-lakehouse-table-formats.md#6.4 catalog 选型：HMS、REST catalog、Nessie
 - **现象**：湖表 snapshot/manifest 膨胀想监控，却发现没有 exporter 可装 → 先查：表格式无常驻进程——读 Iceberg 只读元数据表（snapshots/files/manifests）巡检推 Pushgateway 变 gauge，接既有告警体系 → 详见：16-bigdata/07-lakehouse-table-formats.md#6.2 snapshot / manifest 膨胀监控（指标与告警思路）
+- **现象**：ClickHouse 报 `Too many parts ... Merges are processing significantly slower than inserts`，上游跟着反压 → 先查：高频小 INSERT 产 parts 超过 merge 消化——攒万行/MB 级批次、小写入方开 async_insert、盯 MaxPartCountForPartition 趋势（与 Doris too many versions 同病） → 详见：16-bigdata/08-clickhouse.md#6. 后台 merge 与 parts："too many parts" 的因果链
+- **现象**：ReplacingMergeTree"去重没生效"，查出新旧两行 → 先查：去重只发生在后台 merge 碰巧合并时（异步不保证时机）——查询侧 `argMax(col,ver)` 或 `FINAL` 现场收敛；要写时收敛就别选 CH（对照 Doris MoW） → 详见：16-bigdata/08-clickhouse.md#2. MergeTree 引擎族：合并语义决定表的行为
+- **现象**：ClickHouse 副本表突然全部 is_readonly、INSERT 被拒 → 先查：ZK/Keeper 会话断（副本表降级只读保一致）——本地扫描查询不受影响，修 ZK/Keeper 后自动追平；告警优先级与 etcd 同级 → 详见：16-bigdata/08-clickhouse.md#4. 分片与副本：ReplicatedMergeTree 与 ZK/Keeper
+- **现象**：两个 ClickHouse 节点数据"没复制"或互相丢 part → 先查：ReplicatedMergeTree 的 zk_path/replica 名写错——路径不同=不复制，replica 同名=互踢；按 `/clickhouse/tables/{shard}/表名` 规范核对 macros 与建表参数 → 详见：16-bigdata/08-clickhouse.md#常见坑
+- **现象**：Distributed 表写入后马上查不到；或加了新分片数据不均衡 → 先查：默认异步——先落发起节点缓冲后台再发分片（查 `system.distributed` 队列）；新分片只接新写入，历史数据不自动迁移 → 详见：16-bigdata/08-clickhouse.md#5. 本地表 vs Distributed：双表架构与写入路径
+- **现象**：把高并发点查接到 ClickHouse 上，p99 惨不忍睹 → 先查：稀疏索引定位的是 8192 行粒度不是行（主键是排序描述不是行级索引）——点查明细走 MySQL/Redis，CH 主键面向"前缀过滤+大扫描收敛" → 详见：16-bigdata/08-clickhouse.md#3. 主键非索引的真相：排序键 + 稀疏索引 + 跳数索引
 
-## 5 性能与资源（CPU 高 / 内存涨 / OOM / 磁盘满 / 限流）
+## 5 性能与资源（CPU 高 / 内存涨 / OOM / 磁盘满 / 限流 / 队列积压）
 
 - **现象**：CPU 高，不知下一步看什么 → 先查：top 的 %Cpu(s) 行先分支——us/sy/wa/st 四路走法（用户态火焰图/内核态上下文切换/IO 等待/虚拟化窃取） → 详见：01-linux/06-performance-analysis.md#5. "CPU 高"完整排查决策树
 - **现象**：load 很高但 CPU 大量 idle；kill -9 杀不死进程 → 先查：load 含 D 状态任务，`ps` 分 R/D 状态再下结论，/proc/PID/stack 看等待点 → 详见：01-linux/04-processes-and-cfs.md#常见坑
@@ -138,6 +152,8 @@
 - **现象**：kubelet 报 running with swap on；磁盘满后服务行为诡异 → 先查：swapoff -a 并注释 fstab；journald 写满 /var/log 用 --vacuum-size + SystemMaxUse → 详见：01-linux/01-boot-and-systemd.md#常见坑
 - **现象**：nginx 报 Too many open files / worker_connections are not enough → 先查：worker_rlimit_nofile 与 systemd LimitNOFILE；反代每请求占 2 个连接槽 → 详见：11-middleware/nginx/01-architecture-and-process-model.md#常见坑
 - **现象**：压测偶发 502 且报 Cannot assign requested address；调大 somaxconn 无效 → 先查：upstream 未配 keepalive 致源端口耗尽；listen backlog 默认 511 更小 → 详见：11-middleware/nginx/03-performance-troubleshooting.md#常见坑
+- **现象**：Celery 队列越积越多、CPU 却很闲；新扩容的 worker 也接不到活 → 先查：IO 密集任务用了 prefork 小 `-c`（换 `-P gevent -c 100+`）；`worker_prefetch_multiplier` 默认 4 让老 worker 囤光消息——长任务固定配 1 → 详见：02-programming/06-celery-task-queue.md#4. worker 并发模型：prefork / gevent / threads
+- **现象**：Celery 的 LLEN 积压告警阈值不知道怎么设 → 先查：按消化时长不按绝对条数——积压消化时间 ≈ LLEN ÷ 完成速率；排障三板斧：LLEN 看积压在不在 → `celery -A tasks inspect ping` 看 worker 活没活 → `inspect active` 看是卡死还是慢跑 → 详见：02-programming/06-celery-task-queue.md#7. 积压监控：LLEN / flower / 探针
 
 ## 6 交付流水线（CI 挂了 / ArgoCD 不同步 / 漂移 / 镜像仓库 / 质量门禁 / Terraform state 锁）
 
@@ -170,6 +186,9 @@
 - **现象**：告警通知风暴刷屏，值班麻木、真告警被淹没 → 先查：通知无分级——分级路由 + grouping/inhibit + 静默窗口三件套，CI 通知只报失败 → 详见：06-cicd-iac-gitops/11-delivery-platform.md#6.3 分级路由与通知治理
 - **现象**：CI 里 kubectl/命令行为和本地不一样（cron/runner 环境） → 先查：cron 与 CI 的 PATH 极简，脚本内绝对路径或重设 PATH → 详见：02-programming/01-shell-fundamentals.md#常见坑
 - **现象**：批量 ssh 脚本卡死在某台机器 → 先查：`-o ConnectTimeout=5 BatchMode=yes`（TCP 黑洞无超时） → 详见：02-programming/02-shell-ops-patterns.md#常见坑
+- **现象**：Celery 任务偶发被执行两次（短信发两遍、库存扣两次），系统层面无任何报错 → 先查：任务执行时长超过 visibility_timeout，正常执行中的消息也被判超时重投（Redis broker 铁律：visibility_timeout > 最长任务时长含重试）；任务本身用 task_id+业务唯一键幂等兜底 → 详见：02-programming/06-celery-task-queue.md#3. broker 选型：Redis vs RabbitMQ
+- **现象**：Celery worker 被 kill -9 后任务直接消失 → 先查：默认 early ack（收到即确认=至多一次）——关键任务 `acks_late=True` 换"不丢但可能重"的至少一次语义，并按"会被执行两次"设计 → 详见：02-programming/06-celery-task-queue.md#5. 任务生命周期与 acks_late 的重复执行陷阱
+- **现象**：Celery 定时任务全部执行了两遍 → 先查：beat 起了多个副本（每个 beat 都会对同一条 crontab 各发一次消息）——beat 必须单实例，HA 靠单副本+快速拉起，绝不进按队列深度伸缩的 HPA → 详见：02-programming/06-celery-task-queue.md#8.1 beat vs crontab
 
 ## 7 可观测（指标缺失 / 告警风暴 / 日志查不到 / trace 断链）
 
@@ -281,12 +300,12 @@
 | 1 集群与控制面 | 16 |
 | 2 网络与 DNS | 17 |
 | 3 工作负载 | 14 |
-| 4 存储与中间件 | 58 |
-| 5 性能与资源 | 12 |
-| 6 交付流水线 | 29 |
+| 4 存储与中间件 | 72 |
+| 5 性能与资源 | 14 |
+| 6 交付流水线 | 32 |
 | 7 可观测 | 18 |
 | 8 安全 | 15 |
 | 9 分布式与共识 | 29 |
-| **合计** | **208** |
+| **合计** | **227** |
 
 其中标【靶场】（scripts/faults 可直接注入演练）的条目：12 条，与 FIXES.md 的 12 个故障一一对应。

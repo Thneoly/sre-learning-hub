@@ -8,6 +8,7 @@
 - 能画出 Iceberg 的 metadata 四层树（metadata.json → manifest list → manifest → data file），并沿树解释一次 snapshot commit 的原子性来自哪里
 - 能用写放大/读放大的语言对比 Hudi 的 COW 与 MOR，说清 Paimon 主键表 LSM 与 changelog 三种产生方式的取舍，并按更新频率/查询延迟/入湖引擎/生态完成选型
 - 能落地湖上运维四件事：小文件治理、snapshot/manifest 膨胀监控、schema 演进兼容规则、catalog 与权限体系
+- 能说清 Parquet 磁盘格式与 Arrow 内存/传输格式的分工及 Flight 端口的运维暴露面（第 5 节 Arrow 小节）
 
 版本约定：Iceberg 1.x、Hudi 0.14.x / 1.x、Paimon 1.x。三者迭代都快（Hudi 1.x 重构了 timeline 与文件布局，Paimon 配置名随版本微调），凡涉及具体配置名与默认值处以官方文档为准。
 
@@ -244,6 +245,60 @@ Kafka ──Flink──► Paimon/Iceberg 湖表 ──catalog(HMS/REST)──�
 
 容量分工与 05 章第 7 节第 4 点一致：**热在内表换延迟，冷在湖里换成本**，"删热保冷"靠分区滚动。排障边界：入湖慢看 Flink 写路径与湖 commit（第 7 节），查得慢看引擎与对象存储（05 章已给），元数据坏了看 catalog（6.4）。
 
+### Arrow 与 Flight：现代数据栈的通用语
+
+选型矩阵比的是表格式，但近两年湖仓各组件之间的"通用语"正在换血：磁盘上互通靠 Parquet，**内存与网络层互通靠 Apache Arrow**。看不懂它，就看不懂新引擎（DuckDB/polars）与湖引擎互操作时的端口形态与性能特征。
+
+**先纠一个常见心智模型：Arrow 不是"又一个 JSON"**。JSON 是传输格式——它的链路是"内存对象 → serialize 成文本 → 传输 → parse 回对象"，两头都付序列化税，且 parse 出来还是行式对象（列式查询要跳跃访存）。Arrow 反过来：它的第一身份是**内存格式**，传输（Flight）只是第二身份——因为内存布局标准化了，传输就退化成"把这段内存发过去"，接收方拿到的字节**已经是可直接计算的列式结构**。类比：JSON ≈ 把二进制打成 Base64 文本再发（通用但两头编解码都是税）；Arrow+Flight ≈ 零拷贝 sendfile（出发到抵达可用之间不经历格式变换）。两者是共存而非替代：REST API 回 JSON（低量、人读、schema 灵活），GB 级列式数据走 Arrow/Flight（引擎间高速公路）。
+
+| | JSON | Arrow |
+|---|---|---|
+| 本质 | 文本序列化格式 | 列式内存布局（+Flight 传输层） |
+| 接收方成本 | parse（贵） | 零拷贝（免格式翻译） |
+| 数据形态 | 行式对象 | 列式（向量化计算友好） |
+| 体积 | 文本冗余大 | 二进制紧凑、列压缩友好 |
+| 人类可读 | ✅ | ❌ |
+| 典型场景 | API/配置/低量交互 | 引擎间移动分析数据、进程内库间零拷贝 |
+
+**Arrow 是列式内存格式标准**。它规定了一段内存里的列式数据长什么样：每列一块连续 buffer（定长类型存裸值，变长类型再加偏移数组）+ validity 位图（null 标记）。两个由此而来的性质：
+
+1. **O(1) 解析，俗称"零拷贝"**。程序拿到一块 Arrow 内存，不需要逐行反序列化成对象图（传统 JDBC/ODBC 那种"一行一个对象"的 ResultSet 搬运），计算内核直接在 buffer 上向量化运算；跨进程共享内存场景甚至可以真不复制字节。"零拷贝"的准确含义是**免于格式翻译**，不是免于一切搬运——网络传输照样要走字节。
+2. **跨语言同一布局**。Java/C++/Rust/Python/Go 的 Arrow 实现共享同一内存布局，Python 拿到 C++ 引擎吐出的 Arrow buffer 无需转换即可计算。这就是"跨进程不再序列化"的落点：**把所有引擎的内存格式统一掉，序列化这个环节就失去了存在的基础**。
+
+与 Parquet 的关系一句话：**Parquet 是磁盘格式，Arrow 是内存格式**。Parquet 为存储优化（编码 + 压缩 + 页统计，即 03 章第 4 节讲的那套列存压缩），Arrow 为计算优化（未压缩、可直接 SIMD 的内存布局）。DuckDB/polars 与 Arrow 都能双向低开销互转（注意 DuckDB 内部执行引擎是自有向量化格式，Arrow 是它的交换格式而非计算骨架；polars 则直接构建在 Arrow 之上），"Parquet → 解码成 Arrow → 计算 → 编码回 Parquet"是两者与湖生态互通的标准读写路径；湖仓直查引擎下推扫湖文件时，文件解码与算子之间这条通道的效率直接进查询 p99。Arrow 也有自己的序列化文件形态（Arrow IPC，`.arrow`，即旧名 Feather V2），用于进程间/落盘交换**未压缩**的列数据——追求解压即算的中间缓存，而不是长期存储。
+
+**Flight / Flight SQL 把这套格式延伸到网络上**。Flight 是构建在 gRPC 之上的数据传输 RPC：请求与数据流都以 Arrow record batch 为单位，而不是逐行文本协议加游标；Flight SQL 再把"SQL 方言 + 元数据访问"标准化并配套 JDBC/ODBC 驱动，客户端用同一套驱动可以连任何实现了 Flight SQL 的引擎。DuckDB 既读本机 Parquet，也能经 Flight SQL 直查远端引擎——引擎间互操作的事实通道。
+
+```
+磁盘（对象存储）              内存（进程内/共享内存）          网络（进程间）
+Parquet/ORC  ──解码──►   Arrow record batch  ──打包──►  Flight 流（gRPC）
+列存+压缩+页统计             列式、未压缩、可向量化            Arrow batch 为单位
+        ◄──编码──              （计算通用语）                 （传输通用语）
+```
+
+三个"你其实已经在用它"的日常触点：
+
+- BI 取数：新驱动把 JDBC/ODBC 底层从逐行协议换成 Flight SQL 的 gRPC 流，用户侧仍是 SQL，延迟与吞吐差出量级；
+- Python 拉大表：`toPandas()` / 各驱动的 `fetch_arrow_table()` 直接返回 Arrow 批，不再逐行构造对象；
+- 湖直查：部分引擎的部分读取路径（如 Doris/StarRocks 的 Arrow Flight 高速通道）在向 Arrow 靠拢，Trino 这类 JVM 引擎则仍解码进自有的页式 Block 结构、不经过 Arrow——无论解码目标是什么，扫描耗时的一半在存储 IO（6.2 巡检的对象），另一半就在解码这条通道上。
+
+**运维含义：看到 Flight 端口，就看到一个数据服务边界**。引擎监听 Flight/Flight SQL 的 gRPC 端口，等于开放了"高速批量取数与查询"入口，四条纪律：
+
+- 认证与加密按 SQL 入口对待（gRPC header 传凭据 + TLS），不能当内部端口裸奔——它和 05 章 FE 9030 是同一等级的暴露面；
+- 大结果集回传是连续的 Arrow 批，直接吃接收端内存——限流/分页/查询超时要在入口做，内存告警要能关联到它；
+- 网络上是**未压缩列式流**，比搬运压缩 Parquet 占带宽大得多，跨机房/跨可用区拉数前先算带宽账；
+- 监控盯 gRPC 层的连接数、p99 与取消率（客户端超时取消在 gRPC 上表现为 cancel，不是连接断）。
+
+它在 Spark/Doris/Paimon 生态里已无处不在，三处最常见：
+
+| 位置 | Arrow 在干什么 |
+|---|---|
+| Spark ↔ Python | pandas UDF、`toPandas()` 走 Arrow 传输（`spark.sql.execution.arrow.pyspark.enabled`，批大小由 `...arrow.maxRecordsPerBatch` 控制——executor 峰值内存的隐形变量），比逐行序列化快一个数量级 |
+| Doris / StarRocks | 2.x 的 Arrow Flight 高速导入/查询通道（05 章第 5 节末尾说的"高速通道"就是它） |
+| Paimon | 0.9+ 的 Arrow 加速文件格式：把列存块物化成 Arrow IPC 供 DuckDB 等直读（能力边界以官方文档为准） |
+
+对 SRE 的收口判断：**Parquet 管落盘成本，Arrow 管计算与传输成本**。湖仓链路的"格式债"正从"每两个组件之间一种转换"收敛为"磁盘 Parquet + 内存/网络 Arrow"两件套；排障时先认出数据处在链路哪一段、以什么形态存在，再落到对应的层去查（对象存储限流 / 进程内存压力 / Flight 端口与 gRPC 链路）。
+
 ## 6. 湖仓运维专题
 
 ### 6.1 小文件治理
@@ -419,5 +474,6 @@ input 假设输入已含完整前像/后像（Debezium/Flink CDC 流），代价
 - Apache Iceberg 官方文档（表格式规范、元数据结构与 maintenance 过程）：https://iceberg.apache.org/docs/latest/
 - Apache Hudi 官方文档（写入路径与 table services 配置）：https://hudi.apache.org/docs/overview/
 - Apache Paimon 官方文档（主键表、append 表、changelog producer）：https://paimon.apache.org/docs/master/
+- Apache Arrow 官方文档（内存格式、IPC、Flight/Flight SQL）：https://arrow.apache.org/docs/
 - Project Nessie（git 风格 catalog）：https://projectnessie.org/
 - Apache Ranger（集中式授权）：https://ranger.apache.org/

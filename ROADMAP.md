@@ -29,7 +29,7 @@
 | 1 | `01-linux/01-03`（启动/文件系统/内存）+ lab 01 | 能讲清 buffer vs cache、OOM 选受害者逻辑 |
 | 2 | `01-linux/04-06`（进程/内核网络栈/性能分析）+ lab 02 | 能 60 秒内定位 CPU 高/内存涨/磁盘满 |
 | 3 | `02-programming/01-02`（Shell 基础/运维模式）+ lab 01 | 交付 batch-inspect.sh 巡检脚本 |
-| 4 | `02-programming/03-04`（Python）+ lab 02（05 Go 选学留到阶段 9） | 交付一个自定义 exporter |
+| 4 | `02-programming/03-04`（Python）+ lab 02（05 Go 与 06 Celery 选学） | 交付一个自定义 exporter |
 
 **🔁 闭环 0**：用自己写的巡检脚本 + 性能分析方法，排查一次 lab 注入的故障（CPU/内存/磁盘三选一），写一份 20 行的排查记录。
 
@@ -101,6 +101,7 @@
 |---|---|
 | `16-bigdata/04-06`（Spark/OLAP/ZooKeeper）+ labs 02-03 | 跑一次数据倾斜加盐实验；Doris 建表导入查询 |
 | `16-bigdata/07`（湖仓表格式深讲）+ lab 04 | Flink→Paimon 入湖闭环，亲眼看清 snapshot/manifest 元数据树 |
+| `11-middleware/postgresql`（3 章）+ `16-bigdata/08`（ClickHouse）+ 各 lab | PG 流复制与 Patroni 讲得清；CH 分布式表跑通 |
 
 > 大数据模块按 JD 调研定位为"大数据运维专线岗画像"（百度 20-30K·16薪一类岗位），非主线路径；目标这类岗位的学员把第 22 周展开成两周学完。
 

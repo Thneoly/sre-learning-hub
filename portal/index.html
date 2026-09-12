@@ -274,18 +274,20 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ]
     },
     {
-      id: 'programming', nav: '编程', name: '运维编程：Shell / Python / Go', dir: '02-programming',
-      desc: 'Shell 从能跑到不炸、把命令变成工具，Python 运维工具箱，Go 进阶通向 Operator 与采集器。',
+      id: 'programming', nav: '编程', name: '运维编程：Shell / Python / Go / Celery', dir: '02-programming',
+      desc: 'Shell 从能跑到不炸、把命令变成工具，Python 运维工具箱，Go 进阶通向 Operator 与采集器，Celery 任务队列管异步化与削峰。',
       chapters: [
         { f: '01-shell-fundamentals.md', t: '01 · Shell 基础：从"能跑"到"不炸"' },
         { f: '02-shell-ops-patterns.md', t: '02 · Shell 运维模式：把命令变成工具' },
         { f: '03-python-for-ops.md', t: '03 · Python 运维基础：为写工具而学' },
         { f: '04-python-ops-toolkit.md', t: '04 · Python 运维工具箱：四个能写进简历的工具' },
-        { f: '05-go-for-sre.md', t: '05 · Go for SRE：选学进阶，通向 Operator' }
+        { f: '05-go-for-sre.md', t: '05 · Go for SRE：选学进阶，通向 Operator' },
+        { f: '06-celery-task-queue.md', t: '06 · Celery 分布式任务队列：异步化、削峰与定时的运维视角' }
       ],
       labs: [
         { p: 'labs/01-shell-inspection', t: 'Lab 01 · 批量巡检脚本 batch-inspect.sh' },
-        { p: 'labs/02-python-exporter', t: 'Lab 02 · 用 Python 写一个 Prometheus exporter' }
+        { p: 'labs/02-python-exporter', t: 'Lab 02 · 用 Python 写一个 Prometheus exporter' },
+        { p: 'labs/03-celery-tasks', t: 'Lab 03 · Celery 任务队列：积压、消化与重复执行实证' }
       ]
     },
     {
@@ -470,8 +472,8 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ]
     },
     {
-      id: 'middleware', nav: '中间件', name: '中间件：Nginx / MySQL / Redis / MongoDB', dir: '11-middleware',
-      desc: 'Nginx 架构与排障、MySQL InnoDB 与复制、Redis 数据结构与高可用缓存、MongoDB 副本集与分片，各按子目录组织。',
+      id: 'middleware', nav: '中间件', name: '中间件：Nginx / MySQL / PostgreSQL / Redis / MongoDB', dir: '11-middleware',
+      desc: 'Nginx 架构与排障、MySQL InnoDB 与复制、PostgreSQL MVCC 与 Patroni 高可用、Redis 数据结构与高可用缓存、MongoDB 副本集与分片，各按子目录组织。',
       chapters: [
         { f: 'nginx/01-architecture-and-process-model.md', t: 'Nginx 01 · 架构与进程模型' },
         { f: 'nginx/02-proxy-lb-and-core-config.md', t: 'Nginx 02 · 反向代理与负载均衡：核心配置' },
@@ -479,6 +481,9 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
         { f: 'mysql/01-innodb-fundamentals.md', t: 'MySQL 01 · 架构与 InnoDB 核心机制' },
         { f: 'mysql/02-backup-replication.md', t: 'MySQL 02 · 备份恢复与主从复制' },
         { f: 'mysql/03-tuning-troubleshooting.md', t: 'MySQL 03 · 调优与排障手册' },
+        { f: 'postgresql/01-architecture-and-mvcc.md', t: 'PostgreSQL 01 · 架构与 MVCC：进程模型、WAL 与事务 ID' },
+        { f: 'postgresql/02-replication-and-ha.md', t: 'PostgreSQL 02 · 复制与高可用：流复制、逻辑复制、Patroni 与 pgbouncer' },
+        { f: 'postgresql/03-tuning-troubleshooting.md', t: 'PostgreSQL 03 · 调优与排障手册：EXPLAIN、vacuum、备份与监控' },
         { f: 'redis/01-data-structures-and-memory.md', t: 'Redis 01 · 数据结构与内存：编码转换、碎片率与 bigkey 治理' },
         { f: 'redis/02-persistence-and-ha.md', t: 'Redis 02 · 持久化与高可用：RDB/AOF、主从、哨兵与 Cluster' },
         { f: 'redis/03-caching-patterns-troubleshooting.md', t: 'Redis 03 · 缓存模式与线上排障：穿透击穿雪崩、一致性与监控' },
@@ -489,6 +494,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       labs: [
         { p: 'nginx/labs/01-reverse-proxy-ha', t: 'Nginx Lab 01 · 反向代理高可用：加权轮询、故障转移与 location 陷阱' },
         { p: 'mysql/labs/01-replication-rescue', t: 'MySQL Lab 01 · 主从复制搭建、断连追平与 binlog 误删恢复' },
+        { p: 'postgresql/labs/01-streaming-replication', t: 'PostgreSQL Lab 01 · 流复制：物理备库、延迟观测与断连追平' },
         { p: 'redis/labs/01-sentinel-failover', t: 'Redis Lab 01 · 哨兵故障转移实战：一主二从三哨兵' },
         { p: 'mongodb/labs/01-replicaset-deploy', t: 'MongoDB Lab 01 · 副本集部署、故障转移与断连追平' }
       ]
@@ -550,7 +556,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     },
     {
       id: 'bigdata', nav: '大数据', name: '大数据平台', dir: '16-bigdata',
-      desc: 'HDFS 存储与 NameNode 运维、YARN 资源调度、Hive 数仓分层、Spark 调优与数据倾斜、Doris/StarRocks 实时 OLAP、ZooKeeper 协调服务、湖仓表格式（Iceberg/Hudi/Paimon）。',
+      desc: 'HDFS 存储与 NameNode 运维、YARN 资源调度、Hive 数仓分层、Spark 调优与数据倾斜、Doris/StarRocks 实时 OLAP、ZooKeeper 协调服务、ClickHouse 列存与 MergeTree、湖仓表格式（Iceberg/Hudi/Paimon，含 Arrow）。',
       chapters: [
         { f: '00-bigdata-overview.md', t: '00 · 大数据全景：生态地图、三代架构与岗位画像' },
         { f: '01-hdfs.md', t: '01 · HDFS：NameNode、块模型与丢失块排障' },
@@ -559,13 +565,15 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
         { f: '04-spark.md', t: '04 · Spark 架构与调优：内存、shuffle 与数据倾斜' },
         { f: '05-olap-doris-starrocks.md', t: '05 · OLAP 实时分析：Doris 与 StarRocks 的架构、模型与运维' },
         { f: '06-zookeeper.md', t: '06 · ZooKeeper：分布式协调服务的原理与运维（以及它的退场）' },
-        { f: '07-lakehouse-table-formats.md', t: '07 · 湖仓表格式深讲：Iceberg、Hudi、Paimon 与湖上运维' }
+        { f: '07-lakehouse-table-formats.md', t: '07 · 湖仓表格式深讲：Iceberg、Hudi、Paimon 与湖上运维' },
+        { f: '08-clickhouse.md', t: '08 · ClickHouse：列存、MergeTree 家族与分布式表运维' }
       ],
       labs: [
         { p: 'labs/01-hdfs-pseudo', t: 'Lab 01 · HDFS 伪分布式：块、小文件代价与 safemode' },
         { p: 'labs/02-spark-local', t: 'Lab 02 · Spark local 模式：词频统计与数据倾斜加盐实验' },
         { p: 'labs/03-doris-quickstart', t: 'Lab 03 · Doris 快速起步：Unique 模型、Stream Load 与幂等重放' },
-        { p: 'labs/04-lakehouse-flink-paimon', t: 'Lab 04 · Flink SQL 写 Paimon 湖表：把表格式元数据变成肉眼可见' }
+        { p: 'labs/04-lakehouse-flink-paimon', t: 'Lab 04 · Flink SQL 写 Paimon 湖表：把表格式元数据变成肉眼可见' },
+        { p: 'labs/05-clickhouse-cluster', t: 'Lab 05 · ClickHouse 双分片集群：ReplicatedMergeTree、Distributed 与 parts 观察' }
       ]
     },
     {
@@ -1140,18 +1148,21 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     basics: '基础 · 容器与 K8s 通用',
     linux: 'Linux · 底座与性能',
     programming: '编程 · Shell / Python / Go',
+    celery: 'Celery · 任务队列',
     cicd: 'CI/CD · Git、流水线与 GitOps',
     otel: 'OTel · OpenTelemetry',
     logging: '日志 · ELK 与 Loki',
     middleware: '中间件 · Nginx / MySQL / Redis / MongoDB',
+    pg: 'PostgreSQL · MVCC 与高可用',
     datastream: '数据流 · Kafka / Flink',
     sre: 'SRE · 方法论与实践',
     cloud: '云计算 · 阿里云与 AWS',
     aiops: 'AIOps · LLM 辅助运维',
     bigdata: '大数据 · HDFS / YARN / Spark / Doris / 湖仓',
+    clickhouse: 'ClickHouse · 列存与分布式表',
     distributed: '分布式 · 理论与共识'
   };
-  var QUIZ_BANK_ORDER = ['pca', 'cka', 'cks', 'basics', 'linux', 'programming', 'cicd', 'otel', 'logging', 'middleware', 'datastream', 'sre', 'cloud', 'aiops', 'bigdata', 'distributed'];
+  var QUIZ_BANK_ORDER = ['pca', 'cka', 'cks', 'basics', 'linux', 'programming', 'celery', 'cicd', 'otel', 'logging', 'middleware', 'pg', 'datastream', 'sre', 'cloud', 'aiops', 'bigdata', 'clickhouse', 'distributed'];
   var quizState = { bank: null, idx: 0, answers: [], finished: false };
 
   function bankName(id) {
@@ -1757,9 +1768,9 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
   }
 
   /* ================= 场景速查 =================
-     数据逐条转录自 learning-hub 根目录 SCENARIOS.md（208 条，其中 12 条标【靶场】）。
+     数据逐条转录自 learning-hub 根目录 SCENARIOS.md（227 条，其中 12 条标【靶场】）。
      每条数组：[0]=现象，[1]=先查，[2]=详见，[3]=1 表示靶场条目。
-     分类默认收起，点开时才渲染条目，避免一次挂 208 条拖慢页面。 */
+     分类默认收起，点开时才渲染条目，避免一次挂 227 条拖慢页面。 */
   var SCN_CATS = [
     { t: '1 集群与控制面', sub: 'kubectl 不通 / 节点 NotReady / 组件挂 / 证书 / etcd / 升级', items: [
       ['不知从哪下手排集群故障', '`kubectl get nodes` 通不通，按“五层定位法”选层（集群→对象→容器→节点服务→系统）', '05-cka/06-node-maintenance-troubleshooting.md#2. 排错决策树：五层定位法'],
@@ -1814,13 +1825,21 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ['Deployment YAML 有两处独立问题，修好第一处才暴露第二处（排障练习）', '先 Events 定位镜像层故障，再排查第二处', '05-cka/labs/18-crashloop-triage/task.md'],
       ['Pod 不 Ready 但看不出原因，需要完整 DNS/Service 链路排查演练', 'dnsutils 调试 Pod 逐层验证 Service 名/FQDN/CoreDNS', '05-cka/labs/17-dns-debugging/task.md（速查见同目录 solution.md 的"DNS 故障速查"节）']
     ] },
-    { t: '4 存储与中间件', sub: 'PVC Pending / 主从延迟 / 哨兵切换 / 连接打满 / HDFS·YARN·Spark·Doris·湖仓', items: [
+    { t: '4 存储与中间件', sub: 'PVC Pending / 主从延迟 / 哨兵切换 / 连接打满 / HDFS·YARN·Spark·Doris·ClickHouse·湖仓', items: [
       ['PVC 一直 Pending / 有 SC 也绑不上', '`kubectl get sc` + `describe pvc` 看 Events；storageClassName 的 `""` 与省略语义不同；WFFC 要先建 Pod', '04-k8s-fundamentals/07-storage.md#常见坑'],
       ['Pod 卡 ContainerCreating 报 Multi-Attach error；Retain 的 PV 一直 Released；PVC 扩容报错', 'RWO 卷未 detach（失联节点可强删 volumeattachment）；Released 需清 claimRef；SC 开 allowVolumeExpansion 且只升不降', '04-k8s-fundamentals/07-storage.md#常见坑'],
       ['MySQL 报 1040 Too many connections、CPU 100% 或 metadata lock 排队', '`SHOW PROCESSLIST` 分型（连接池泄漏/DNS 反解析/慢 SQL 并发/DDL 阻塞），先留证据再 KILL', '11-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（连接打满）'],
       ['MySQL 所在盘 `No space left on device`', 'df → du 找大头 → `PURGE BINARY LOGS`（严禁 rm 物理文件，ibdata/undo 删了实例即毁）', '11-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（磁盘满）'],
       ['MySQL 主从延迟（Seconds_Behind_Source 增长），或复制中断报 1062/1032', '延迟先判型（平稳=单线程重放慢 / 阶梯=大事务）；1062/1032 用 GTID 空事务跳过，不一致重搭', '11-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（主从延迟）；11-middleware/mysql/02-backup-replication.md#常见坑'],
       ['MySQL EXPLAIN 看着没问题但就是慢；加了索引不走', 'EXPLAIN ANALYZE 看真实耗时；统计信息过期/隐式类型转换/列上函数', '11-middleware/mysql/03-tuning-troubleshooting.md#常见坑'],
+      ['PG 表体积只增不减，DELETE 千万行后磁盘没变', '死元组原地保留是设计（无 undo 回滚段），vacuum 只标记复用基本不还给 OS——`pg_stat_user_tables` 看 n_dead_tup/dead_pct，per-table 收紧 autovacuum 阈值，重灾区 pg_repack', '11-middleware/postgresql/03-tuning-troubleshooting.md#5. vacuum 与 bloat 深讲'],
+      ['PG 主库 `pg_wal` 目录暴涨、磁盘告警（Flink CDC 作业挂一晚常是元凶）', '复制槽（含 CDC 槽）pin 住 WAL——`pg_replication_slots` 看 retained 与 wal_status；`max_slot_wal_keep_size` 兜底', '11-middleware/postgresql/02-replication-and-ha.md#复制槽：防 WAL 清理的双刃剑'],
+      ['PG 配了同步复制后写入全部挂起（卡死不是变慢）', '`synchronous_standby_names` 与备库 `application_name` 是否完全一致——名单不匹配时主库认为没有同步备库，所有提交无限等待', '11-middleware/postgresql/02-replication-and-ha.md#常见坑'],
+      ['PG 报 `sorry, too many clients already`，或连接数上 500 后 CPU sys 飙升', '`pg_stat_activity` 按 state 分型——idle in transaction 是头号罪犯（阻碍 vacuum+持锁）先杀再查应用；长期方案 pgbouncer transaction 池', '11-middleware/postgresql/03-tuning-troubleshooting.md#3. 连接打满排障'],
+      ['白天一条 ALTER TABLE 后 PG 全站超时', '慢查询挡住 DDL 的 ACCESS EXCLUSIVE，DDL 在队列里又挡住身后所有读（锁队列不分读写公平排队）——DDL 会话先 `SET lock_timeout=\'5s\'`', '11-middleware/postgresql/03-tuning-troubleshooting.md#4. 锁等待：pg_locks 与 lock_timeout'],
+      ['PG autovacuum 显示在跑但 dead_tup 不降', '三大阻碍者——长事务 xmin horizon / 复制槽 pin 住老 LSN / idle in transaction；`pg_stat_activity` 看最老 xact', '11-middleware/postgresql/03-tuning-troubleshooting.md#5.2 表为什么会膨胀'],
+      ['从 MySQL 转 PG，想防"事务 ID 回卷"这颗最易漏建的雷', '`age(datfrozenxid)` 库级/表级两张口径——超 1.5 亿 warning、逼近 16 亿 critical（三级防线：autovacuum freeze / failsafe / 拒绝写）', '11-middleware/postgresql/01-architecture-and-mvcc.md#4. 事务 ID 回卷（wraparound）'],
+      ['Patroni 集群"全只读不切换"', 'etcd 失去多数派（挂 2/3）——DCS 是唯一真相源，修 DCS 是唯一正解；容量规划保证 etcd 奇数多机房分布', '11-middleware/postgresql/02-replication-and-ha.md#3. Patroni + etcd：高可用架构'],
       ['Redis 磁盘满后所有写报错；或每分钟固定点延迟尖刺', '`stop-writes-on-bgsave-error` 是保护先修磁盘；`latest_fork_usec` 监控 fork 耗时', '11-middleware/redis/02-persistence-and-ha.md#常见坑'],
       ['Redis replica 闪断一次就全量同步；三哨兵挂俩不切换', 'repl-backlog-size 按断线时长×写流量调大；哨兵需 ≥3 且奇数凑 majority', '11-middleware/redis/02-persistence-and-ha.md#常见坑'],
       ['Redis 突发超时但 SLOWLOG 是空的', '四类元凶按序过筛——慢命令 → fork 卡顿 → swap（碎片率<1）→ AOF fsync 慢', '11-middleware/redis/03-caching-patterns-troubleshooting.md#3. 阻塞点排查：单线程模型下的四类元凶'],
@@ -1872,9 +1891,15 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ['Hudi 增量消费突然断流/丢数据', 'cleaning 把保留窗口清得太狠——调大 `hoodie.cleaner.commits.retained`，按下游重放需求定', '16-bigdata/07-lakehouse-table-formats.md#常见坑'],
       ['Flink 写湖恢复后疑似重复数据，湖上无主文件增多', 'checkpoint 被关或间隔过长，sink 提交与 checkpoint 脱钩——恢复 checkpoint 配置；孤儿文件用 `remove_orphan_files` 清（先核对无长事务）', '16-bigdata/07-lakehouse-table-formats.md#7. 与 12-data-streaming 的衔接：exactly-once 落到湖写入路径'],
       ['Flink checkpoint 超时，第一嫌疑人是湖 commit / catalog 挂了写全阻塞', '对象存储限流（429/503）与 catalog 锁竞争——catalog 是湖表的 NameNode，HMS 路线的备份纪律等同 etcd', '16-bigdata/07-lakehouse-table-formats.md#6.4 catalog 选型：HMS、REST catalog、Nessie'],
-      ['湖表 snapshot/manifest 膨胀想监控，却发现没有 exporter 可装', '表格式无常驻进程——读 Iceberg 只读元数据表（snapshots/files/manifests）巡检推 Pushgateway 变 gauge，接既有告警体系', '16-bigdata/07-lakehouse-table-formats.md#6.2 snapshot / manifest 膨胀监控（指标与告警思路）']
+      ['湖表 snapshot/manifest 膨胀想监控，却发现没有 exporter 可装', '表格式无常驻进程——读 Iceberg 只读元数据表（snapshots/files/manifests）巡检推 Pushgateway 变 gauge，接既有告警体系', '16-bigdata/07-lakehouse-table-formats.md#6.2 snapshot / manifest 膨胀监控（指标与告警思路）'],
+      ['ClickHouse 报 `Too many parts ... Merges are processing significantly slower than inserts`，上游跟着反压', '高频小 INSERT 产 parts 超过 merge 消化——攒万行/MB 级批次、小写入方开 async_insert、盯 MaxPartCountForPartition 趋势（与 Doris too many versions 同病）', '16-bigdata/08-clickhouse.md#6. 后台 merge 与 parts："too many parts" 的因果链'],
+      ['ReplacingMergeTree"去重没生效"，查出新旧两行', '去重只发生在后台 merge 碰巧合并时（异步不保证时机）——查询侧 `argMax(col,ver)` 或 `FINAL` 现场收敛；要写时收敛就别选 CH（对照 Doris MoW）', '16-bigdata/08-clickhouse.md#2. MergeTree 引擎族：合并语义决定表的行为'],
+      ['ClickHouse 副本表突然全部 is_readonly、INSERT 被拒', 'ZK/Keeper 会话断（副本表降级只读保一致）——本地扫描查询不受影响，修 ZK/Keeper 后自动追平；告警优先级与 etcd 同级', '16-bigdata/08-clickhouse.md#4. 分片与副本：ReplicatedMergeTree 与 ZK/Keeper'],
+      ['两个 ClickHouse 节点数据"没复制"或互相丢 part', 'ReplicatedMergeTree 的 zk_path/replica 名写错——路径不同=不复制，replica 同名=互踢；按 `/clickhouse/tables/{shard}/表名` 规范核对 macros 与建表参数', '16-bigdata/08-clickhouse.md#常见坑'],
+      ['Distributed 表写入后马上查不到；或加了新分片数据不均衡', '默认异步——先落发起节点缓冲后台再发分片（查 `system.distributed` 队列）；新分片只接新写入，历史数据不自动迁移', '16-bigdata/08-clickhouse.md#5. 本地表 vs Distributed：双表架构与写入路径'],
+      ['把高并发点查接到 ClickHouse 上，p99 惨不忍睹', '稀疏索引定位的是 8192 行粒度不是行（主键是排序描述不是行级索引）——点查明细走 MySQL/Redis，CH 主键面向"前缀过滤+大扫描收敛"', '16-bigdata/08-clickhouse.md#3. 主键非索引的真相：排序键 + 稀疏索引 + 跳数索引']
     ] },
-    { t: '5 性能与资源', sub: 'CPU 高 / 内存涨 / OOM / 磁盘满 / 限流', items: [
+    { t: '5 性能与资源', sub: 'CPU 高 / 内存涨 / OOM / 磁盘满 / 限流 / 队列积压', items: [
       ['CPU 高，不知下一步看什么', 'top 的 %Cpu(s) 行先分支——us/sy/wa/st 四路走法（用户态火焰图/内核态上下文切换/IO 等待/虚拟化窃取）', '01-linux/06-performance-analysis.md#5. "CPU 高"完整排查决策树'],
       ['load 很高但 CPU 大量 idle；kill -9 杀不死进程', 'load 含 D 状态任务，`ps` 分 R/D 状态再下结论，/proc/PID/stack 看等待点', '01-linux/04-processes-and-cfs.md#常见坑'],
       ['容器 CPU 使用率不高但响应周期性卡顿', 'cgroup CFS 节流，看 cpu.stat 的 nr_throttled，提高 limit', '04-k8s-fundamentals/11-resources-and-qos.md#常见坑'],
@@ -1886,7 +1911,9 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ['iowait 低就排除 IO 问题；SSD %util 100% 当满载；VM 里 st 高调优无果', 'CPU 一忙 wa 被挤掉，配 iostat await；%util 不度量并行度；st 高找宿主机资源方', '01-linux/06-performance-analysis.md#常见坑'],
       ['kubelet 报 running with swap on；磁盘满后服务行为诡异', 'swapoff -a 并注释 fstab；journald 写满 /var/log 用 --vacuum-size + SystemMaxUse', '01-linux/01-boot-and-systemd.md#常见坑'],
       ['nginx 报 Too many open files / worker_connections are not enough', 'worker_rlimit_nofile 与 systemd LimitNOFILE；反代每请求占 2 个连接槽', '11-middleware/nginx/01-architecture-and-process-model.md#常见坑'],
-      ['压测偶发 502 且报 Cannot assign requested address；调大 somaxconn 无效', 'upstream 未配 keepalive 致源端口耗尽；listen backlog 默认 511 更小', '11-middleware/nginx/03-performance-troubleshooting.md#常见坑']
+      ['压测偶发 502 且报 Cannot assign requested address；调大 somaxconn 无效', 'upstream 未配 keepalive 致源端口耗尽；listen backlog 默认 511 更小', '11-middleware/nginx/03-performance-troubleshooting.md#常见坑'],
+      ['Celery 队列越积越多、CPU 却很闲；新扩容的 worker 也接不到活', 'IO 密集任务用了 prefork 小 `-c`（换 `-P gevent -c 100+`）；`worker_prefetch_multiplier` 默认 4 让老 worker 囤光消息——长任务固定配 1', '02-programming/06-celery-task-queue.md#4. worker 并发模型：prefork / gevent / threads'],
+      ['Celery 的 LLEN 积压告警阈值不知道怎么设', '按消化时长不按绝对条数——积压消化时间 ≈ LLEN ÷ 完成速率；排障三板斧：LLEN 看积压在不在 → `celery -A tasks inspect ping` 看 worker 活没活 → `inspect active` 看是卡死还是慢跑', '02-programming/06-celery-task-queue.md#7. 积压监控：LLEN / flower / 探针']
     ] },
     { t: '6 交付流水线', sub: 'CI 挂了 / ArgoCD 不同步 / 漂移 / 镜像仓库 / 质量门禁 / Terraform state 锁', items: [
       ['git push 被拒 non-fast-forward；detached HEAD 上的提交切分支后不见', '先 `pull --rebase`；`git reflog` 找回 hash，慌的时候先 reflog 别乱 reset', '06-cicd-iac-gitops/01-git-deep-dive.md#常见坑（救命操作见同文件 #5. 救命操作：stash 与 reflog）'],
@@ -1917,7 +1944,10 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ['镜像引用用浮动 tag（latest），回滚失效、扫的不是跑的', 'tag 可覆盖、不可复现——CI 产出用 commit SHA tag，prod 钉 digest', '06-cicd-iac-gitops/11-delivery-platform.md#常见坑（交付平台反模式清单）'],
       ['告警通知风暴刷屏，值班麻木、真告警被淹没', '通知无分级——分级路由 + grouping/inhibit + 静默窗口三件套，CI 通知只报失败', '06-cicd-iac-gitops/11-delivery-platform.md#6.3 分级路由与通知治理'],
       ['CI 里 kubectl/命令行为和本地不一样（cron/runner 环境）', 'cron 与 CI 的 PATH 极简，脚本内绝对路径或重设 PATH', '02-programming/01-shell-fundamentals.md#常见坑'],
-      ['批量 ssh 脚本卡死在某台机器', '`-o ConnectTimeout=5 BatchMode=yes`（TCP 黑洞无超时）', '02-programming/02-shell-ops-patterns.md#常见坑']
+      ['批量 ssh 脚本卡死在某台机器', '`-o ConnectTimeout=5 BatchMode=yes`（TCP 黑洞无超时）', '02-programming/02-shell-ops-patterns.md#常见坑'],
+      ['Celery 任务偶发被执行两次（短信发两遍、库存扣两次），系统层面无任何报错', '任务执行时长超过 visibility_timeout，正常执行中的消息也被判超时重投（Redis broker 铁律：visibility_timeout > 最长任务时长含重试）；任务本身用 task_id+业务唯一键幂等兜底', '02-programming/06-celery-task-queue.md#3. broker 选型：Redis vs RabbitMQ'],
+      ['Celery worker 被 kill -9 后任务直接消失', '默认 early ack（收到即确认=至多一次）——关键任务 `acks_late=True` 换"不丢但可能重"的至少一次语义，并按"会被执行两次"设计', '02-programming/06-celery-task-queue.md#5. 任务生命周期与 acks_late 的重复执行陷阱'],
+      ['Celery 定时任务全部执行了两遍', 'beat 起了多个副本（每个 beat 都会对同一条 crontab 各发一次消息）——beat 必须单实例，HA 靠单副本+快速拉起，绝不进按队列深度伸缩的 HPA', '02-programming/06-celery-task-queue.md#8.1 beat vs crontab']
     ] },
     { t: '7 可观测', sub: '指标缺失 / 告警风暴 / 日志查不到 / trace 断链', items: [
       ['不知道这个 K8s 故障该用什么命令查', 'kubectl 排障命令矩阵——按“现象 | 第一入口 | 深挖命令”三列对号', '04-k8s-fundamentals/14-observability.md#4. kubectl 排障命令矩阵'],
@@ -2038,7 +2068,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     var h = '<h1 class="pg">场景速查</h1>';
     h += '<div class="sub">按故障现象组织的排障索引：出事时从「现象」进门，先执行「先查」的命令再决定下一步，「详见」直达对应章节。共 ' + total + ' 条 · 其中 ' + drills + ' 条标 <span class="scn-badge">靶场</span>（对应 scripts/faults 故障注入脚本，可配合做限时演练）。与 ROADMAP（按学习顺序）互补：ROADMAP 回答「接下来学什么」，本页回答「现在挂了去哪查」。</div>';
     h += '<div class="scn-src">数据来源：learning-hub 根目录 <code>SCENARIOS.md</code> · <a href="../SCENARIOS.md" target="_blank" rel="noopener">原文</a> · <button class="mini" data-nav="#/read/SCENARIOS.md">阅读器打开</button></div>';
-    h += '<div class="scn-ops"><button class="mini" data-scn="expand">展开全部</button><button class="mini" data-scn="collapse">收起全部</button><span>分类默认收起，点开才渲染条目，208 条也不拖慢页面</span></div>';
+    h += '<div class="scn-ops"><button class="mini" data-scn="expand">展开全部</button><button class="mini" data-scn="collapse">收起全部</button><span>分类默认收起，点开才渲染条目，227 条也不拖慢页面</span></div>';
     for (var c = 0; c < SCN_CATS.length; c++) {
       var cat = SCN_CATS[c];
       var dn = 0;

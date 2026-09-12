@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Learning Hub
   text: 云原生 SRE 学习中心
-  tagline: 17 个模块 · 250 篇文档 · 65 套实测 lab——从 Linux 内核底座一路打到 AIOps，面向 CKA / CKS / PCA 三证的系统化自学路线。
+  tagline: 17 个模块 · 275 篇文档 · 76 套实测 lab——从 Linux 内核底座一路打到 AIOps，面向 CKA / CKS / PCA 三证的系统化自学路线。
   actions:
     - theme: brand
       text: 开始学习（27 周路线图）

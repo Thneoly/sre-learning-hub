@@ -19,7 +19,7 @@
 | # | 目录 | 内容 | 定位 |
 |---|---|---|---|
 | 01 | `01-linux/` | 6 章 + 2 labs | **地基**：启动/systemd、文件系统、内存、CFS、**内核网络栈**（网络功底的用武之地）、性能分析 60 秒 |
-| 02 | `02-programming/` | 5 章 + 2 labs | **地基**：Shell → Python → Go(选)；产出巡检脚本/exporter |
+| 02 | `02-programming/` | 6 章 + 3 labs | **地基**：Shell → Python → Go(选)、Celery 任务队列(选)；产出巡检脚本/exporter |
 | 03 | `03-docker/` | 7 章 + 8 labs | 容器原理：namespace/cgroup/镜像分层/网络/安全/运行时生态 |
 | 04 | `04-k8s-fundamentals/` | 14 章 | **原理层**：架构与控制循环、Pod、网络、存储、调度、RBAC、etcd |
 | 05 | `05-cka/` | 7 章 + 20 labs + 题库手册 | CKA 备考：缺口补全（RBAC/kubeadm/etcd 备份）+ 考试策略 |
@@ -28,12 +28,12 @@
 | 08 | `08-pca/` | 7 章 + 2 题集 | PCA 备考：Prometheus 架构、PromQL(28%)、告警、Grafana |
 | 09 | `09-otel/` | 6 章 + 3 labs | OpenTelemetry(1.x 行业事实标准)：三信号、Collector、K8s 自动注入 |
 | 10 | `10-logging/` | 4 章 + 1 lab | 日志支柱：ELK（面试高频）+ Loki（云原生主流）+ K8s 日志 |
-| 11 | `11-middleware/` | 四件套各 3 章 + lab | nginx/MySQL/Redis/MongoDB：SRE 运维视角全覆盖 |
+| 11 | `11-middleware/` | 五件套（各 3 章 + lab） | nginx/MySQL/**PostgreSQL**/Redis/MongoDB：SRE 运维视角全覆盖 |
 | 12 | `12-data-streaming/` | Kafka 3 章 + Flink 2 章 + labs | 日志模型、ISR/KRaft、流处理、exactly-once、反压 |
 | 13 | `13-sre-methodology/` | 5 章 + 2 labs | **中级→高级分水岭**：SLO/错误预算、On-call、无责复盘、混沌工程 |
 | 14 | `14-cloud/` | 3 章 + 1 lab | 云平台：阿里云实操 + AWS 对照 + 认证路径 |
 | 15 | `15-aiops-llm/` | 4 章 + 1 lab | **差异化选修**：LLM 辅助排障、RAG 知识库、Agent skill、安全护栏 |
-| 16 | `16-bigdata/` | 8 章 + 4 labs | 大数据平台（运维专线岗画像）：HDFS/YARN/Hive 数仓/Spark/Doris·StarRocks/ZooKeeper/**湖仓表格式深讲（Iceberg/Hudi/Paimon）** |
+| 16 | `16-bigdata/` | 9 章 + 5 labs | 大数据平台（运维专线岗画像）：HDFS/YARN/Hive 数仓/Spark/Doris·StarRocks/ZooKeeper/ClickHouse/**湖仓表格式深讲（Iceberg/Hudi/Paimon，含 Arrow）** |
 | 17 | `17-distributed/` | 8 章 + 2 labs | **分布式理论层**（面试深水区）：故障模型与时钟/一致性模型/共识与 Raft/分布式事务/分片再平衡/Gossip 与脑裂/排障方法论——每个概念映射到已学组件（etcd/Kafka/Redis/Flink） |
 
 ## 能力支柱视图（"我是谁 / 补哪块"的叙事层）
@@ -58,7 +58,7 @@
 
 ### 2. 系统学习（按 ROADMAP.md 的阶段与闭环推进）
 
-见 [ROADMAP.md](ROADMAP.md)：27 周、10 个阶段、每个阶段一个贯穿闭环（代码→镜像→IaC→CI/CD→监控→注故障→排查→复盘）。
+见 [ROADMAP.md](ROADMAP.md)：28 周、10 个阶段、每个阶段一个贯穿闭环（代码→镜像→IaC→CI/CD→监控→注故障→排查→复盘）。
 `05-cka/question-bank-manual-v1.35.md` 是配套的题库操作手册（不入库，见上文公开仓说明），与基础章节 1:1 互补：先读原理章 → 再做题库题 → 最后 lab 巩固。
 
 ### 3. 练习平台（在 Ubuntu VM 上跑）

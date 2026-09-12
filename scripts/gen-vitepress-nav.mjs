@@ -33,11 +33,12 @@ const MODULES = [
   { dir: '10-logging', title: '10 · 日志体系（ELK/Loki）', pillar: 'observability' },
   {
     dir: '11-middleware',
-    title: '11 · 中间件四件套',
+    title: '11 · 中间件五件套',
     pillar: 'platform',
     topics: [
       { dir: 'nginx', title: 'Nginx' },
       { dir: 'mysql', title: 'MySQL' },
+      { dir: 'postgresql', title: 'PostgreSQL' },
       { dir: 'redis', title: 'Redis' },
       { dir: 'mongodb', title: 'MongoDB' },
     ],
