@@ -12,7 +12,7 @@
  *
  * 用法: node scripts/gen-vitepress-nav.mjs
  */
-import { readdirSync, readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readdirSync, readFileSync, existsSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -210,6 +210,23 @@ const out = {
 const outFile = join(ROOT, 'docs', '.vitepress', 'sidebar.generated.json')
 mkdirSync(dirname(outFile), { recursive: true })
 writeFileSync(outFile, JSON.stringify(out, null, 2) + '\n', 'utf8')
+
+// ---------- 同步题库到书站 public 目录 ----------
+// portal/quiz-data.js 是题库唯一源；书站的独立功能页 public/quiz.html 通过
+// <script src="./quiz-data.js"> 加载同目录副本。注意：本站 srcDir='..'（仓库根），
+// VitePress 的 publicDir 是 <srcDir>/public 即仓库根 public/，而非 docs/.vitepress/public/
+// （后者在本配置下不会被拷贝到 dist）。public/ 下的文件构建时原样拷贝到 dist 根目录。
+// 这里在构建前拷贝，避免两份手工维护导致书站题库过期。
+// 副本 public/quiz-data.js 已进 .gitignore，勿提交。
+const quizSrc = join(ROOT, 'portal', 'quiz-data.js')
+const quizDst = join(ROOT, 'public', 'quiz-data.js')
+if (existsSync(quizSrc)) {
+  mkdirSync(dirname(quizDst), { recursive: true })
+  copyFileSync(quizSrc, quizDst)
+  console.log(`[gen-vitepress-nav] 题库已同步 -> ${toPosix(quizDst.slice(ROOT.length))}`)
+} else {
+  console.warn('[gen-vitepress-nav] 未找到 portal/quiz-data.js，跳过题库同步（quiz.html 将无数据可用）')
+}
 
 console.log(
   `[gen-vitepress-nav] ${modules.length} 个模块 / ${chapterCount} 个章节页 / ${labCount} 个 lab 页 -> ${toPosix(outFile.slice(ROOT.length))}`

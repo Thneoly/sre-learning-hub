@@ -35,6 +35,9 @@ const nav = [
   { text: '首页', link: '/' },
   { text: '学习路线图', link: '/ROADMAP.html' },
   { text: '场景速查', link: '/SCENARIOS.html' },
+  // 仓库根 public/ 目录下的独立功能页（本站 srcDir='..'，VitePress publicDir 即 <srcDir>/public）：
+  // 非 VitePress markdown 路由，必须带 target 让链接绕过 SPA 路由整页打开，否则会被客户端路由兜底成 404
+  { text: '在线测验', link: '/quiz.html', target: '_blank', rel: 'noopener' },
   ...PILLARS.map((p) => ({
     text: p.text,
     items: modules

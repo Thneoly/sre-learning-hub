@@ -12,6 +12,8 @@ _meta/labtest-brief.md
 # ===== 生成产物 =====
 portal/content.js
 portal/.audit-*.cjs
+# gen-vitepress-nav.mjs 从 portal/quiz-data.js 拷贝的书站副本（源文件唯一，勿提交副本）
+public/quiz-data.js
 docs/.vitepress/dist/
 docs/.vitepress/cache/
 docs/.vitepress/sidebar.generated.json
