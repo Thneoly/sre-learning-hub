@@ -62,11 +62,11 @@ window.QUIZ_DATA = {
       "q": "关于指标基数（cardinality），下列说法正确的是？",
       "options": [
         "基数等于一个 job 下被抓取的 target 数量",
-        "基数指 metric name 加 label 组合出的活跃时间序列总数，是 Prometheus 内存和磁盘开销的主要驱动因素",
         "给指标多加几个 label 不会影响资源消耗，因为 label 是压缩存储的",
+        "基数指 metric name 加 label 组合出的活跃时间序列总数，是 Prometheus 内存和磁盘开销的主要驱动因素",
         "基数只影响磁盘空间，不影响查询速度"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "考察点：一个时间序列由 metric name + 唯一 label 集合确定，序列总数就是基数，直接决定 TSDB 内存、写入和查询成本。易错处是低估 label 的影响：给 http 请求打上 user_id 或 url 全量 label，基数会爆炸到百万级，Prometheus 会 OOM 或查询超时。排查工具是 TSDB 状态页（/tsdb-status）和 promtool tsdb analyze。"
     },
 
@@ -87,11 +87,11 @@ window.QUIZ_DATA = {
       "q": "要监控“当前已使用的文件描述符数”，应该选用哪种指标类型？",
       "options": [
         "counter",
-        "gauge",
         "histogram",
+        "gauge",
         "summary"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "考察指标四类型选型：可增可减、反映当前瞬时值的量用 gauge（如内存使用、队列长度、温度）。counter 只增不减（请求数、错误数），histogram/summary 用于观测延迟类分布。易错处：把“当前值”也用 counter 存，重启归零后语义就乱了；或者想对 gauge 求 rate()——rate 只适用于 counter，对 gauge 应该用 deriv() 或直接取值。"
     },
     {
@@ -109,22 +109,22 @@ window.QUIZ_DATA = {
       "q": "下面哪一组信息唯一确定了一条 Prometheus 时间序列？",
       "options": [
         "metric name 和所属的 job",
-        "metric name 加上全部 label 的键值对集合（不含 __name__ 本身的差异）",
         "target 的 IP 和端口",
-        "metric name、job 和 instance 三个标签"
+        "metric name、job 和 instance 三个标签",
+        "metric name 加上全部 label 的键值对集合（不含 __name__ 本身的差异）"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "时间序列的身份 = metric name（本质是 __name__ 标签）+ 其余所有 label 的键值集合，任何 label 值变化都会产生新序列、旧序列变为 stale。易错处：以为 job/instance 就够唯一，实际上业务标签（path、status 等）都会参与区分；也因此标签值里放高变动值（如 session id）会造成序列膨胀。可以理解为每条序列是“标签集合 → (时间戳, 值) 流”的映射。"
     },
     {
       "q": "当某个 scrape target 停止响应后，Prometheus 会如何处理它已有的时间序列？",
       "options": [
         "序列立即消失，查询立刻查不到任何数据",
-        "序列最后一次被写入后的约 5 分钟（默认 staleness 标记窗口）会被标记为 stale，此后的查询不再返回该序列",
         "序列会一直保留并重复最后一个值，直到 target 恢复",
+        "序列最后一次被写入后的约 5 分钟（默认 staleness 标记窗口）会被标记为 stale，此后的查询不再返回该序列",
         "Prometheus 会主动删除该 target 的所有历史序列"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "考察 staleness 处理：抓取失败后序列不会立刻消失，而是经过默认 5 分钟的 lookback 之后被标记 stale，查询中该序列停止出现。易错处：以为会沿用最后值（那是 pushgateway 场景）或以为历史数据被删除（历史 block 完好，只是不再有新样本）。这个机制也解释了为什么 target 恢复后图表会出现断档而非直线。"
     },
     {
@@ -178,11 +178,11 @@ window.QUIZ_DATA = {
       "q": "rate() 和 increase() 的关系是？",
       "options": [
         "两者完全等价，只是返回单位不同",
-        "increase() 返回的是窗口内 counter 的增长总量（近似值），rate() 返回每秒速率；increase 本质是 rate 乘以窗口秒数（带边界外推）",
         "increase() 只能用于 gauge，rate() 只能用于 counter",
+        "increase() 返回的是窗口内 counter 的增长总量（近似值），rate() 返回每秒速率；increase 本质是 rate 乘以窗口秒数（带边界外推）",
         "increase() 计算的是精确值，rate() 是估算值"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "考察点：increase(x[1h]) 约等于 rate(x[1h]) * 3600，两者都基于采样点插值外推，所以增加量往往不是整数（比如 7.9），这是正常现象不是 bug。易错处：看到小数以为是计算错误；或者拿 increase 除以窗口想“更精确”，其实那只是重新得到 rate。对重启次数这类离散计数想取整需要用 floor() 包一层。"
     },
     {
@@ -216,7 +216,7 @@ window.QUIZ_DATA = {
         "rate(http_requests_total[5m] - 86400)"
       ],
       "answer": 0,
-      "explain": "offset 修改的是瞬时向量的求值时间点，offset 1d 表示取 24 小时前的值再参与运算。B 的方括号子查询语法写法不对（子查询应为 [1d:5m] 直接作用在表达式上），C、D 都是编造的函数。易错处：offset 要放在 range selector 之后、圆括号外面也可，但作用对象必须是向量表达式；环比/同比监控是 offset 的标准应用场景。"
+      "explain": "offset 修改的是瞬时向量的求值时间点，offset 1d 表示取 24 小时前的值再参与运算。B 的子查询写法 rate(http_requests_total[5m])[1d:5m] 语法本身合法，错在类型：子查询返回的是 range vector，不能与左侧 rate() 的 instant vector 直接相减；C、D 都是编造的函数。易错处：offset 要放在 range selector 之后、圆括号外面也可，但作用对象必须是向量表达式；环比/同比监控是 offset 的标准应用场景。"
     },
     {
       "q": "磁盘剩余空间预计多久写满的告警，最合适的表达式是？",
@@ -244,11 +244,11 @@ window.QUIZ_DATA = {
       "q": "label_replace(up, 'team', 'infra', 'instance', '.*:(.*)') 的作用是？",
       "options": [
         "把 up 指标的 instance 标签整体替换成 infra",
-        "基于 instance 标签的正则捕获，为序列新增（或覆盖）team 标签，值为 infra，原 instance 标签不变",
         "删除 instance 标签并改名为 team",
+        "基于 instance 标签的正则捕获，为序列新增（或覆盖）team 标签，值为 infra，原 instance 标签不变",
         "把导出端口的团队名抓取出来并按 team 重命名指标"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "label_replace(v, dst_label, replacement, src_label, regex) 从 src_label 取值、按 regex 匹配，把 replacement 写入 dst_label，源标签保持不变；不匹配的序列原样保留（新标签缺失）。易错处：以为它会修改源标签，或以为不匹配的序列被过滤掉——那是 keep/filter 的语义，label_replace 不做过滤。常用于在查询侧补齐虚拟标签再分组。"
     },
     {
@@ -277,11 +277,11 @@ window.QUIZ_DATA = {
       "q": "topk(5, http_requests_total) 在没有分组上下文时的行为是？",
       "options": [
         "返回每个 label 组合下最大的 5 条序列",
-        "对所有序列整体取最大的 5 条返回，值随评估时间变化",
         "返回出现次数最多的 5 个标签值",
+        "对所有序列整体取最大的 5 条返回，值随评估时间变化",
         "把每条序列的最高历史值取出来再排序"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "topk/bottomk 是聚合运算，不分组时（即不写 by/without）作用于全部输入序列，返回当前评估时刻值最大的 k 条。若写 topk(5, x) by (job)，则每个 job 组内各取前 5。易错处：以为 topk 会“每个分组默认取前 k”；以及把它与排序展示混用——它只用于过滤，仪表盘排序应交给图表端。"
     },
     {
@@ -335,11 +335,11 @@ window.QUIZ_DATA = {
       "q": "关于 Pushgateway 的适用场景，正确的是？",
       "options": [
         "所有短生命周期任务的指标都必须先推到 Pushgateway 再由 Prometheus 抓取",
-        "Pushgateway 适合批处理/定时任务等无法被主动抓取的作业；指标推上去后会一直保留，直到被显式删除或覆盖，因此不适合当消息队列用",
         "Pushgateway 会自动按时间清理过期指标，默认 5 分钟",
-        "Pushgateway 主要用于缓解 Prometheus 抓取压力，作为常驻缓冲层"
+        "Pushgateway 主要用于缓解 Prometheus 抓取压力，作为常驻缓冲层",
+        "Pushgateway 适合批处理/定时任务等无法被主动抓取的作业；指标推上去后会一直保留，直到被显式删除或覆盖，因此不适合当消息队列用"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "Pushgateway 是“指标暂存点”，服务端不会自动过期清理（除非配置了 --metrics.max-age 之类参数，默认永久保留），所以任务重启后旧值残留会误导监控。易错点：把 success/failure 这类语义指标推给它长期堆积；官方明确不建议把它当作事件缓冲队列，因为它不保证送达语义、也无去重时间线。"
     },
     {
@@ -382,11 +382,11 @@ window.QUIZ_DATA = {
       "q": "Prometheus 自身高可用（HA）的官方推荐方式是？",
       "options": [
         "多副本间自动分片，各自抓一半 target",
-        "运行两个配置完全相同的 Prometheus 实例，各自独立抓取全量数据，告警统一发到做了 cluster（gossip 去重）的 Alertmanager",
         "在 Prometheus 前加负载均衡器把抓取流量分摊",
+        "运行两个配置完全相同的 Prometheus 实例，各自独立抓取全量数据，告警统一发到做了 cluster（gossip 去重）的 Alertmanager",
         "开启 --ha 标志启用主备热切换"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "Prometheus 没有内置集群模式，标准做法是跑两个一模一样的实例（数据各自独立、有细微时间差），重复告警由 Alertmanager 集群的 gossip 协议去重。易错点：以为可以像数据库那样做共享存储主备；分片抓取属于水平扩展方案，需要配合 Thanos/Cortex/Mimir 这类全局查询层才有完整视图。"
     },
     {
@@ -404,11 +404,11 @@ window.QUIZ_DATA = {
       "q": "Prometheus federation（联邦）的典型用途是？",
       "options": [
         "把全局集群的指标实时复制到多个区域，实现多活",
-        "层级化架构：下层 Prometheus 抓取本域细节，上层通过 /federate 端点只拉取少量聚合后的关键指标",
         "替代 remote_write，把全量原始样本传到远端",
-        "让多个 Prometheus 共享同一个存储卷"
+        "让多个 Prometheus 共享同一个存储卷",
+        "层级化架构：下层 Prometheus 抓取本域细节，上层通过 /federate 端点只拉取少量聚合后的关键指标"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "联邦是“拉取聚合”的层级方案：上层用 match[] 选择器从下层的 /federate 抓取已被 recording rule 聚合过的序列，适合树状组织监控。易错点：拿联邦去同步全量数据会重复抓取且语义混乱，全量长期存储应该用 remote_write + Thanos/Mimir；联邦和级联（hierarchical）通常只是聚合层面的桥接。"
     },
     {
@@ -499,23 +499,23 @@ window.QUIZ_DATA = {
     {
       "q": "查看 kubeadm 集群证书到期时间的命令是？",
         "options": [
-          "kubeadm certs check-expiration",
-          "openssl list -certs",
           "kubectl get csr",
+          "openssl list -certs",
+          "kubeadm certs check-expiration",
           "kubeadm token list"
       ],
-        "answer": 0,
+        "answer": 2,
         "explain": "kubeadm certs check-expiration 列出各组件证书的到期时间与剩余天数，续期用 kubeadm certs renew。易错点：kubectl get csr 查的是 Kubernetes 的 CertificateSigningRequest 对象（一般是 kubelet 请求），与控制面 TLS 证书完全是两回事；证书过期后 control plane static pod 无法启动，节点 NotReady。"
     },
     {
       "q": "为新 worker 节点生成加入命令，正确的是？",
         "options": [
           "kubeadm join --print-command",
-          "kubeadm token create --print-join-command",
+          "kubeadm init phase node",
           "kubectl bootstrap new-node",
-          "kubeadm init phase node"
+          "kubeadm token create --print-join-command"
       ],
-        "answer": 1,
+        "answer": 3,
         "explain": "kubeadm token create --print-join-command 会新建 token 并打印完整的 join 命令（含 CA 证书 hash，防中间人）。易错点：token 默认 24 小时过期，旧命令失效要重新生成；--discovery-token-ca-cert-hash 用于校验 control plane 身份，不要为了省事去掉。忘了参数时可以用 kubeadm token generate 配合手动拼。"
     },
     {
@@ -533,11 +533,11 @@ window.QUIZ_DATA = {
       "q": "升级一个 kubeadm 集群的 master 节点，正确的顺序是？",
         "options": [
           "kubeadm upgrade apply -> apt 安装新版本 kubelet/kubectl -> 重启 kubelet",
-          "先 apt 安装 kubeadm 新版本 -> kubeadm upgrade apply -> 升级 kubelet/kubectl 并重启",
           "直接 apt upgrade 全部组件，kubeadm 会自动跟上",
-          "先升级所有 worker，最后升级 master"
+          "先升级所有 worker，最后升级 master",
+          "先 apt 安装 kubeadm 新版本 -> kubeadm upgrade apply -> 升级 kubelet/kubectl 并重启"
       ],
-        "answer": 1,
+        "answer": 3,
       "explain": "官方流程：升级 kubeadm 包 → kubeadm upgrade plan（看可升级版本）→ kubeadm upgrade apply v1.x.x（更新 static pod 镜像）→ 升级 kubelet 与 kubectl 包并 systemctl restart kubelet。易错点：kubelet 不归 kubeadm upgrade 管，忘记升级它会导致版本偏差；worker 节点用 kubeadm upgrade node，且升级前要 drain。"
     },
     {
@@ -579,23 +579,23 @@ window.QUIZ_DATA = {
     {
       "q": "回滚 Deployment 到上一个版本的命令是？",
       "options": [
-        "kubectl rollout undo deployment/nginx",
-        "kubectl rollout restart deployment/nginx",
         "kubectl replace -f deployment.yaml --revision 1",
+        "kubectl rollout restart deployment/nginx",
+        "kubectl rollout undo deployment/nginx",
         "kubectl set image deployment/nginx nginx=nginx:old"
       ],
-      "answer": 0,
+      "answer": 2,
       "explain": "rollout undo 默认回退一个 revision，也可 --to-revision=2 指定；配合 kubectl rollout history 查看版本列表。易错点：rollout restart 是原位重启（常用于让 Pod 重新挂载 ConfigMap），不是回滚；revision 信息依赖 kubernetes.io/change-cause 注解，没有注解时历史记录描述为空但 revision 仍可用。"
     },
     {
       "q": "Pod 的容器只设置了 resources.requests.cpu、未设置 limits，调度器的行为是？",
       "options": [
-        "调度按 requests 找满足空闲的节点，运行时该容器可用 CPU 不受硬限制",
-        "调度器忽略 requests，按节点物理核数随机放置",
         "没有 limits 的 Pod 无法被调度",
+        "调度器忽略 requests，按节点物理核数随机放置",
+        "调度按 requests 找满足空闲的节点，运行时该容器可用 CPU 不受硬限制",
         "requests 会被自动设为 limits 的两倍"
       ],
-      "answer": 0,
+      "answer": 2,
       "explain": "调度依据 requests（节点 Allocatedable 扣减），limits 才是运行时上限（CPU 被限流、内存超限 OOMKill）。易错点：把 requests 记成“运行时保底占用”就答错方向——requests 只影响调度决策与 OOM 分数权重；QoS 等级由 requests/limits 是否相等且全部设置决定，只设 requests 属于 Burstable。"
     },
     {
@@ -612,12 +612,12 @@ window.QUIZ_DATA = {
     {
       "q": "taint 效果 NoSchedule 与 NoExecute 的区别是？",
       "options": [
-        "NoSchedule 只阻止新 Pod 调度上来，存量 Pod 不受影响；NoExecute 还会立即驱逐不容忍该 taint 的存量 Pod",
+        "NoSchedule 对已有 Pod 也生效但会等待 300 秒",
         "两者都会驱逐存量 Pod，只是速度不同",
         "NoExecute 只对 DaemonSet 生效",
-        "NoSchedule 对已有 Pod 也生效但会等待 300 秒"
+        "NoSchedule 只阻止新 Pod 调度上来，存量 Pod 不受影响；NoExecute 还会立即驱逐不容忍该 taint 的存量 Pod"
       ],
-      "answer": 0,
+      "answer": 3,
       "explain": "NoExecute 会立刻驱逐（tolerationSeconds 可宽限），典型是 node.kubernetes.io/not-ready:NoExecute；NoSchedule 只影响未来的调度决策。易错点：master 节点上的 node-role.kubernetes.io/control-plane:NoSchedule 意味着加了对应 toleration 的普通 Pod 也能调度上去，taint 不是权限系统；驱赶与容忍要成对分析。"
     },
     {
@@ -635,36 +635,36 @@ window.QUIZ_DATA = {
     // --- 域3 服务与网络（6 题）---
 
     {
-      "q": "Service 的流量转发实际由谁完成？",
+      "q": "Service 的 Endpoints 里后端地址都正常，但集群内 Pod curl ClusterIP 一直超时，下一步最应该检查什么？",
       "options": [
-        "kube-apiserver 在数据面逐包转发",
-        "每个节点上的 kube-proxy 通过 iptables 或 IPVS 规则完成转发，Service ClusterIP 是虚拟 IP 不属于任何网卡",
-        "CoreDNS 直接把请求转发到 Pod",
-        "etcd 维护连接表并转发"
+        "CoreDNS 解析问题：换成 curl Service 名称再试一次即可定位",
+        "apiserver 是否过载：Service 转发的每个连接都要经 apiserver 中转",
+        "后端 Pod 的 readiness probe 配置是否太严格",
+        "Pod 所在节点的 kube-proxy 是否异常、转发规则是否未同步：查 kube-proxy 日志，并用 iptables-save | grep <ClusterIP>（IPVS 模式用 ipvsadm -Ln）确认规则存在"
       ],
-      "answer": 1,
-      "explain": "ClusterIP 是 iptables/IPVS 规则虚拟出来的地址，kube-proxy watch Service/EndpointSlice 变化并写转发规则，流量根本不经过 apiserver。易错点：以为 ClusterIP 可以 ping 通——iptables 模式下没有真实设备应答 ICMP；排查 Service 不通要先看 Endpoints 有没有条目，再看 kube-proxy 模式与规则。"
+      "answer": 3,
+      "explain": "endpoints 正常说明 selector/readiness 都没问题，故障点落在各节点的转发环节：kube-proxy 崩溃、iptables 规则被清、IPVS 内核模块缺失都会让 ClusterIP 无人应答——它是虚拟 IP，没有真实网卡，curl 直接超时。注意两个干扰项：curl 用的是 IP 根本不经过 CoreDNS；Service 数据面流量也不经过 apiserver。ClusterIP 虚拟 IP 与 kube-proxy 转发机制的原理题见本站『基础』题库对应题目。"
     },
     {
       "q": "NodePort Service 的默认端口范围是？",
       "options": [
-        "30000-32767",
-        "1024-65535 任意端口",
         "80-443",
+        "1024-65535 任意端口",
+        "30000-32767",
         "8000-9000"
       ],
-      "answer": 0,
+      "answer": 2,
       "explain": "默认 nodePortRange 是 30000-32767，可通过 apiserver 的 --service-node-port-range 修改。易错点：kubectl expose 时手填 nodePort 超出范围会被拒绝，不填则自动分配；外部访问节点端口时任意节点都能进（iptables 规则集群同步），即使本地没有该 Pod 也会再转发。"
     },
     {
       "q": "部署了默认 deny 的 NetworkPolicy 后 Pod 仍能互相访问，最可能的原因是？",
       "options": [
-        "NetworkPolicy 需要 CNI 插件支持，如果集群用的是不支持 NP 的 CNI（如裸 flannel），策略会被静默忽略",
+        "必须同时在两端 Pod 上各写一个 policy",
         "需要重启 apiserver 才生效",
         "NetworkPolicy 只对 NodePort 生效",
-        "必须同时在两端 Pod 上各写一个 policy"
+        "NetworkPolicy 需要 CNI 插件支持，如果集群用的是不支持 NP 的 CNI（如裸 flannel），策略会被静默忽略"
       ],
-      "answer": 0,
+      "answer": 3,
       "explain": "NetworkPolicy 的执行者是 CNI，kubeadm 默认没装 CNI 或装了不支持的（flannel 不支持 NP）时，API 层创建成功但毫无效果，这是“策略创建了却不生效”的头号原因。易错点：排查时要先确认 CNI（Calico/Cilium 支持），用 calico 的 calicoctl 或 kubectl get networkpolicy 看策略是否选中目标 Pod；policySelector 的方向（ingress/egress）也要逐项核对。"
     },
     {
@@ -676,28 +676,28 @@ window.QUIZ_DATA = {
         "kube-proxy 模式是 iptables 而不是 ipvs"
       ],
       "answer": 3,
-      "explain": "Endpoints（或 EndpointSlice）由 apiserver 的 controller 按 selector+readiness 生成，kube-proxy 只消费这个结果，模式不影响生成。易错点：C 中 targetPort 写错时 Pod 可能进 endpoints 但连不通（更隐蔽），而 selector 不匹配是 endpoints 直接为空；排查顺序是 describe service 看 selector → kubectl get pods -l ... → 检查容器端口与 targetPort。"
+      "explain": "Endpoints（或 EndpointSlice）由 apiserver 的 controller 按 selector+readiness 生成，kube-proxy 只消费这个结果，模式不影响生成。易错点：C 的 targetPort 要分两种情况——写成不存在的端口名时，Endpoints 控制器直接跳过该 Pod，endpoints 同样为空；写成错误的数字端口时，Pod 会进 endpoints 但流量被转发到容器上不存在的端口，表现为连不上（更隐蔽）。selector 不匹配则是 endpoints 为空的最常见原因；排查顺序是 describe service 看 selector → kubectl get pods -l ... → 检查容器端口与 targetPort。"
     },
     {
       "q": "在 namespace myapp 中访问名为 db 的 Service 的完整 FQDN 是？",
         "options": [
-          "db.myapp.svc.cluster.local",
-          "db.svc.myapp.local",
           "myapp.db.cluster.local",
+          "db.svc.myapp.local",
+          "db.myapp.svc.cluster.local",
           "db.cluster.local.myapp"
       ],
-      "answer": 0,
+      "answer": 2,
       "explain": "格式是 <service>.<namespace>.svc.cluster.local，同 namespace 可以直接用 db 短名，跨 namespace 用 db.myapp。易错点：ndots=5 的 resolv.conf 行为会导致多段名先走搜索域，抓包看到多次 NXDOMAIN 是正常的；CoreDNS 挂了的现象是短名解析失败但 IP 直连正常，用它区分 DNS 问题与网络问题。"
     },
     {
       "q": "关于 Ingress 的前提条件，正确的是？",
       "options": [
         "只要创建了 Ingress 对象，负载均衡就会自动工作",
-        "必须先部署 Ingress Controller（如 ingress-nginx），Ingress 对象只是给 controller 看的配置",
+        "Ingress 可以不指定 backend Service",
         "Ingress 对象只能由 cloud provider 解释",
-        "Ingress 可以不指定 backend Service"
+        "必须先部署 Ingress Controller（如 ingress-nginx），Ingress 对象只是给 controller 看的配置"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "Ingress 资源本身只是一份声明，没有 controller 集群不会发生任何转发行为，这是“配了 Ingress 不通”的最常见原因。易错点：controller 一般以 DaemonSet/Deployment + hostNetwork 或 Service 暴露，rules 里的 host 头要与 curl -H 'Host: xxx' 对得上；backend 指向的 Service 有 endpoints 才能转发。"
     },
 
@@ -717,12 +717,12 @@ window.QUIZ_DATA = {
     {
       "q": "PVC 删除后底层 PV 的回收行为由什么决定？",
       "options": [
-        "由 StorageClass 的 reclaimPolicy（或静态 PV 的 persistentVolumeReclaimPolicy）决定，Delete 会连底层卷一起删，Retain 保留数据并让 PV 进入 Released",
-        "一律删除底层存储",
         "一律保留底层存储",
+        "一律删除底层存储",
+        "由 StorageClass 的 reclaimPolicy（或静态 PV 的 persistentVolumeReclaimPolicy）决定，Delete 会连底层卷一起删，Retain 保留数据并让 PV 进入 Released",
         "由 Pod 的 restartPolicy 决定"
       ],
-      "answer": 0,
+      "answer": 2,
       "explain": "动态供应的 PV 继承 StorageClass 的 reclaimPolicy（默认 Delete）；Retain 时 PV 变 Released、不能直接被新 PVC 绑定，需要管理员手工清理并重建。易错点：误删生产 PVC 后想恢复——Delete 策略下云盘可能已经删了，所以重要数据要 Retain 或快照；PV 的 status/claim 引用清理是考题常客。"
     },
     {
@@ -765,11 +765,11 @@ window.QUIZ_DATA = {
       "q": "新建 Pod 一直停在 ContainerCreating，describe 里出现 network plugin is not ready 或 cni config uninitialized，最可能的原因是？",
         "options": [
         "镜像仓库配额不足",
-        "CNI 插件未安装或未就绪（如 Calico Pod 尚未 Running）导致 Pod 网络无法分配",
+        "kube-scheduler 未运行",
         "etcd 磁盘满",
-        "kube-scheduler 未运行"
+        "CNI 插件未安装或未就绪（如 Calico Pod 尚未 Running）导致 Pod 网络无法分配"
       ],
-        "answer": 1,
+        "answer": 3,
       "explain": "kubeadm 初始化后不装 CNI，所有业务 Pod 都会卡在 ContainerCreating，CoreDNS 也 Pending，这是实验室环境第一大坑。易错点：只盯着业务 Pod describe，忘了看 kube-system 下 CNI Pod 状态；验证是 kubectl -n kube-system get pods 与节点 /etc/cni/net.d 配置。"
     },
     {
@@ -797,12 +797,12 @@ window.QUIZ_DATA = {
     {
       "q": "本地排查集群内 Service 连通性，把本地端口映射到 Service 的命令是？",
         "options": [
-          "kubectl port-forward svc/myapp 8080:80",
+          "kubectl attach svc/myapp",
           "kubectl expose port myapp",
           "kubectl proxy --port 8080",
-          "kubectl attach svc/myapp"
+          "kubectl port-forward svc/myapp 8080:80"
       ],
-      "answer": 0,
+      "answer": 3,
       "explain": "port-forward 建立本地到 Pod/Service 的隧道（到 Service 时实际选一个后端 Pod），适合快速验证。易错点：kubectl proxy 代理的是 apiserver 的 REST API，不是业务端口；port-forward 不走 kube-proxy 规则，因此它通不能证明 Service 转发正常，排障时要用集群内 Pod curl ServiceIP 全链路验证。"
     },
     {
@@ -1647,11 +1647,11 @@ window.QUIZ_DATA = {
       "q": "prefork / gevent / threads 三种 worker 池的 -c 语义与适用，正确的是？",
       "options": [
                 "-c 在三种池里都表示线程数",
-                "prefork 的 -c 是子进程数（CPU 密集）；gevent 的 -c 是绿色线程数、可设数百上千（IO 密集，依赖 monkey patch）；threads 受 GIL 约束无真并行",
                 "gevent 适合 CPU 密集任务，因为协程切换比进程便宜",
+                "prefork 的 -c 是子进程数（CPU 密集）；gevent 的 -c 是绿色线程数、可设数百上千（IO 密集，依赖 monkey patch）；threads 受 GIL 约束无真并行",
                 "-c 越大越好，worker 的野心决定吞吐上限"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "容量规划从下游承受力倒推，不从 worker 野心正推：gevent -c 1000 意味着瞬时对外连接也可能是 1000，数据库和第三方 API 先被打挂。gevent 的另一个坑：任务陷入未 patch 的 C 层同步调用会卡住整个 worker。"
     },
     {
@@ -1669,33 +1669,33 @@ window.QUIZ_DATA = {
       "q": "acks_late=True 到底买到了什么、付出了什么？",
       "options": [
                 "买到恰好一次投递：既不丢也不重",
-                "买到『不丢』（worker 半路被 kill 时任务重新投递），付出『可能重』——至少一次语义；所有配了 acks_late 的任务一律按『会被执行两次』设计：task_id 去重、业务唯一键、写文件先写临时名再原子 rename",
+                "与默认 early ack 完全等价，只是日志更详细",
                 "买到更快的执行速度，因为 ack 被延迟了",
-                "与默认 early ack 完全等价，只是日志更详细"
+                "买到『不丢』（worker 半路被 kill 时任务重新投递），付出『可能重』——至少一次语义；所有配了 acks_late 的任务一律按『会被执行两次』设计：task_id 去重、业务唯一键、写文件先写临时名再原子 rename"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "early ack 是至多一次（崩了就丢），acks_late 是至少一次（崩了就重）——确认时机只是在丢失与重复之间选边，两全的唯一出路是 at-least-once + 下游幂等（17-distributed/04 拆穿的『恰好一次真相』在任务队列里的化身）。配套 task_reject_on_worker_lost 决定 worker 进程被杀时是否立即 requeue。"
     },
     {
       "q": "LLEN=500 该不该报警？正确的判断方法与排障三板斧是？",
       "options": [
                 "绝对条数超过 500 就该报 P1",
-                "按消化时间判断：积压消化时间 ≈ LLEN ÷ 完成速率（吞吐 100 条/s 时 500 只是 5 秒的浪；吞吐 1 条/s 时是数小时的病）；三板斧：LLEN 看积压在不在 → inspect ping 看 worker 活没活 → inspect active + 日志看任务是卡死还是在慢跑",
+                "用 flower 的界面截图数量直接对比昨日",
                 "只要 LLEN 大于 0 就说明系统异常",
-                "用 flower 的界面截图数量直接对比昨日"
+                "按消化时间判断：积压消化时间 ≈ LLEN ÷ 完成速率（吞吐 100 条/s 时 500 只是 5 秒的浪；吞吐 1 条/分钟时 500 条是约 8 小时的病）；三板斧：LLEN 看积压在不在 → inspect ping 看 worker 活没活 → inspect active + 日志看任务是卡死还是在慢跑"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "告警阈值按『预计消化时长』设，不按绝对条数设（PromQL 上即 backlog / rate(完成计数)）。三板斧能区分『没人在干活』（worker 挂了）与『干不过来』（扩容/优化）。把 LLEN 暴露成 Gauge 与自定义 exporter 思路一致，也可直接用 redis_exporter 抓队列 key。"
     },
     {
       "q": "celery beat 与 crontab 的对比，以及 beat 的单点纪律，正确的是？",
       "options": [
                 "beat 与 crontab 一样可以每台机器各跑一份，天然高可用",
-                "beat 把定时收敛成与异步任务同链路、可观测可重试的消息流（错过同样不补，但错过的是『消息』而非『执行』）；beat 必须只跑一个实例——两个 beat 会对同一条 crontab 各发一次消息，所有定时任务翻倍执行；HA 靠单副本 + 快速拉起",
                 "beat 会自动补发停机期间错过的任务",
+                "beat 把定时收敛成与异步任务同链路、可观测可重试的消息流（错过同样不补，但错过的是『消息』而非『执行』）；beat 必须只跑一个实例——两个 beat 会对同一条 crontab 各发一次消息，所有定时任务翻倍执行；HA 靠单副本 + 快速拉起",
                 "beat 跟着 worker 一起被 HPA 扩容是标准做法"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "beat 是调度消息的『生产者』而非消费者，队列深度与它无关，绝不能进按队列深度伸缩的 HPA。K8s 上 worker 的正确伸缩信号是队列深度（KEDA Redis Lists scaler 或 LLEN 自定义指标）——IO 密集 worker 积压上万条时 CPU 可能不到 10%，原生 CPU HPA 完全不会扩容。"
     }
   ],
@@ -2419,34 +2419,34 @@ window.QUIZ_DATA = {
     {
       "q": "关于 PG 的 work_mem，正确的认知是？",
       "options": [
-                "每个连接一份，所以调大到 64MB 也很安全",
                 "每个排序/哈希节点一份（还要乘并行 worker 数）：一条查询三个排序节点就是 3×work_mem，64MB 在 200 并发下潜在 38GB，是 OOM 元凶",
+                "每个连接一份，所以调大到 64MB 也很安全",
                 "它是共享内存，全体连接复用同一块",
                 "work_mem 与 MySQL 的 innodb_buffer_pool 一样是全局缓存"
       ],
-      "answer": 1,
+      "answer": 0,
       "explain": "和 MySQL 盲目调大 sort_buffer_size 是同款 OOM 元凶。保持默认 4MB、靠索引消排序是正道。另一个内存陷阱：shared_buffers 经验值只给物理内存 25%（double cache：同一份数据在 OS page cache 与 shared_buffers 各一份）；effective_cache_size 不分配任何内存，只是告诉优化器 OS cache 大概多大。"
     },
     {
       "q": "为什么 MySQL 的 buffer pool 建议给内存的 50%~70%，而 PG 的 shared_buffers 通常只给 25%？",
       "options": [
                 "PG 的作者比较保守，25% 是历史误会",
-                "PG 的读走 read()/write()，同一份数据天然存在 OS page cache 与 shared_buffers 两份（double cache），shared_buffers 偏大只是把命中地点从内核搬到用户态、挤掉的 OS cache 还有别的用处，边际收益递减；MySQL 自己管理全部页缓存，内存不给 buffer pool 就浪费",
                 "PG 不使用操作系统缓存",
+                "PG 的读走 read()/write()，同一份数据天然存在 OS page cache 与 shared_buffers 两份（double cache），shared_buffers 偏大只是把命中地点从内核搬到用户态、挤掉的 OS cache 还有别的用处，边际收益递减；MySQL 自己管理全部页缓存，内存不给 buffer pool 就浪费",
                 "MySQL 8.0 之后 buffer pool 已不建议超过 10%"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "PG 的内存观是『shared_buffers 一份 + 相信 OS cache』，并用 effective_cache_size（设为内存的 50%~70%）把这个事实告诉优化器。命中率也要两层一起看：pg_stat_database 的 blks_hit 只算 shared_buffers 这一层。"
     },
     {
       "q": "PG 物理复制槽（replication slot）的作用与风险，正确的是？",
       "options": [
                 "复制槽只是性能加速器，没有副作用",
-                "让备库向主库『预订』WAL：主库不回收该槽未确认的 WAL，断线备库恢复后可继续追平；代价是备库/CDC 消费端停摆时主库 pg_wal 持续堆积拖满磁盘——PG13+ 用 max_slot_wal_keep_size 兜底（超限槽进 lost 状态，磁盘保住）",
                 "复制槽会把 WAL 自动压缩归档，所以永远不会占磁盘",
+                "让备库向主库『预订』WAL：主库不回收该槽未确认的 WAL，断线备库恢复后可继续追平；代价是备库/CDC 消费端停摆时主库 pg_wal 持续堆积拖满磁盘——PG13+ 用 max_slot_wal_keep_size 兜底（超限槽进 lost 状态，磁盘保住）",
                 "槽只对逻辑复制有意义，物理流复制用不到"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "『Flink CDC 作业挂一晚、PG 主库磁盘告警』的经典元凶就是逻辑复制槽：confirmed_flush_lsn 由消费端推进，作业停摆位点不动，一晚的写入量全堆在 pg_wal。纪律：监控 pg_replication_slots 的 retained 字节与 wal_status，废弃槽 pg_drop_replication_slot。"
     },
     {
@@ -2485,23 +2485,23 @@ window.QUIZ_DATA = {
     {
       "q": "为什么说『MySQL 的连接池是治理，PG 的连接池是刚需』？",
       "options": [
-                "两者都是锦上添花的组件，中小规模都可以不装",
                 "PG 每连接一个进程：几千连接的 fork、每进程数 MB 内存与调度开销先杀死机器，pgbouncer（transaction 池）解决的是生存问题；MySQL 线程模型下几百直连可忍，ProxySQL 更多承担路由/防火墙/查询改写的治理职能",
+                "两者都是锦上添花的组件，中小规模都可以不装",
                 "MySQL 不支持连接池",
                 "pgbouncer 只能工作在 session 模式"
       ],
-      "answer": 1,
+      "answer": 0,
       "explain": "pgbouncer 用一个事件驱动单线程进程（同 nginx 模型）把 1000 客户端连接复用到几十个服务端连接。transaction 模式复用率最高，但边界要背：跨事务的会话状态（SET/RESET、会话级 advisory lock、LISTEN/NOTIFY）会被别人踩，named prepared statements 需要 pgbouncer 1.21+。"
     },
     {
       "q": "读 PG 的 EXPLAIN (ANALYZE, BUFFERS) 输出，正确的方法论是？",
       "options": [
                 "cost 与 rows 是实测值，直接按 total 排序找慢节点",
-                "cost/rows 是优化器估算，(actual time=... rows=... loops=...) 才是实测——rows 与 actual 差一个数量级说明统计过期要 ANALYZE；外层节点看到的行数 = rows×loops（新手最常忘乘法）；Buffers 的 shared read 是穿过缓存读的页数，优化前后对比它比对比时间更抗噪音",
                 "Seq Scan 一出现就说明 SQL 写错了",
+                "cost/rows 是优化器估算，(actual time=... rows=... loops=...) 才是实测——rows 与 actual 差一个数量级说明统计过期要 ANALYZE；外层节点看到的行数 = rows×loops（新手最常忘乘法）；Buffers 的 shared read 是穿过缓存读的页数，优化前后对比它比对比时间更抗噪音",
                 "Index Only Scan 一定不会回堆，比 Index Scan 永远快"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "节点对照：Seq Scan=type=ALL 全表扫、Index Only Scan=覆盖索引、Sort+溢盘=Using filesort。Index Only Scan 的 PG 特色坑：只有页在 visibility map 里标记 all-visible（由 vacuum 维护）才真正免回堆——Heap Fetches 很大就是 vacuum 落后让它退化成了 Index Scan，『vacuum 不只是清理，还维护访问路径』的直接证据。"
     },
     {
@@ -2988,7 +2988,7 @@ window.QUIZ_DATA = {
     }
   ],
 
-  // ========== bigdata：大数据平台（15 题，按 16-bigdata 各章命题）==========
+  // ========== bigdata：大数据平台（20 题，按 16-bigdata 各章命题）==========
 
   bigdata: [
 
@@ -3025,7 +3025,7 @@ window.QUIZ_DATA = {
         "官方口径每个文件/目录/块对象约占 NN 堆 150 字节；小文件的显性成本是 NN 堆与 GC，隐性成本还包括全量块报告变慢、重启重建映射变慢、fsck 跑几小时、MR/Spark 每个 task 打开文件的固定开销"
       ],
       "answer": 3,
-      "explain": "小文件的本质问题是“元数据规模 = 堆规模”：一个 10KB 文件至少是 inode + 块两个对象再加副本映射，元数据可达数据本身的 30 倍以上；同样 1PB 数据，用 1MB 小文件是 10 亿个块对象，任何 NN 都撑不住。易错点：只盯着磁盘空间——小文件在存储上并不“费盘”，费的是 NN 内存与一切要遍历元数据的操作。治理优先级：入口合并（治本）> 存量归并（INSERT OVERWRITE / ORC CONCATENATE）> HAR 归档。"
+      "explain": "小文件的本质问题是“元数据规模 = 堆规模”：一个 10KB 文件至少是 inode + 块两个对象再加副本映射，元数据约 300~500B，约为数据本身的 1/20~1/30；只有文件小到几十到几百字节时，元数据才会超过数据本身。同样 1PB 数据，用 1MB 小文件是 10 亿个块对象，任何 NN 都撑不住。易错点：只盯着磁盘空间——小文件在存储上并不“费盘”，费的是 NN 内存与一切要遍历元数据的操作。治理优先级：入口合并（治本）> 存量归并（INSERT OVERWRITE / ORC CONCATENATE）> HAR 归档。"
     },
     {
       "q": "某集群一直没配机架感知脚本（net.topology.script.file.name），后来补配并重启了 NameNode。已有的 3 副本数据会怎样？",
@@ -3307,44 +3307,44 @@ window.QUIZ_DATA = {
       "q": "ReplicatedMergeTree 对 ZK/Keeper 的依赖，正确的是？",
       "options": [
                 "ZK 只是可选的监控组件，挂了不影响写入",
-                "复制不是集群级功能而是表引擎前缀：副本间靠 ZK/Keeper 协调 merge 领选、复制日志与写入去重（block 哈希）；ZK 挂掉后副本表降级只读（is_readonly）、写入被拒、merge 停摆，但已落盘数据不丢——ZK 只存协调状态不是存储服务",
                 "ReplicatedMergeTree 用 Raft 在节点间直接复制，不需要外部协调",
+                "复制不是集群级功能而是表引擎前缀：副本间靠 ZK/Keeper 协调 merge 领选、复制日志与写入去重（block 哈希）；ZK 挂掉后副本表降级只读（is_readonly）、写入被拒、merge 停摆，但已落盘数据不丢——ZK 只存协调状态不是存储服务",
                 "ZK 挂掉时副本表会自动切换成可写模式"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "告警优先级与 etcd 同级。新部署直接用内置的 ClickHouse Keeper（去 JVM、Raft 实现、协议兼容 ZK）。普通（非 Replicated）本地表不受 ZK 故障影响——『复制是表级属性』的直接体现。"
     },
     {
       "q": "两个节点的 ReplicatedMergeTree『数据没复制』或『互相丢 part』，最可能的原因是？",
       "options": [
                 "磁盘 IO 太慢，part 还在队列里",
-                "建表时 zk_path 或 replica 名写错：zk_path 不同 = 两组独立副本（不复制），replica 名相同 = 互踢（同副本名认领冲突）——zk_path 相同 + replica 名不同才是一组副本",
+                "Distributed 表的分片键选错了",
                 "ClickHouse 版本太旧不支持复制",
-                "Distributed 表的分片键选错了"
+                "建表时 zk_path 或 replica 名写错：zk_path 不同 = 两组独立副本（不复制），replica 名相同 = 互踢（同副本名认领冲突）——zk_path 相同 + replica 名不同才是一组副本"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "新集群第一周的经典事故。{shard}/{replica} 来自每节点 macros 配置，zk_path 按 /clickhouse/tables/{shard}/表名 规范写。Doris 的对照：副本由 FE 的调度器自动 clone 补齐，CH 没有这个『自动维修工』——副本掉了要自己看 system.replicas 队列、必要时 fetch 补数。"
     },
     {
       "q": "ClickHouse 报 `Too many parts. Merges are processing significantly slower than inserts.` 的因果链与治理，正确的是？",
       "options": [
                 "磁盘坏块导致 part 损坏，换盘即可",
-                "高频小 INSERT 产 parts 的速度持续超过 merge 消化速度 → 超软阈值写入被 delay、超硬阈值（parts_to_throw_insert）INSERT 直接报错 → 上游 Flink sink 反压 → checkpoint 超时 → Kafka 消费 lag。治理：攒大批次（万行/MB 级）、小写入方开 async_insert、评估 background_pool_size 与磁盘 IO",
                 "parts 数是固定上限，建表时就要调大",
+                "高频小 INSERT 产 parts 的速度持续超过 merge 消化速度 → 超软阈值写入被 delay、超硬阈值（parts_to_throw_insert）INSERT 直接报错 → 上游 Flink sink 反压 → checkpoint 超时 → Kafka 消费 lag。治理：攒大批次（万行/MB 级）、小写入方开 async_insert、评估 background_pool_size 与磁盘 IO",
                 "该报错说明需要立刻重启 ClickHouse"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "与 Doris 的 too many versions 是同一个病在不同引擎的名字：微批太碎，版本/部件数超过后台合并能力。预防性指标：system.asynchronous_metrics 的 MaxPartCountForPartition 持续上涨即预警。每次 INSERT 至少产生一个 part（与行数无关）是铁律。"
     },
     {
       "q": "ClickHouse 与 Doris/StarRocks 的运维复杂度『形状差异』，正确的总结是？",
       "options": [
                 "两者复杂度完全相同，只是命令行风格不同",
-                "Doris 的复杂度在『组件』（FE/BE 两类角色，FE 元数据要 HA 与备份纪律）；ClickHouse 的复杂度在『每张表自带架构』——分片数、副本路径、排序键、引擎族、merge 参数全是表级决策，错误会在几百张表里各自复发",
                 "ClickHouse 完全免运维，Doris 需要专职团队",
-                "Doris 的 FE 是无状态的，不需要备份"
+                "Doris 的 FE 是无状态的，不需要备份",
+                "Doris 的复杂度在『组件』（FE/BE 两类角色，FE 元数据要 HA 与备份纪律）；ClickHouse 的复杂度在『每张表自带架构』——分片数、副本路径、排序键、引擎族、merge 参数全是表级决策，错误会在几百张表里各自复发"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "人手少的团队这是比 join 能力更硬的取舍依据。扩容对照：Doris BE 上线即自动均衡 tablet；CH 加分片只影响新写入路由，历史数据手工迁移（规划期就要把分片数留足）。选型结论沿用 05 章：单表极限聚合选 CH，多表 join 与低运维成本选 Doris/StarRocks。"
     },
     {
@@ -3362,11 +3362,11 @@ window.QUIZ_DATA = {
       "q": "ClickHouse 备份的正确姿势与『副本不是备份』的边界，正确的是？",
       "options": [
                 "有三副本就不需要备份，删库指令不会在副本上执行",
-                "删库指令在副本上同样复制——纪律等同 MySQL：原生 FREEZE 对 part 打硬链接快照（秒级省空间）再归档对象存储，或用 clickhouse-backup 封装；别忘了表结构——ZK 里只有协调状态没有 DDL，建表语句要从 SHOW CREATE TABLE 定期导出",
                 "mutation 可以当作备份手段，改错了再改回来",
+                "删库指令在副本上同样复制——纪律等同 MySQL：原生 FREEZE 对 part 打硬链接快照（秒级省空间）再归档对象存储，或用 clickhouse-backup 封装；别忘了表结构——ZK 里只有协调状态没有 DDL，建表语句要从 SHOW CREATE TABLE 定期导出",
                 "备份只能停机做，在线备份会损坏 part"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "恢复靠 ATTACH 从备份目录挂回；新版另有原生 BACKUP/RESTORE 语句走向成熟（能力矩阵随版本变，落地前对文档）。system 库是可观测性入口：system.parts/merges/mutations/replicas/query_log 各管一摊，内置 Prometheus 端点开箱即用。"
     }
   ],
@@ -3400,15 +3400,15 @@ window.QUIZ_DATA = {
       "explain": "阶梯是包含式的：线性一致 ⊃ 顺序一致 ⊃ 因果一致 ⊃ 最终一致，关键差异只在“实时序”。顺序一致的已学样本是 ZK 默认本地读（follower 内存可能落后，写应答后另一客户端在 follower 上读到旧值不算违约）；线性一致的样本是 etcd 默认读（ReadIndex 与多数派确认“我还是当前 leader、视图不落后”），多付的代价是每读一轮往返，可用 --consistency=s 降为串行读。"
     },
     {
-      "q": "Kafka 说“分区内 FIFO”。它的一致性落位与 HW 的作用，正确的是？",
+      "q": "Kafka 说“分区内 FIFO”。对单分区读写的一致性落位与 unclean 选举的影响，正确的判断是？",
       "options": [
-        "单分区读写都走唯一 leader，给出的是顺序一致（全体认同一个全序），但不承诺跨分区/跨消费者的实时序，所以不是线性一致；HW 是可见性边界——消费者只能读 ISR 集体确认过的位置，防止读到随 leader 切换被截断而消失的消息（挡住分布式版脏读）",
-        "单分区是线性一致，因为 leader 唯一；HW 用于消费者的限流配额",
-        "单分区是最终一致，HW 决定消息的保留时长",
-        "跨分区也有全局序；HW 是副本同步进度号，与消费者无关"
+        "单分区读写都走唯一 leader，给出的是顺序一致（全体认同一个全序），但不承诺实时序，不是线性一致；unclean leader 选举允许落后副本上位，消费者可能读到先多后少的截断数据——这是真故障，不是一致性合同的正常履约",
+        "单分区是线性一致，因为 leader 唯一，写应答后任何消费者立刻能读到",
+        "单分区只是最终一致，消息顺序完全无保证",
+        "跨分区也有全局序，多个分区的消息天然按写入顺序可排序"
       ],
       "answer": 0,
-      "explain": "单领导者 + 分区内 FIFO = “先让所有人同意顺序”；跨分区/跨 topic 没有全局序，要全局序只能单分区或按 key 分区（牺牲并行度）。HW 与线性一致是两件事：它补的是可见性边界。unclean.leader.election 允许落后副本上位 = 用丢数据换可用（CAP 的 A 侧），此时消费者可能读到先多后少的截断数据——这是真故障（查 ISR 收缩记录），不是一致性合同的正常履约。"
+      "explain": "一致性阶梯：线性一致 ⊃ 顺序一致 ⊃ 因果一致 ⊃ 最终一致，单分区 FIFO 落在顺序一致（复制状态机 + 唯一 leader 决定全序），缺的是“写应答后立即可读”的实时序保证；跨分区/跨 topic 没有全局序，要全局有序只能单分区或按 key 分区（牺牲并行度）。可见性边界由 HW 兜底（消费者只能读 ISR 集体确认过的位置，机制细节见 12-data-streaming 的对应题），它是实现细节而非一致性分级本身。unclean.leader.election 允许落后副本上位 = 用丢数据换可用（CAP 的 A 侧），此时出现截断要查 ISR 收缩记录——那是事故不是履约。"
     },
 
     // --- 共识与 Raft（4 题）---
