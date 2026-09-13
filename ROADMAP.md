@@ -112,6 +112,7 @@
 | 23 | `13-sre/01-02`（SRE 基础/SLO）+ lab 01 | 燃烧率告警上线 |
 | 24 | `13-sre/03-05` + lab 02 | 一次完整混沌演练 + 无责复盘 |
 | 25 | `17-distributed/00-03`（故障模型/一致性/共识）+ lab 01 | 白板讲清 Raft 选举日志复制全流程；etcd kill-leader 亲测选举耗时 |
+| 25+ | `17-distributed/08-11`（经典问题/Paxos/CRDT/协调工具）+ lab 03 | 两将军/拜占庭/FLP 能讲工程后果；Paxos vs Raft 选型一句话；Consul 服务发现跑通 |
 | 26 | `17-distributed/04-07`（事务/分片/Gossip/排障）+ lab 02 | 拆穿"恰好一次"的真相；分布式锁的三个坑能各举一例 |
 
 **🔁 闭环 7（毕业演练）**：定 SLO → 注入故障 → 验证稳态假设 → 修复 → 写 postmortem → 沉淀 runbook。这一套讲出来就是高级 SRE 面试的答案。

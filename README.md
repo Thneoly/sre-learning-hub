@@ -34,7 +34,7 @@
 | 14 | `14-cloud/` | 3 章 + 1 lab | 云平台：阿里云实操 + AWS 对照 + 认证路径 |
 | 15 | `15-aiops-llm/` | 4 章 + 1 lab | **差异化选修**：LLM 辅助排障、RAG 知识库、Agent skill、安全护栏 |
 | 16 | `16-bigdata/` | 9 章 + 5 labs | 大数据平台（运维专线岗画像）：HDFS/YARN/Hive 数仓/Spark/Doris·StarRocks/ZooKeeper/ClickHouse/**湖仓表格式深讲（Iceberg/Hudi/Paimon，含 Arrow）** |
-| 17 | `17-distributed/` | 8 章 + 2 labs | **分布式理论层**（面试深水区）：故障模型与时钟/一致性模型/共识与 Raft/分布式事务/分片再平衡/Gossip 与脑裂/排障方法论——每个概念映射到已学组件（etcd/Kafka/Redis/Flink） |
+| 17 | `17-distributed/` | 12 章 + 3 labs | **分布式理论层**（面试深水区）：故障模型与时钟/一致性模型/共识与 Raft/分布式事务/分片再平衡/Gossip 与脑裂/排障方法论/经典不可能性/Paxos/CRDT/协调工具选型——每个概念映射到已学组件（etcd/Kafka/Redis/Flink） |
 
 ## 能力支柱视图（"我是谁 / 补哪块"的叙事层）
 

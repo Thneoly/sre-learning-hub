@@ -578,7 +578,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     },
     {
       id: 'distributed', nav: '分布式', name: '分布式理论', dir: '17-distributed',
-      desc: '故障模型与时钟、一致性模型阶梯、quorum 与 Raft 共识、分布式事务与"恰好一次"的真相、分片与再平衡、gossip 成员管理与 fencing 脑裂防护、分布式排障方法论。',
+      desc: '故障模型与时钟、一致性模型阶梯、quorum 与 Raft 共识、分布式事务与"恰好一次"的真相、分片与再平衡、gossip 成员管理与 fencing 脑裂防护、分布式排障方法论、经典不可能性（两将军/拜占庭/FLP/分布式快照）、Paxos 深潜、CRDT 与自动收敛、协调服务三件套（etcd/Consul/Nacos）选型。',
       chapters: [
         { f: '00-distributed-overview.md', t: '00 · 分布式全景：三座大山、学习地图与 CAP 的正确打开方式' },
         { f: '01-failure-models-and-time.md', t: '01 · 故障模型与时钟：谱系、物理钟的坑与因果序' },
@@ -587,11 +587,16 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
         { f: '04-distributed-transactions.md', t: '04 · 分布式事务：从 2PC 的阻塞点到"恰好一次"的真相' },
         { f: '05-sharding-and-rebalancing.md', t: '05 · 分片与再平衡：范围、哈希，与"为什么它们都不用一致性哈希"' },
         { f: '06-gossip-membership-fencing.md', t: '06 · Gossip、成员管理与脑裂防护：fencing 为什么不可省' },
-        { f: '07-distributed-troubleshooting.md', t: '07 · 分布式排障：读路径 / 写路径分解法与五类经典故障' }
+        { f: '07-distributed-troubleshooting.md', t: '07 · 分布式排障：读路径 / 写路径分解法与五类经典故障' },
+        { f: '08-classic-problems.md', t: '08 · 经典不可能性与算法：两将军、拜占庭、FLP 与分布式快照' },
+        { f: '09-paxos-deep-dive.md', t: '09 · Paxos 深潜：两阶段、活锁、Multi-Paxos 与 Raft 的对照' },
+        { f: '10-crdt-and-convergence.md', t: '10 · CRDT 与自动收敛：不靠共识的最终一致' },
+        { f: '11-coordination-tools.md', t: '11 · 协调服务三件套：etcd vs Consul vs Nacos' }
       ],
       labs: [
         { p: 'labs/01-etcd-raft-observation', t: 'Lab 01 · etcd Raft 观测：亲手制造一次选举与一次仲裁丢失' },
-        { p: 'labs/02-distributed-lock-idempotency', t: 'Lab 02 · 分布式锁的坑与幂等兜底：Redis 单实例实操' }
+        { p: 'labs/02-distributed-lock-idempotency', t: 'Lab 02 · 分布式锁的坑与幂等兜底：Redis 单实例实操' },
+        { p: 'labs/03-consul-service-discovery', t: 'Lab 03 · Consul 服务发现与健康检测：注册、摘除、DNS 与一次杀 Leader' }
       ]
     }
   ];
@@ -1768,9 +1773,9 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
   }
 
   /* ================= 场景速查 =================
-     数据逐条转录自 learning-hub 根目录 SCENARIOS.md（227 条，其中 12 条标【靶场】）。
+     数据逐条转录自 learning-hub 根目录 SCENARIOS.md（239 条，其中 12 条标【靶场】）。
      每条数组：[0]=现象，[1]=先查，[2]=详见，[3]=1 表示靶场条目。
-     分类默认收起，点开时才渲染条目，避免一次挂 227 条拖慢页面。 */
+     分类默认收起，点开时才渲染条目，避免一次挂 239 条拖慢页面。 */
   var SCN_CATS = [
     { t: '1 集群与控制面', sub: 'kubectl 不通 / 节点 NotReady / 组件挂 / 证书 / etcd / 升级', items: [
       ['不知从哪下手排集群故障', '`kubectl get nodes` 通不通，按“五层定位法”选层（集群→对象→容器→节点服务→系统）', '05-cka/06-node-maintenance-troubleshooting.md#2. 排错决策树：五层定位法'],
@@ -1788,7 +1793,9 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ['etcdctl snapshot 报 command not found / connection refused / certificate is valid for', '`ETCDCTL_API=3` + client 口 2379（非 2380）+ etcd 自己的 CA 三件套', '05-cka/04-etcd-backup-restore.md#常见坑'],
       ['kube-system 控制 Pod 删了又出现、edit 被改回，或 apiserver 反复重启（manifest 改坏）', '静态 Pod 只认 `/etc/kubernetes/manifests/` 下的文件，恢复备份 + `crictl logs` 看退出原因', '04-k8s-fundamentals/13-cluster-admin-and-etcd.md#常见坑（另见 07-cks/01-cluster-hardening.md#常见坑）'],
       ['drain 卡住不动 / init 后节点 NotReady / join 报 token 过期', '`--ignore-daemonsets --delete-emptydir-data`；CNI cidr 是否与 pod-network-cidr 一致；master 上 `kubeadm token create --print-join-command`', '05-cka/03-kubeadm-install-upgrade.md#常见坑'],
-      ['kubectl 连不上 apiserver，想先确认服务本身死活', 'master 上 `curl 127.0.0.1:6443/healthz` + `crictl ps` 查 apiserver', '04-k8s-fundamentals/14-observability.md#4. kubectl 排障命令矩阵']
+      ['kubectl 连不上 apiserver，想先确认服务本身死活', 'master 上 `curl 127.0.0.1:6443/healthz` + `crictl ps` 查 apiserver', '04-k8s-fundamentals/14-observability.md#4. kubectl 排障命令矩阵'],
+      ['etcd 配额打满只读，compact+defrag 都做完仍然拒绝写', 'NOSPACE 告警未解除——`etcdctl alarm list` 确认后 `alarm disarm`（恢复动作本身要走一遍 Raft，别在失 quorum 时做）', '17-distributed/11-coordination-tools.md#6.1 etcd：备份恢复与空间治理'],
+      ['etcd defrag 之后集群抖动、甚至短暂切主', '多成员同时 defrag 等于主动制造一次 quorum 抖动——顺序永远先 compact 后 defrag，defrag 逐成员串行做、避开业务高峰', '17-distributed/11-coordination-tools.md#常见坑']
     ] },
     { t: '2 网络与 DNS', sub: 'Pod 不通 / Service 无后端 / 域名解析 / 502 / 504', items: [
       ['全集群 Pod `nslookup baidu.com` SERVFAIL，业务日志大量 `lookup xxx ... no such host`', '`kubectl -n kube-system logs deploy/coredns` 看 forward 报错（FQDN 还能解析别被误导）', 'scripts/faults/FIXES.md#1. break-coredns', 1],
@@ -1986,7 +1993,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ['--cap-drop ALL 后 nginx 起不来；非 root 写 volume 报拒绝', '监听 80 需 NET_BIND_SERVICE（或改 8080）；卷初拷属主是 root，chown 后降权', '03-docker/06-security-best-practices.md#常见坑'],
       ['seccomp/AppArmor/gVisor/Kata Pod 起不来（profile not found / cannot load / runsc 未注册）', 'profile 路径与节点放置；annotation 容器名精确匹配；RuntimeClass 键名与 handler 一致', '07-cks/02-system-hardening.md#常见坑']
     ] },
-    { t: '9 分布式与共识', sub: 'ZK 脑旋 / 失 quorum / 脑裂双主 / 锁误删 / 时钟漂移', items: [
+    { t: '9 分布式与共识', sub: 'ZK 脑旋 / 失 quorum / 脑裂双主 / 锁误删 / 时钟漂移 / Paxos 活锁 / CRDT 丢写 / 注册中心排障', items: [
       ['ZK 的 `mntr`/`stat` 发过去没反应，`srvr` 却正常', '3.5+ 四字命令白名单默认只放行 `srvr`——配 `4lw.commands.whitelist`，或走 admin server 8080 的 HTTP JSON', '16-bigdata/06-zookeeper.md#6.1 四字命令与 admin server'],
       ['HBase/HDFS 频繁重新选主，ZK 的 Mode 频繁变化、latency 尖刺（脑旋）', 'JVM 长 GC / 事务日志盘 fsync 慢 / 网络抖动——dataLogDir 独立低延迟盘、堆给 3~4GB 缩 GC、对 Mode 变化做告警', '16-bigdata/06-zookeeper.md#6.3 脑旋与脑裂防护'],
       ['ZK 加了一台节点，集群反而写不进了', '多数派从 2 变 3，滚动重启窗口凑不齐过半——一次只加一台、等它同步完成再动下一台；扩容走 3→5 跳过 4', '16-bigdata/06-zookeeper.md#6.5 扩容为什么必须逐台重启'],
@@ -2015,7 +2022,17 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ['lease 到期判定写在客户端本地时钟上，两侧同时认为自己持有', 'NTP 步进/回拨——租约要服务端统一计时（etcd lease 模式）或单调钟；租约只能收窄僵尸窗口，清零靠 fencing', '17-distributed/06-gossip-membership-fencing.md#4.3 租约 lease：有时限的授权'],
       ['5 成员共识集群挂 3 台，同事提议"把剩下 2 台组成新集群继续写"', '不可写≠丢数据——已提交条目在过半成员上大概率仍在；先抢修任一台，重组等于人为制造双写史', '17-distributed/07-distributed-troubleshooting.md#2. quorum 计算速查表'],
       ['一半成员互相失联但各自"活着"，写超时集中在部分客户端（疑似脑裂）', '从一台机器分别 ping/telnet 全部成员取分区证据；比对各成员 term/epoch 与 leader 认知（`endpoint status`/`srvr`/`rs.status()`）', '17-distributed/07-distributed-troubleshooting.md#3.1 脑裂（分区两侧各自主）'],
-      ['etcd `proposals_failed_total` 持续上涨 / WAL fsync p99 抬高', 'quorum 交互在失败（磁盘慢/网络/失多数派前兆）——`/metrics` 摘这两项，下一步 iostat await/util 查盘', '17-distributed/07-distributed-troubleshooting.md#1.1 写路径 = 协调者 → quorum 确认链']
+      ['etcd `proposals_failed_total` 持续上涨 / WAL fsync p99 抬高', 'quorum 交互在失败（磁盘慢/网络/失多数派前兆）——`/metrics` 摘这两项，下一步 iostat await/util 查盘', '17-distributed/07-distributed-troubleshooting.md#1.1 写路径 = 协调者 → quorum 确认链'],
+      ['Paxos 系统提案编号（ballot）持续上抬，但没有任何值被选中，也没有节点故障', '两个 proposer 交替抬编号的决斗活锁——安全性无损、活性饿死；解药是唯一提案者（distinguished proposer/leader）', '17-distributed/09-paxos-deep-dive.md#3. 活锁：安全但可能永远选不出'],
+      ['Cassandra 计数字段偶发"少加"，集群与应用日志均无异常', '用 LWW 字段做 read-modify-write 的 +=，并发写互裁、输者静默丢——换 counter 表或收敛到单写者，这类丢写无日志无痕迹', '17-distributed/10-crdt-and-convergence.md#常见坑'],
+      ['CRDB 多活集群个别 String 更新"消失"', 'String 按时间戳 LWW 裁决 + 实例间时钟漂移"选错赢家"——严 NTP 纪律、关键值改 Hash 逐字段/计数类型，排查先对表', '17-distributed/10-crdt-and-convergence.md#常见坑'],
+      ['CRDT 集合删除某元素后再添加同元素，删掉的内容"复活"', '删除是加墓碑，同 ID 元素再添加时合并语义复活旧成员——元素用唯一 ID（时间戳+序号）而不是业务值本身', '17-distributed/10-crdt-and-convergence.md#常见坑'],
+      ['协同文档 / CRDT 存储越用越大，删除也不缩小', '半格只增不减 + 墓碑与字符 ID 元数据不可回退——用实现自带的 GC/压缩能力，并监控对象大小', '17-distributed/10-crdt-and-convergence.md#常见坑'],
+      ['Consul 新 agent 加入后成员视图迟迟不汇合，或 HTTP API 正常而 DNS 查询间歇超时', 'LAN gossip 8301 的 UDP 没放行（UDP 只出现在 gossip 与 DNS 上）；超大池汇合慢还要拆分 LAN 池', '17-distributed/11-coordination-tools.md#6.2 Consul：Agent 模式与 LAN/WAN gossip'],
+      ['Consul 已摘除实例，调用方还在打', '摘除预算漏算了客户端 DNS 缓存 TTL——预算 = 检查间隔×失败次数 + 服务端传播 + 客户端缓存 TTL', '17-distributed/11-coordination-tools.md#常见坑'],
+      ['发布重启窗口内实例被误摘、进程起来后又注册回来', 'keepalive/心跳在滚动窗口内中断而摘除阈值小于发布耗时——阈值 > 发布耗时，或发布流水线里先反注册再停进程', '17-distributed/11-coordination-tools.md#常见坑'],
+      ['Nacos 控制台一切正常，SDK 却全连不上', '2.x SDK 走 gRPC 长连接，端口按"主端口+1000"偏移（8848→9848/9849）——安全组只放行 8848 的经典症状', '17-distributed/11-coordination-tools.md#常见坑'],
+      ['Nacos 集群各节点数据对不上 / 重启后配置丢失', '集群模式误用内嵌 Derby（Derby 只支持单机）——集群必须外置 MySQL，≥3 节点起步 + cluster.conf 各节点一致', '17-distributed/11-coordination-tools.md#常见坑']
     ] }
   ];
 
@@ -2068,7 +2085,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     var h = '<h1 class="pg">场景速查</h1>';
     h += '<div class="sub">按故障现象组织的排障索引：出事时从「现象」进门，先执行「先查」的命令再决定下一步，「详见」直达对应章节。共 ' + total + ' 条 · 其中 ' + drills + ' 条标 <span class="scn-badge">靶场</span>（对应 scripts/faults 故障注入脚本，可配合做限时演练）。与 ROADMAP（按学习顺序）互补：ROADMAP 回答「接下来学什么」，本页回答「现在挂了去哪查」。</div>';
     h += '<div class="scn-src">数据来源：learning-hub 根目录 <code>SCENARIOS.md</code> · <a href="../SCENARIOS.md" target="_blank" rel="noopener">原文</a> · <button class="mini" data-nav="#/read/SCENARIOS.md">阅读器打开</button></div>';
-    h += '<div class="scn-ops"><button class="mini" data-scn="expand">展开全部</button><button class="mini" data-scn="collapse">收起全部</button><span>分类默认收起，点开才渲染条目，227 条也不拖慢页面</span></div>';
+    h += '<div class="scn-ops"><button class="mini" data-scn="expand">展开全部</button><button class="mini" data-scn="collapse">收起全部</button><span>分类默认收起，点开才渲染条目，239 条也不拖慢页面</span></div>';
     for (var c = 0; c < SCN_CATS.length; c++) {
       var cat = SCN_CATS[c];
       var dn = 0;

@@ -25,6 +25,8 @@
 - **现象**：kube-system 控制 Pod 删了又出现、edit 被改回，或 apiserver 反复重启（manifest 改坏） → 先查：静态 Pod 只认 `/etc/kubernetes/manifests/` 下的文件，恢复备份 + `crictl logs` 看退出原因 → 详见：04-k8s-fundamentals/13-cluster-admin-and-etcd.md#常见坑（另见 07-cks/01-cluster-hardening.md#常见坑）
 - **现象**：drain 卡住不动 / init 后节点 NotReady / join 报 token 过期 → 先查：`--ignore-daemonsets --delete-emptydir-data`；CNI cidr 是否与 pod-network-cidr 一致；master 上 `kubeadm token create --print-join-command` → 详见：05-cka/03-kubeadm-install-upgrade.md#常见坑
 - **现象**：kubectl 连不上 apiserver，想先确认服务本身死活 → 先查：master 上 `curl 127.0.0.1:6443/healthz` + `crictl ps` 查 apiserver → 详见：04-k8s-fundamentals/14-observability.md#4. kubectl 排障命令矩阵
+- **现象**：etcd 配额打满只读，compact+defrag 都做完仍然拒绝写 → 先查：NOSPACE 告警未解除——`etcdctl alarm list` 确认后 `alarm disarm`（恢复动作本身要走一遍 Raft，别在失 quorum 时做） → 详见：17-distributed/11-coordination-tools.md#6.1 etcd：备份恢复与空间治理
+- **现象**：etcd defrag 之后集群抖动、甚至短暂切主 → 先查：多成员同时 defrag 等于主动制造一次 quorum 抖动——顺序永远先 compact 后 defrag，defrag 逐成员串行做、避开业务高峰 → 详见：17-distributed/11-coordination-tools.md#常见坑
 
 ## 2 网络与 DNS（Pod 不通 / Service 无后端 / 域名解析 / 502 / 504）
 
@@ -229,7 +231,7 @@
 - **现象**：--cap-drop ALL 后 nginx 起不来；非 root 写 volume 报拒绝 → 先查：监听 80 需 NET_BIND_SERVICE（或改 8080）；卷初拷属主是 root，chown 后降权 → 详见：03-docker/06-security-best-practices.md#常见坑
 - **现象**：seccomp/AppArmor/gVisor/Kata Pod 起不来（profile not found / cannot load / runsc 未注册） → 先查：profile 路径与节点放置；annotation 容器名精确匹配；RuntimeClass 键名与 handler 一致 → 详见：07-cks/02-system-hardening.md#常见坑
 
-## 9 分布式与共识（ZK 脑旋 / 失 quorum / 脑裂双主 / 锁误删 / 时钟漂移）
+## 9 分布式与共识（ZK 脑旋 / 失 quorum / 脑裂双主 / 锁误删 / 时钟漂移 / Paxos 活锁 / CRDT 丢写 / 注册中心排障）
 
 - **现象**：ZK 的 `mntr`/`stat` 发过去没反应，`srvr` 却正常 → 先查：3.5+ 四字命令白名单默认只放行 `srvr`——配 `4lw.commands.whitelist`，或走 admin server 8080 的 HTTP JSON → 详见：16-bigdata/06-zookeeper.md#6.1 四字命令与 admin server
 - **现象**：HBase/HDFS 频繁重新选主，ZK 的 Mode 频繁变化、latency 尖刺（脑旋） → 先查：JVM 长 GC / 事务日志盘 fsync 慢 / 网络抖动——dataLogDir 独立低延迟盘、堆给 3~4GB 缩 GC、对 Mode 变化做告警 → 详见：16-bigdata/06-zookeeper.md#6.3 脑旋与脑裂防护
@@ -260,6 +262,16 @@
 - **现象**：5 成员共识集群挂 3 台，同事提议"把剩下 2 台组成新集群继续写" → 先查：不可写≠丢数据——已提交条目在过半成员上大概率仍在；先抢修任一台，重组等于人为制造双写史 → 详见：17-distributed/07-distributed-troubleshooting.md#2. quorum 计算速查表
 - **现象**：一半成员互相失联但各自"活着"，写超时集中在部分客户端（疑似脑裂） → 先查：从一台机器分别 ping/telnet 全部成员取分区证据；比对各成员 term/epoch 与 leader 认知（`endpoint status`/`srvr`/`rs.status()`） → 详见：17-distributed/07-distributed-troubleshooting.md#3.1 脑裂（分区两侧各自主）
 - **现象**：etcd `proposals_failed_total` 持续上涨 / WAL fsync p99 抬高 → 先查：quorum 交互在失败（磁盘慢/网络/失多数派前兆）——`/metrics` 摘这两项，下一步 iostat await/util 查盘 → 详见：17-distributed/07-distributed-troubleshooting.md#1.1 写路径 = 协调者 → quorum 确认链
+- **现象**：Paxos 系统提案编号（ballot）持续上抬，但没有任何值被选中，也没有节点故障 → 先查：两个 proposer 交替抬编号的决斗活锁——安全性无损、活性饿死；解药是唯一提案者（distinguished proposer/leader） → 详见：17-distributed/09-paxos-deep-dive.md#3. 活锁：安全但可能永远选不出
+- **现象**：Cassandra 计数字段偶发"少加"，集群与应用日志均无异常 → 先查：用 LWW 字段做 read-modify-write 的 +=，并发写互裁、输者静默丢——换 counter 表或收敛到单写者，这类丢写无日志无痕迹 → 详见：17-distributed/10-crdt-and-convergence.md#常见坑
+- **现象**：CRDB 多活集群个别 String 更新"消失" → 先查：String 按时间戳 LWW 裁决 + 实例间时钟漂移"选错赢家"——严 NTP 纪律、关键值改 Hash 逐字段/计数类型，排查先对表 → 详见：17-distributed/10-crdt-and-convergence.md#常见坑
+- **现象**：CRDT 集合删除某元素后再添加同元素，删掉的内容"复活" → 先查：删除是加墓碑，同 ID 元素再添加时合并语义复活旧成员——元素用唯一 ID（时间戳+序号）而不是业务值本身 → 详见：17-distributed/10-crdt-and-convergence.md#常见坑
+- **现象**：协同文档 / CRDT 存储越用越大，删除也不缩小 → 先查：半格只增不减 + 墓碑与字符 ID 元数据不可回退——用实现自带的 GC/压缩能力，并监控对象大小 → 详见：17-distributed/10-crdt-and-convergence.md#常见坑
+- **现象**：Consul 新 agent 加入后成员视图迟迟不汇合，或 HTTP API 正常而 DNS 查询间歇超时 → 先查：LAN gossip 8301 的 UDP 没放行（UDP 只出现在 gossip 与 DNS 上）；超大池汇合慢还要拆分 LAN 池 → 详见：17-distributed/11-coordination-tools.md#6.2 Consul：Agent 模式与 LAN/WAN gossip
+- **现象**：Consul 已摘除实例，调用方还在打 → 先查：摘除预算漏算了客户端 DNS 缓存 TTL——预算 = 检查间隔×失败次数 + 服务端传播 + 客户端缓存 TTL → 详见：17-distributed/11-coordination-tools.md#常见坑
+- **现象**：发布重启窗口内实例被误摘、进程起来后又注册回来 → 先查：keepalive/心跳在滚动窗口内中断而摘除阈值小于发布耗时——阈值 > 发布耗时，或发布流水线里先反注册再停进程 → 详见：17-distributed/11-coordination-tools.md#常见坑
+- **现象**：Nacos 控制台一切正常，SDK 却全连不上 → 先查：2.x SDK 走 gRPC 长连接，端口按"主端口+1000"偏移（8848→9848/9849）——安全组只放行 8848 的经典症状 → 详见：17-distributed/11-coordination-tools.md#常见坑
+- **现象**：Nacos 集群各节点数据对不上 / 重启后配置丢失 → 先查：集群模式误用内嵌 Derby（Derby 只支持单机）——集群必须外置 MySQL，≥3 节点起步 + cluster.conf 各节点一致 → 详见：17-distributed/11-coordination-tools.md#常见坑
 
 ---
 
@@ -297,7 +309,7 @@
 
 | 分类 | 条目数 |
 |---|---|
-| 1 集群与控制面 | 16 |
+| 1 集群与控制面 | 18 |
 | 2 网络与 DNS | 17 |
 | 3 工作负载 | 14 |
 | 4 存储与中间件 | 72 |
@@ -305,7 +317,7 @@
 | 6 交付流水线 | 32 |
 | 7 可观测 | 18 |
 | 8 安全 | 15 |
-| 9 分布式与共识 | 29 |
-| **合计** | **227** |
+| 9 分布式与共识 | 39 |
+| **合计** | **239** |
 
 其中标【靶场】（scripts/faults 可直接注入演练）的条目：12 条，与 FIXES.md 的 12 个故障一一对应。

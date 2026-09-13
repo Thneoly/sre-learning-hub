@@ -148,7 +148,12 @@ scripts/gen-skill-cards.mjs                  [cards·已生成：技能卡生成
 17-distributed/05-sharding-and-rebalancing.md        [dist-mat-b]
 17-distributed/06-gossip-membership-fencing.md       [dist-mat-b]
 17-distributed/07-distributed-troubleshooting.md     [dist-mat-b]
+17-distributed/08-classic-problems.md           [dist-mat-c·新补：两将军/拜占庭将军/FLP/分布式快照理论]
+17-distributed/09-paxos-deep-dive.md            [dist-mat-c·新补：Basic→Multi-Paxos/Raft ZAB 语义对比]
+17-distributed/10-crdt-and-convergence.md       [dist-mat-c·新补：CRDT/协同编辑/Redis CRDT/Gossip 数据层]
+17-distributed/11-coordination-tools.md         [dist-mat-c·新补：etcd vs Consul vs Nacos/服务发现/选型]
 17-distributed/labs/01-etcd-raft-observation/{task.md,check.sh,solution.md}      [dist-labs]
+17-distributed/labs/03-consul-service-discovery/{task.md,check.sh,solution.md}   [dist-c·新补]
 17-distributed/labs/02-distributed-lock-idempotency/{task.md,check.sh,solution.md} [dist-labs]
 
 scripts/README.md + lib/common.sh            [scripts-setup·已生成]

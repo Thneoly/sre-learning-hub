@@ -13,8 +13,9 @@
 // datastream 10 题、sre 10 题、cloud 10 题、aiops 10 题、bigdata 20 题（HDFS 4 / YARN 3 /
 // Hive 2 / Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓表格式 5）、clickhouse 12 题（列存三因子 2 /
 // MergeTree 四引擎与排序键 3 / 主键非索引与跳数索引 2 / 双表架构 1 / 副本与 ZK 2 /
-// too many parts 1 / 对比 Doris 1）、distributed 15 题（CAP 与一致性 3 /
-// 共识与 Raft 4 / 分布式事务与幂等 3 / 分片再平衡 2 / Gossip 故障检测与脑裂防护 3）。
+// too many parts 1 / 对比 Doris 1）、distributed 30 题（CAP 与一致性 3 /
+// 共识与 Raft 4 / 分布式事务与幂等 3 / 分片再平衡 2 / Gossip 故障检测与脑裂防护 3 /
+// 经典不可能性与算法 4 / Paxos 深潜 3 / CRDT 与自动收敛 3 / 协调服务三件套 5）。
 
 window.QUIZ_DATA = {
 
@@ -3370,7 +3371,7 @@ window.QUIZ_DATA = {
     }
   ],
 
-  // ========== 分布式理论（15 题）==========
+  // ========== 分布式理论（30 题）==========
 
   distributed: [
 
@@ -3552,12 +3553,189 @@ window.QUIZ_DATA = {
       ],
       "answer": 2,
       "explain": "见过太多系统做了 quorum 就宣布“不会脑裂”，死在旧主醒来写下游那一步。注意 Redis 的特殊性：数据面（主从复制）本身没有 quorum，防脑裂靠外挂的哨兵多数派（failover 授权要 majority，与 quorum 判定是两回事）；旧 master 在分区期间仍可能吞写、愈合后全丢——min-replicas-to-write + min-replicas-max-lag 只保证“旧主侧没有同步正常的 replica 时拒绝写”，官方语义明确是缩小损失窗口、不是消除脑裂。lease 还有两个残余问题：时钟依赖（要服务端统一计时或单调时钟）与 TTL 内的边界窗口。Mongo 副本集两节点挂一个不能写，就是“宁可停写不可双写”的日常表现。"
+    },
+
+    // --- 经典不可能性与算法（4 题）---
+
+    {
+      "q": "TCP 三次握手与两将军问题的关系，正确的说法是？",
+      "options": [
+        "三次握手彻底解决了两将军问题——双方从此都确定对方收到了自己的消息",
+        "TCP 从不解决“共同知识”：它只在“同步初始序号 + 确认双向通路可用”这个工程目标上收笔；第三包丢了靠 SYN+ACK 重传兜底，重传造出的重复由序号在建连层消化掉——“消化重复比消灭重复便宜”正是幂等重试的原理；且 TCP 只承诺连接存活期间字节流可靠，连接被 RST 时内核里未 ACK 的数据直接丢弃，应用语义的确认必须应用层自己做",
+        "三次握手比四次握手省一轮往返，所以两将军问题在 TCP 里被压缩成了一个包",
+        "TIME_WAIT 等 2MSL 的目的是让对方确认“我已收到你的 FIN”，从而达成共同知识"
+      ],
+      "answer": 1,
+      "explain": "两将军的归纳论证：任何一轮确认的存在都制造下一轮的不确定，“双方都确定对方收到”在不可靠信道上不可达。TCP 的姿势是承认不可能、把目标降级：三次握手收在“双向通路可用+序号同步”，TIME_WAIT 用等待（2MSL 让旧报文自然死亡）把不可能变成概率足够小。工程结论：恰好一次交付不存在，能兑现的是至少一次 + 幂等吸收（Kafka enable.idempotence、去重表、Flink checkpoint 重放）。把“TCP 可靠所以我不用管重复”说出口，就是没读懂三次握手承诺了什么。"
+    },
+    {
+      "q": "关于拜占庭容错的 3f+1 与适用场景，哪个判断是对的？",
+      "options": [
+        "BFT 的 3f+1 多垫的节点买的是更高吞吐——全对全消息让写入更快",
+        "内部机房上 BFT 总是比 CFT 更稳，因为容错能力更强",
+        "N=3f+1 时忠诚者 2f+1 个，任意两个过半报告集的交集 ≥ 2×(2f+1)−(3f+1)=f+1——交集必然多于叛徒数，作恶无法同时骗过两边（CFT 的 N=2f+1 只需交集 ≥ 1，因为没人撒谎）；BFT 的适用场景是参与方互不信任或开放准入（公链/联盟链），信任边界内的内部系统用它反而是负资产——它防“分裂的谎言”，防不住“全体一致的 bug”",
+        "BFT 能防住所有副本跑同一版本代码产生的一致性错误，因为多数派会否决错误结果"
+      ],
+      "answer": 2,
+      "explain": "多数派数法是 3f+1 最有面试价值的推导：交集本身可能被叛徒占 f 个，必须多于 f 才保证至少一个忠诚者。对照 CFT：同样容 1 故障 CFT 3 台、BFT 4 台；容 2 故障 CFT 5 台、BFT 7 台——节点数多垫 50%，再叠加全对全 O(N²) 消息与签名验证的 CPU。而“一致的 bug”在同一版本代码的所有副本上同样地错误执行，共识只会把错误一致化，对策是版本多样性与灰度发布，不是共识协议。"
+    },
+    {
+      "q": "FLP 不可能定理说“异步网络 + 哪怕一个崩溃故障，就不存在保证有限时间终止的确定性共识”。etcd 天天在终止，工程上妥协的是哪些前提？",
+      "options": [
+        "工程界找到了确定性共识的更优证明，FLP 的结论已经过时",
+        "etcd 用更快的硬件把异步网络变成了同步网络，定理前提不再成立",
+        "FLP 只在理论上成立，实际系统无需任何妥协",
+        "三条妥协：超时注入临时同步假设（election timeout 本质是“赌 1 秒没心跳就是不会到”，学术版叫 failure detector）；随机化选举超时绕开确定性（病态调度被踩成概率 0，是绕过不是推翻定理）；失 quorum 宁可停写——保 safety 舍 liveness，“可能暂时不可用，但可用时必正确”"
+      ],
+      "answer": 3,
+      "explain": "FLP 死的是活性不是安全性：存在“歧义状态”，调度者能让系统永远停在歧义里打转——“可能不终止”是定理，“可能不一致”从来不是，这正是“宁可停写不可双写”的理论出处。运维后果：选举偶发拆票/切换 1~3 秒是定理的影子不是 bug，反复发生才是病（超时基数太小，或真实延迟分布越过了超时假设——盘慢、长 GC、网络抖动），治理对象永远是延迟本身：先量 fsync/GC/网络尾延迟，再谈参数。"
+    },
+    {
+      "q": "Chandy-Lamport 分布式快照算法与 Flink checkpoint 的对应关系，正确的是？",
+      "options": [
+        "对齐模式（aligned）记录了 channel 状态；unaligned 模式不记录，所以快照更小",
+        "Flink 完全另起炉灶，与 Chandy-Lamport 只是思想相似、机制无关",
+        "一致割要求快照对应一个真实的物理时刻，所以各算子要在同一毫秒落盘",
+        "marker↔barrier n、进程割点状态↔算子状态快照（source 存的 Kafka offset 就是“割点”）；对齐模式下 channel 状态恒为空（channel 保序 + 算子等所有输入的 barrier 到齐才快照，没有消息跨割），unaligned 恰恰把 channel 状态记录复活——barrier 一到就快照、来不及处理的 in-flight 数据直接写进快照，反而更忠实于 1985 年的原算法"
+      ],
+      "answer": 3,
+      "explain": "“所有节点 12:00 同时快照”不成立的两个死因：没有“同时”（时钟各走各的）；拼出的状态可能不可达（消息凭空消失，用它做恢复结论必然错）。一致割的约束是因果闭合：割若包含 m 的接收，就必须包含 m 的发送。快照不对应任何真实物理时刻，但拼出的是“可能发生过”的全局状态——这正是 Flink 从 checkpoint 回放而不心虚的理论牌照。两种模式的取舍在算法层面就是“要不要动用 channel 状态记录”：对齐快照小但反压时对齐缓冲堆积，unaligned 快照大但 barrier 不被堵。"
+    },
+
+    // --- Paxos 深潜（3 题）---
+
+    {
+      "q": "Basic Paxos 的 prepare/promise、accept/accepted 两阶段各自买到什么？",
+      "options": [
+        "Phase 1 只锁编号、Phase 2 只写值——promise 附带的已接受历史与安全性无关",
+        "Phase 1 的作用是选出 leader，Phase 2 的作用是提交事务，与 2PC 完全等价",
+        "acceptor 在 Phase 2 接受提案时可以自由改值，只要编号满足自己的承诺",
+        "两条消息各扛一半安全性：promise 的编号承诺防并发提案打架，promise 附带回的“已接受的最高编号提案”防后来者覆盖已 chosen 的值——v 的选择规则（带回值里编号最大的沿用，一个都没有才自选）是安全性的全部秘密；过半 accepted 即 chosen，此后永不再变"
+      ],
+      "answer": 3,
+      "explain": "promise 里“交出已接受值”这半条保住的是“chosen 之后不再变”：没有它，S1 用编号 1 提 A 过半接受后，S5 用编号 7 提 B 也能过半——两个值先后 chosen，一致性丢失；有了它，S5 的 prepare 必然从多数派交集中撞见 (1,A)，被迫沿用 A（值接管）。多数派的双重作用：互斥（任意两个多数派必相交）+ 传递（交点 acceptor 把已接受值带给后来者）。与 2PC 的区别：2PC 是协调者单点 + 全体投票 + 阻塞；Paxos 是多数派、无单点——只是“都分两步”，语义完全不同。"
+    },
+    {
+      "q": "Multi-Paxos“跳过 prepare”的准确语义与日志空洞的合法性，哪个说法对？",
+      "options": [
+        "prepare 做一次就永远不用再做，新 leader 直接沿用旧承诺继续 accept",
+        "跳过 prepare 只在 leader 任期内有效：leader 当选时对所有 slot 做一次 prepare 一次拿全承诺与已接受值，此后每条新命令只发 accept（一轮 RTT、唯一提案者无活锁）；换主必须重新 prepare——新 leader 靠这一步探明每个 slot 上别人已接受的值。slot 相互独立推进，“slot 5 已 chosen 而 slot 3 还空着”是协议允许的合法状态，补 no-op 是协议动作不是修复",
+        "日志出现空洞说明共识出错，必须立刻重启节点截断日志",
+        "Multi-Paxos 换主时只需比较最后一条日志，就能确定数据最全的节点"
+      ],
+      "answer": 1,
+      "explain": "把“跳过 prepare”理解成一劳永逸是面试硬伤：换主不重新 prepare，新 leader 看不到别人已接受的值，安全性破。空洞的代价有两笔：执行层 apply 前要自己处理连续性；换主时对全量 slot 重新 prepare 探测、逐个补 no-op——日志越长换主越贵。“比较最后一条日志定数据最全”是 Raft 的专利：日志严格连续 + 投票时“候选人日志至少和我一样新”的限制，让最后一条 (index,term) 成为全貌的指纹，恢复成本 O(日志长) 压到 O(1)。"
+    },
+    {
+      "q": "Raft 日志严格连续、Multi-Paxos 允许空洞与乱序 chosen——这条设计差异的后果哪个是对的？",
+      "options": [
+        "连续性让 Raft 吞吐必然高于 Multi-Paxos，空洞让 Paxos 天生低效",
+        "Raft 的日志空洞由 follower 定期垃圾回收自动补齐，无需协议处理",
+        "两者只是实现风格不同，换主成本与提交语义完全一样",
+        "Raft 用连续性换来了换主极简（比较最后一条日志 + 一条 no-op）与 commitIndex 单一水位单调推进，代价是一条慢日志会压住其后所有 index 的推进、没有乱序确认的自由；Multi-Paxos 的空洞在“高并发写入 + 网络乱序”负载下反而是优势——不同 slot 并行 accept、乱序确认，一个 slot 慢不阻塞别人，天然适合流水线与批处理（Spanner 至今用 Paxos 就是这个余量）"
+      ],
+      "answer": 3,
+      "explain": "“复杂性不会消失，只会转移”：Paxos 把实现复杂性转给写代码的人（论文只管共识核心，选主/成员变更/快照/恢复全是留白——《Paxos Made Live》的抱怨）；Raft 转给日志连续性约束（换主极简，代价是放弃乱序/流水线的自由）；ZAB 转给协议的显式阶段（换主必须先 sync 完才服务）。“为什么教科书都用 Raft”：不是性能或安全性差距（Howard 2020：两者路线高度相似），是为“实现不出错”付溢价。"
+    },
+
+    // --- CRDT 与自动收敛（3 题）---
+
+    {
+      "q": "CRDT 的数学基础 join-semilattice（连接半格）有两个性质，它们分别挡住什么事故？",
+      "options": [
+        "两个性质都是性能优化：单调性加快合并、交换律减少锁竞争",
+        "单调性要求时间戳单调递增，交换律要求所有副本时钟严格同步",
+        "单调性（只增不减）挡回退覆盖——所以删除必须做成加墓碑（真删会让状态变小，慢副本合并时能把别人已涨上去的状态拉回来，“删掉的内容复活”同族）；合并可交换（交换律+结合律+幂等律）挡顺序依赖——消息乱序、重复投递、分批到达，合并结果纹丝不动，幂等这条还白赚了同步协议重发无副作用",
+        "墓碑的存在是为了让删除操作更快，与单调性无关"
+      ],
+      "answer": 2,
+      "explain": "判断口诀：这份数据能不能表达成“只累积、不回退”，合并能不能写成取 max/并集/相加这类交换运算——能就是 CRDT 候选；要“覆盖旧值”“扣减”“按业务规则取舍”，就得另想办法（共识或应用层裁决）。四类基础速记：G-Counter（逐格取 max 值=求和，无损）、PN-Counter（P/N 两个 G-Counter 相减，“减法”是往 N 册加）、G-Set（并集）、LWW-Register（时间戳大者胜，有损）——“用了 CRDT 就不丢数据”是常见口误，LWW 丢的是时间戳小的那次写。"
+    },
+    {
+      "q": "Cassandra/Dynamo 系的 LWW 在时钟漂移下的丢写问题与对策，正确的是？",
+      "options": [
+        "LWW 的写时间戳由服务端统一分配，客户端时钟无关紧要",
+        "LWW 丢写会打报错日志，定位只需 grep 服务端 ERROR",
+        "把 gc_grace_seconds 调小就能避免 LWW 丢写",
+        "写时间戳通常由客户端按本机墙钟生成——一台应用服务器钟慢 5 分钟，它“现在”的写带着 5 分钟前的时间戳，会被别人 4 分钟前发出的写静默覆盖，无任何报错、数据库侧查不到异常；对策：集群与客户端统一 NTP 并对 offset 斜率告警、需要明确顺序的关键写用 USING TIMESTAMP 显式指定、计数场景换 counter 表（LWW 字段做 read-modify-write 的 += 并发必然互裁）"
+      ],
+      "answer": 3,
+      "explain": "G-Counter 的合并不依赖时间、LWW 把时钟当裁判——这是两者的本质区别。发现只能靠事后对账（LWW 类系统必须配对账任务的原因），防只能从源头。Redis Enterprise CRDB 的 String 字段同样按时间戳 LWW，官方明确要求各实例间严格 NTP 同步。墓碑另算一笔账：大量短 TTL 写会造出海量墓碑，是读放大与修复风暴的经典来源，排障先看墓碑数；gc_grace_seconds（默认 10 天）管的是墓碑何时真正清除，与丢写无关。"
+    },
+    {
+      "q": "“这个数据该走共识还是 CRDT”的选型判断，哪个是对的？",
+      "options": [
+        "CRDT 是共识的升级版，新项目应全部用 CRDT 替代共识",
+        "强一致读、读己之写、唯一性/互斥类约束（锁、选主、账户扣款、库存不超卖）走共识；高并发多写入口、可容忍最终一致、合并语义自然（计数、点赞、指标聚合、协作文档）走 CRDT——两者不是二选一，而是按数据分片的工程组合：同一系统里配置与成员关系走共识、业务计数与协作内容走 CRDT（Nacos 的 Raft/Distro 双协议正是这个模式的产品化）",
+        "CRDT 也能保证跨副本读己之写，只要副本间同步够快",
+        "共识与 CRDT 只能二选一，一个系统不能同时用两种"
+      ],
+      "answer": 1,
+      "explain": "CRDT 给不了的三样：跨副本读己之写（异步收敛，写己之写只在本副本保证）；全局唯一/互斥（交换律意味着合并结果与顺序无关，等于主动放弃对并发操作的顺序仲裁权——两个副本各自授予同一把锁，合并后都留着授权记录，收敛了但双主了）；“收敛”不等于“对”（购物车合并出两件商品是惊喜，账户合并出两倍余额是事故；协同文档收敛了，落库到 MySQL 那一秒还是要单写者）。锁/选主回共识，zombie 防护加 fencing。"
+    },
+
+    // --- 协调服务三件套（5 题）---
+
+    {
+      "q": "协调服务选型（etcd vs Consul vs Nacos vs ZooKeeper），正确的决策路径是？",
+      "options": [
+        "三者共识协议不同（etcd 用 Raft、Consul 用 ZAB、Nacos 用 Paxos），按协议先进性选",
+        "Consul 的多数据中心是把业务数据多活复制到每个 DC，与 Redis CRDB 同类",
+        "先问“协调的对象是谁”：K8s/云原生栈→etcd（已随 K8s 存在，服务发现直接用 Service+DNS，别再立一套注册中心）；多语言微服务 + 多数据中心 + 细粒度健康检查→Consul（agent 铺满主机、DNS/API/SDK 全姿势、多 DC 原生）；国内 Java/Spring Cloud 生态、注册中心+配置中心一把抓→Nacos；Hadoop 存量（HDFS HA/YARN/HBase）→ZooKeeper，新建系统不再引入",
+        "K8s 旁边再立一套 Nacos/Consul 永远是错的，无论部署形态如何"
+      ],
+      "answer": 2,
+      "explain": "选型差异不在共识协议（etcd 纯 Raft、Consul server 组 Raft、Nacos 持久数据 Raft），在协议外面裹的架构形态：etcd 静态集群无代理层；Consul 每台主机一个 client agent（本地健康检查+就近 DNS），成员关系外包给 LAN/WAN gossip；Nacos 按数据脾气分 CP/AP 双轨。Consul 多 DC 是“控制面联邦”——每个 DC 独立 Raft、数据不跨 DC 复制、跨 DC 请求靠 RPC 转发，复制的是“目录”；CRDB 复制的是“货”。K8s 旁再立注册中心的正当场景：混合部署（物理机/虚机/多 K8s）、需要配置中心、跨集群统一视图；全是单一 K8s 内原生服务时不该立（两份实例真相要互相同步的“元数据双头”）。"
+    },
+    {
+      "q": "Consul 的 LAN/WAN gossip 与端口表，哪个说法对？",
+      "options": [
+        "gossip 与 Raft 走同一批端口，都在 8300",
+        "WAN gossip 连接每个 DC 的全部 agent，包括 client agent",
+        "LAN gossip 判定的是业务服务健康与否，与服务健康检查是同一层",
+        "LAN gossip 是 8301（TCP+UDP，同一 DC 全部 agent 的成员发现与故障检测，SWIM 式探测+suspect 确认）；WAN gossip 是 8302（TCP+UDP，只连各 DC 的 server）；8300 是 server 间 Raft/RPC，8500 HTTP API、8600 DNS——UDP 只出现在 gossip 和 DNS 上，安全组漏放 8600 的 UDP 就会出现“API 正常、DNS 间歇超时”的怪象"
+      ],
+      "answer": 3,
+      "explain": "记忆锚点：8300 段是 Consul 自己人说话（RPC/gossip），8500/8600 是对外服务。LAN gossip 判的是“agent/主机死没死”，与第 5 节的服务健康检查是两码事：前者防 Consul 自己的成员视图腐化，后者管业务实例。WAN gossip 只连各 DC 的 server——“每个 DC 一套独立 Raft、数据不跨 DC 复制”，是联邦不是多副本。运维三条：gossip 开加密（-encrypt，LAN/WAN 各一把钥匙）、超大集群拆分 LAN 池防 gossip 风暴、WAN 跨公网时 server 间 RPC 走 TLS——gossip 只解决“找到人”，不负责“链路安全”。"
+    },
+    {
+      "q": "Nacos 集群部署的存储要求与 Raft/Distro 双协议，正确的是？",
+      "options": [
+        "集群模式可继续用内嵌 Derby，只要各节点 cluster.conf 列表一致",
+        "Nacos 没有数据库依赖，全部数据都在内存与本地文件里",
+        "临时实例也必须走 Raft 过半提交，否则注册表会丢",
+        "单机模式可内嵌 Derby（只配测试练手）；集群必须外置 MySQL（官方建议主备高可用）——配置数据与持久实例的真相在 MySQL，各 server 直读数据库并事件通知同步缓存，持久数据一致性再叠共识层；临时实例（默认）走 Distro（AP：内存分片+心跳维持+异步同步），持久实例与配置走 Raft（CP：过半提交）——“MySQL 挂了还能不能写配置”这层依赖要进故障预案"
+      ],
+      "answer": 3,
+      "explain": "Nacos 把真相放在外置 DB、共识只管内存态的同步与仲裁——与 etcd“一切经 Raft、一切在 member 里”是两种哲学。临时实例随发布频繁生死，注册表的价值在“永远可用且够新”，错了短暂影响小——所以 AP 的 Distro；若临时实例也走 Raft，发布高峰的注册风暴会打满共识层（每次注册都要过半 fsync），换来的强一致实例表在秒级变化的负载前没有意义。“集群模式误用内嵌 Derby”的典型症状：各节点数据对不上（Derby 只支持单机）。"
+    },
+    {
+      "q": "etcd 空间治理（compact/defrag）的正确姿势是？",
+      "options": [
+        "先 defrag 后 compact——先把空间还给文件系统，再清历史版本",
+        "compact 与 defrag 顺序无所谓，效果相同，可任意并发执行",
+        "defrag 在线并发执行没问题，Raft 会自动保护 quorum 不受影响",
+        "顺序永远先 compact 后 defrag：compact 把指定 revision 之前的版本标记可删（不可逆，之后读旧 revision 拿 410），defrag 才把空间真正还给文件系统；defrag 逐成员串行做、别同时（同时做等于主动制造一次 quorum 抖动）；配额打满触发 NOSPACE 只读保护后，处理完空间还要 etcdctl alarm disarm 解除告警——该动作本身要走一遍 Raft，别在失 quorum 时做"
+      ],
+      "answer": 3,
+      "explain": "MVCC 保留全部历史版本，etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes 逼近 1 就触发 NOSPACE 告警并进入只读保护。常态化压缩用静态 Pod 里配 --auto-compaction-retention，比人肉 cron 稳。两个对号入座的症状：defrag 后集群抖动甚至短暂失主=多成员同时 defrag；compact+defrag 都做完了仍只读=alarm disarm 没做。监控三条命根子：leader 变化率、WAL fsync p99、配额使用率。"
+    },
+    {
+      "q": "etcd / Consul / Nacos 三种健康检查机制的对比，哪个是对的？",
+      "options": [
+        "三者都由服务端主动探测应用进程，检测视角完全相同",
+        "Consul 的健康检查结论要经过 server 多数派投票才生效",
+        "发布重启窗口内实例被误摘，是检查机制的 bug，与阈值配置无关",
+        "etcd 无内建检查、靠客户端 lease keepalive 续租（忘了续租，进程活着也会被摘）；Consul 是 agent 主动拉（HTTP/TCP/gRPC 型零侵入、老系统友好，TTL 型才由服务上报）；Nacos 临时实例靠客户端心跳/gRPC 连接保活（1.x 经典语义 5s 心跳、15s 标记不健康、30s 摘除），持久实例服务端探测——三家的判定都是单点判定、无多数派交叉验证（摘错一个实例代价小），成员层面的死亡判定才需要多点确认"
+      ],
+      "answer": 3,
+      "explain": "检测方的位置决定侵入性：Consul 的 HTTP/TCP 检查是 agent 替你去探、应用一行不用改；etcd lease 与 Nacos 心跳都是“应用必须自己报”。三家的到期判定都由服务端/agent 本地计时，不跨节点比墙钟（“租约要服务端统一计时”的教训被普遍吸收）。“发布重启窗口内 keepalive 停止导致发布即误摘”是 etcd/Nacos 模式共同的经典坑：摘除阈值 > 发布耗时，或发布流水线先反注册再停进程。摘除延迟预算 = 检查间隔×失败次数 + 服务端传播 + 客户端缓存 TTL——DNS 姿势的 TTL 最容易被漏算。"
     }
   ]
 };
 
-// 共 305 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
+// 共 320 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
 // celery 8 + cicd 28 + otel 12 + logging 11 + middleware 10 + pg 12 +
 // datastream/sre/cloud/aiops 各 10 +
 // bigdata 20（HDFS 4 / YARN 3 / Hive 2 / Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓 5）+
-// clickhouse 12 + distributed 15）
+// clickhouse 12 + distributed 30）

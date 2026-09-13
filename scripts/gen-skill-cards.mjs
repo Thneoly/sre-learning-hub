@@ -9,7 +9,7 @@
 //      版式 A：问题在 <summary> 里，答案在正文；
 //      版式 B：问题是 <details> 前的普通文本行，<summary> 为"答案"）
 //   b) 根目录 SCENARIOS.md 的场景条目（现象 → 先查 → 详见）
-//   c) portal/quiz-data.js 的 window.QUIZ_DATA（19 库 305 题）
+//   c) portal/quiz-data.js 的 window.QUIZ_DATA（19 库 320 题）
 //
 // 用法（在仓库任意位置）：node scripts/gen-skill-cards.mjs [--root <learning-hub 根目录>]
 // 可重复运行：全部输出来自源文件即时解析，无中间状态。
