@@ -67,18 +67,18 @@
 - 只读检查（kubectl get/deserve/jsonpath 查询比对），不修改集群。
   唯一例外：判分对象是**写入行为本身**（如 Lua 校验删除、failover 后可写性）、无法用只读查询
   替代时，允许写**自清理的一次性探针**——键名带 `labcheck:`（或等价前缀）与脚本 PID、设 TTL
-  兜底、脚本结束前显式删除，且不得触碰实验数据键（先例：`11-middleware/redis/labs/01`
-  第 11 项、`17-distributed/labs/02` 第 4/5 项）。纯状态核查仍一律只读。
+  兜底、脚本结束前显式删除，且不得触碰实验数据键（先例：`13-middleware/redis/labs/01`
+  第 11 项、`19-distributed/labs/02` 第 4/5 项）。纯状态核查仍一律只读。
 - 结束输出 `SCORE: X/Y` 和逐项 PASS/FAIL；全部通过 exit 0
 - 对环境有假设处（如需要某 deployment 存在）在开头注释说明
 
 `NN-slug/solution.md`：逐步讲解——每步"做什么 + 为什么 + 验证输出"，最后附 check.sh 的通过结果。
 
-## 题库文件模板（Lab 三件套的豁免形态，仅限 08-pca）
+## 题库文件模板（Lab 三件套的豁免形态，仅限 10-pca）
 
 PCA 的 PromQL / Alertmanager 考点以"查询与配置辨析"为主，练习的正确性依赖
 Prometheus UI / `amtool` 的交互结果，无法用只读 bash 脚本逐题判分，因此
-`08-pca/labs/` 允许采用**单文件题库**形态（如 `promql-exercises.md`、
+`10-pca/labs/` 允许采用**单文件题库**形态（如 `promql-exercises.md`、
 `alertmanager-exercises.md`），不要求改造为 lab 目录三件套。题库文件必须满足：
 
 - 一个主题一个文件，文件名 `<topic>-exercises.md`，题号连续（Q1…/A1…）并按组划分
@@ -88,7 +88,7 @@ Prometheus UI / `amtool` 的交互结果，无法用只读 bash 脚本逐题判�
 - 每题结构固定：场景 → 要求 → 预期输出 → 折叠答案（含"解析"与"常见错误"）
 - 结尾有"收尾自查"（5 个左右深挖问题，答案折叠）与"延伸阅读"（官方链接）
 
-其他模块（03-docker / 05-cka / 07-cks 等实操型）仍一律使用 lab 目录三件套，
+其他模块（03-docker / 05-cka / 09-cks 等实操型）仍一律使用 lab 目录三件套，
 不得套用题库形态。
 
 ## 自检清单（写完每个文件自查）

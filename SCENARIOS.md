@@ -22,11 +22,11 @@
 - **现象**：`certs renew all` 后症状没变 / kubectl 仍报证书过期 → 先查：静态 Pod 没重启（需 `crictl stop` 重建）+ kubeconfig 里是旧证书副本需重拷 admin.conf → 详见：04-k8s-fundamentals/13-cluster-admin-and-etcd.md#常见坑
 - **现象**：集群只读、大面积超时，etcd 日志 `alarm NOSPACE` → 先查：`etcdctl alarm list`（backend 配额打满） → 详见：04-k8s-fundamentals/13-cluster-admin-and-etcd.md#常见坑
 - **现象**：etcdctl snapshot 报 command not found / connection refused / certificate is valid for → 先查：`ETCDCTL_API=3` + client 口 2379（非 2380）+ etcd 自己的 CA 三件套 → 详见：05-cka/04-etcd-backup-restore.md#常见坑
-- **现象**：kube-system 控制 Pod 删了又出现、edit 被改回，或 apiserver 反复重启（manifest 改坏） → 先查：静态 Pod 只认 `/etc/kubernetes/manifests/` 下的文件，恢复备份 + `crictl logs` 看退出原因 → 详见：04-k8s-fundamentals/13-cluster-admin-and-etcd.md#常见坑（另见 07-cks/01-cluster-hardening.md#常见坑）
+- **现象**：kube-system 控制 Pod 删了又出现、edit 被改回，或 apiserver 反复重启（manifest 改坏） → 先查：静态 Pod 只认 `/etc/kubernetes/manifests/` 下的文件，恢复备份 + `crictl logs` 看退出原因 → 详见：04-k8s-fundamentals/13-cluster-admin-and-etcd.md#常见坑（另见 09-cks/01-cluster-hardening.md#常见坑）
 - **现象**：drain 卡住不动 / init 后节点 NotReady / join 报 token 过期 → 先查：`--ignore-daemonsets --delete-emptydir-data`；CNI cidr 是否与 pod-network-cidr 一致；master 上 `kubeadm token create --print-join-command` → 详见：05-cka/03-kubeadm-install-upgrade.md#常见坑
 - **现象**：kubectl 连不上 apiserver，想先确认服务本身死活 → 先查：master 上 `curl 127.0.0.1:6443/healthz` + `crictl ps` 查 apiserver → 详见：04-k8s-fundamentals/14-observability.md#4. kubectl 排障命令矩阵
-- **现象**：etcd 配额打满只读，compact+defrag 都做完仍然拒绝写 → 先查：NOSPACE 告警未解除——`etcdctl alarm list` 确认后 `alarm disarm`（恢复动作本身要走一遍 Raft，别在失 quorum 时做） → 详见：17-distributed/11-coordination-tools.md#6.1 etcd：备份恢复与空间治理
-- **现象**：etcd defrag 之后集群抖动、甚至短暂切主 → 先查：多成员同时 defrag 等于主动制造一次 quorum 抖动——顺序永远先 compact 后 defrag，defrag 逐成员串行做、避开业务高峰 → 详见：17-distributed/11-coordination-tools.md#常见坑
+- **现象**：etcd 配额打满只读，compact+defrag 都做完仍然拒绝写 → 先查：NOSPACE 告警未解除——`etcdctl alarm list` 确认后 `alarm disarm`（恢复动作本身要走一遍 Raft，别在失 quorum 时做） → 详见：19-distributed/11-coordination-tools.md#6.1 etcd：备份恢复与空间治理
+- **现象**：etcd defrag 之后集群抖动、甚至短暂切主 → 先查：多成员同时 defrag 等于主动制造一次 quorum 抖动——顺序永远先 compact 后 defrag，defrag 逐成员串行做、避开业务高峰 → 详见：19-distributed/11-coordination-tools.md#常见坑
 
 ## 2 网络与 DNS（Pod 不通 / Service 无后端 / 域名解析 / 502 / 504）
 
@@ -43,10 +43,10 @@
 - **现象**：小包能通、大包或页面卡死 → 先查：`ping -M do -s` 定界 MTU（overlay 有 50 字节开销） → 详见：04-k8s-fundamentals/10-cni-and-pod-networking.md#常见坑
 - **现象**：Calico 多网卡 VM 节点间不通 → 先查：IP_AUTODETECTION_METHOD 是否选错网卡 → 详见：04-k8s-fundamentals/10-cni-and-pod-networking.md#常见坑
 - **现象**：endpoints 有值、Pod Running，但 Service 仍 curl 不通 → 先查：换层查——直连 Pod IP 二分定位 CNI/NetworkPolicy/目标端口 → 详见：05-cka/06-node-maintenance-troubleshooting.md#常见坑
-- **现象**：nginx 报 502 / 504 / 499，要一套定位流程 → 先查：三板斧——error.log 同时间戳原文 → access_log 看 ua/urt → nginx 机上直接 curl 后端复现 → 详见：11-middleware/nginx/03-performance-troubleshooting.md#3. 502 / 504 / 499：链路定位决策树
+- **现象**：nginx 报 502 / 504 / 499，要一套定位流程 → 先查：三板斧——error.log 同时间戳原文 → access_log 看 ua/urt → nginx 机上直接 curl 后端复现 → 详见：13-middleware/nginx/03-performance-troubleshooting.md#3. 502 / 504 / 499：链路定位决策树
 - **现象**：高并发下报 `Cannot assign requested address` / `nf_conntrack: table full` → 先查：ephemeral 端口与 conntrack 表容量（TIME_WAIT 本身不是故障） → 详见：01-linux/05-network-stack-internals.md#常见坑
 - **现象**：CLOSE_WAIT 持续堆积 → 先查：应用收 FIN 后不 close，改代码而非调内核参数 → 详见：01-linux/05-network-stack-internals.md#常见坑
-- **现象**：云上 SLB 健康检查一直 failed / 同 VPC 子网间 ping 不通 → 先查：安全组放行 100.64.0.0/10 与 ICMP；服务是否只听 127.0.0.1 → 详见：14-cloud/02-aliyun-practice.md#常见坑（另见 14-cloud/01-cloud-fundamentals.md#常见坑）
+- **现象**：云上 SLB 健康检查一直 failed / 同 VPC 子网间 ping 不通 → 先查：安全组放行 100.64.0.0/10 与 ICMP；服务是否只听 127.0.0.1 → 详见：16-cloud/02-aliyun-practice.md#常见坑（另见 16-cloud/01-cloud-fundamentals.md#常见坑）
 
 ## 3 工作负载（Pending / CrashLoop / ImagePullBackOff / 滚动更新卡住）
 
@@ -69,76 +69,76 @@
 
 - **现象**：PVC 一直 Pending / 有 SC 也绑不上 → 先查：`kubectl get sc` + `describe pvc` 看 Events；storageClassName 的 `""` 与省略语义不同；WFFC 要先建 Pod → 详见：04-k8s-fundamentals/07-storage.md#常见坑
 - **现象**：Pod 卡 ContainerCreating 报 Multi-Attach error；Retain 的 PV 一直 Released；PVC 扩容报错 → 先查：RWO 卷未 detach（失联节点可强删 volumeattachment）；Released 需清 claimRef；SC 开 allowVolumeExpansion 且只升不降 → 详见：04-k8s-fundamentals/07-storage.md#常见坑
-- **现象**：MySQL 报 1040 Too many connections、CPU 100% 或 metadata lock 排队 → 先查：`SHOW PROCESSLIST` 分型（连接池泄漏/DNS 反解析/慢 SQL 并发/DDL 阻塞），先留证据再 KILL → 详见：11-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（连接打满）
-- **现象**：MySQL 所在盘 `No space left on device` → 先查：df → du 找大头 → `PURGE BINARY LOGS`（严禁 rm 物理文件，ibdata/undo 删了实例即毁） → 详见：11-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（磁盘满）
-- **现象**：MySQL 主从延迟（Seconds_Behind_Source 增长），或复制中断报 1062/1032 → 先查：延迟先判型（平稳=单线程重放慢 / 阶梯=大事务）；1062/1032 用 GTID 空事务跳过，不一致重搭 → 详见：11-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（主从延迟）；11-middleware/mysql/02-backup-replication.md#常见坑
-- **现象**：MySQL EXPLAIN 看着没问题但就是慢；加了索引不走 → 先查：EXPLAIN ANALYZE 看真实耗时；统计信息过期/隐式类型转换/列上函数 → 详见：11-middleware/mysql/03-tuning-troubleshooting.md#常见坑
-- **现象**：PG 表体积只增不减，DELETE 千万行后磁盘没变 → 先查：死元组原地保留是设计（无 undo 回滚段），vacuum 只标记复用基本不还给 OS——`pg_stat_user_tables` 看 n_dead_tup/dead_pct，per-table 收紧 autovacuum 阈值，重灾区 pg_repack → 详见：11-middleware/postgresql/03-tuning-troubleshooting.md#5. vacuum 与 bloat 深讲
-- **现象**：PG 主库 `pg_wal` 目录暴涨、磁盘告警（Flink CDC 作业挂一晚常是元凶） → 先查：复制槽（含 CDC 槽）pin 住 WAL——`pg_replication_slots` 看 retained 与 wal_status；`max_slot_wal_keep_size` 兜底 → 详见：11-middleware/postgresql/02-replication-and-ha.md#复制槽：防 WAL 清理的双刃剑
-- **现象**：PG 配了同步复制后写入全部挂起（卡死不是变慢） → 先查：`synchronous_standby_names` 与备库 `application_name` 是否完全一致——名单不匹配时主库认为没有同步备库，所有提交无限等待 → 详见：11-middleware/postgresql/02-replication-and-ha.md#常见坑
-- **现象**：PG 报 `sorry, too many clients already`，或连接数上 500 后 CPU sys 飙升 → 先查：`pg_stat_activity` 按 state 分型——idle in transaction 是头号罪犯（阻碍 vacuum+持锁）先杀再查应用；长期方案 pgbouncer transaction 池 → 详见：11-middleware/postgresql/03-tuning-troubleshooting.md#3. 连接打满排障
-- **现象**：白天一条 ALTER TABLE 后 PG 全站超时 → 先查：慢查询挡住 DDL 的 ACCESS EXCLUSIVE，DDL 在队列里又挡住身后所有读（锁队列不分读写公平排队）——DDL 会话先 `SET lock_timeout='5s'` → 详见：11-middleware/postgresql/03-tuning-troubleshooting.md#4. 锁等待：pg_locks 与 lock_timeout
-- **现象**：PG autovacuum 显示在跑但 dead_tup 不降 → 先查：三大阻碍者——长事务 xmin horizon / 复制槽 pin 住老 LSN / idle in transaction；`pg_stat_activity` 看最老 xact → 详见：11-middleware/postgresql/03-tuning-troubleshooting.md#5.2 表为什么会膨胀
-- **现象**：从 MySQL 转 PG，想防"事务 ID 回卷"这颗最易漏建的雷 → 先查：`age(datfrozenxid)` 库级/表级两张口径——超 1.5 亿 warning、逼近 16 亿 critical（三级防线：autovacuum freeze / failsafe / 拒绝写） → 详见：11-middleware/postgresql/01-architecture-and-mvcc.md#4. 事务 ID 回卷（wraparound）
-- **现象**：Patroni 集群"全只读不切换" → 先查：etcd 失去多数派（挂 2/3）——DCS 是唯一真相源，修 DCS 是唯一正解；容量规划保证 etcd 奇数多机房分布 → 详见：11-middleware/postgresql/02-replication-and-ha.md#3. Patroni + etcd：高可用架构
-- **现象**：Redis 磁盘满后所有写报错；或每分钟固定点延迟尖刺 → 先查：`stop-writes-on-bgsave-error` 是保护先修磁盘；`latest_fork_usec` 监控 fork 耗时 → 详见：11-middleware/redis/02-persistence-and-ha.md#常见坑
-- **现象**：Redis replica 闪断一次就全量同步；三哨兵挂俩不切换 → 先查：repl-backlog-size 按断线时长×写流量调大；哨兵需 ≥3 且奇数凑 majority → 详见：11-middleware/redis/02-persistence-and-ha.md#常见坑
-- **现象**：Redis 突发超时但 SLOWLOG 是空的 → 先查：四类元凶按序过筛——慢命令 → fork 卡顿 → swap（碎片率<1）→ AOF fsync 慢 → 详见：11-middleware/redis/03-caching-patterns-troubleshooting.md#3. 阻塞点排查：单线程模型下的四类元凶
-- **现象**：配了 volatile-lru 仍报 OOM；Redis 容器频繁 OOMKilled → 先查：没有 key 带 TTL 则 volatile 系无候选；limit 未给 fork COW 留余量（≥1.5×maxmemory） → 详见：11-middleware/redis/03-caching-patterns-troubleshooting.md#常见坑
-- **现象**：MongoDB 两节点副本集挂一个，另一个不能写 → 先查：剩 1/2 不够多数派（防脑裂），至少 3 个投票成员 → 详见：11-middleware/mongodb/02-replicaset-and-sharding.md#常见坑
-- **现象**：MongoDB 慢/超时，不知从哪查起 → 先查：四类对号入座——个别接口慢（索引）/整体抬升（cache）/qw 堆积（tickets）/连接暴涨（连接风暴） → 详见：11-middleware/mongodb/03-operations-troubleshooting.md#3. 排障套路：四类问题对号入座
-- **现象**：MongoDB 一天多次无故切主（选举震荡）；连接数瞬间打满 → 先查：`rs.status()` 看心跳超时成因（网络/资源打满）；maxPoolSize 收敛与重连风暴 → 详见：11-middleware/mongodb/03-operations-troubleshooting.md#常见坑
-- **现象**：Kafka 消费组频繁 rebalance / broker 磁盘满写入失败 / under-replicated 副本掉线 → 先查：三大排障表按日志关键词对号（max.poll.interval 超时、手动 rm segment、fetch 追不上） → 详见：12-data-streaming/kafka/03-operations-and-performance.md#5. 三大高频故障排障表
-- **现象**：Kafka 大量 NotEnoughReplicasException 写入失败 → 先查：ISR 收缩到 min.insync.replicas 以下——先救 ISR，别调小 min.insync → 详见：12-data-streaming/kafka/02-replication-and-reliability.md#常见坑
-- **现象**：Flink checkpoint 一直 timeout/failed，反压面板全红找不到瓶颈 → 先查：反压让 barrier 走不动；找第一个 busy≈1000 的算子（受害者不背锅） → 详见：12-data-streaming/flink/02-deployment-and-exactly-once.md#6. 反压：原理与定位
-- **现象**：Flink Pod 重建后作业状态全丢；savepoint 恢复报 cannot map → 先查：状态目录别指向容器内 file:///tmp；算子要固定 .uid() → 详见：12-data-streaming/flink/02-deployment-and-exactly-once.md#常见坑
-- **现象**：HDFS NameNode 重启后卡在 safemode 十几分钟，UI 显示 reported blocks 未达 0.999 → 先查：`hdfs dfsadmin -safemode get` + `-report` 看 Live Nodes 与块报告进度；手动 leave 的前提是 DN 全部在线 → 详见：16-bigdata/01-hdfs.md#6. 运维核心一：safemode 的语义与进出条件
-- **现象**：NN UI 报 Missing/Corrupt Blocks > 0，用户读文件报 Could not obtain block → 先查：`hdfs fsck / -list-corruptfileblocks` 拿清单再按 runbook 走——先确认 DN 是否暂时离线（多数 missing 等 10~30 分钟自愈），严禁一见 missing 就 `-delete` → 详见：16-bigdata/01-hdfs.md#7. 运维核心二：丢失块 / 损坏块的处理流程
-- **现象**：UnderReplicatedBlocks 暴涨，疑似 DN 批量故障 → 先查：DN 判死要约 10.5 分钟，机器重启/网络抖动属短暂离线——先等 DN 回来，多数自己落回去 → 详见：16-bigdata/01-hdfs.md#3. DataNode：心跳、块报告与"死"的判定
-- **现象**：fsck 显示某文件的 3 副本全落在同一机架，单机架断电即丢数据 → 先查：`hdfs fsck /path -blocks -locations -racks`——没配机架感知全体落 /default-rack；存量数据要 setrep 触发重复制，Balancer 只搬量不纠拓扑 → 详见：16-bigdata/01-hdfs.md#4. 块模型：128MB 块、3 副本放置与纠删码
-- **现象**：文件一直处于 `.tmp` 写不进去，或报 lease 相关错误 → 先查：writer 崩溃后租约未回收——`hdfs debug recoverLease -path <file>`，或等硬限自动回收 → 详见：16-bigdata/01-hdfs.md#常见坑
-- **现象**：NN 频繁 Full GC、RPC p99 抖动，重启回放 edits 比预期长一倍 → 先查：小文件把堆吃满（每对象约 150B）+ checkpoint 失效 edits 无限增长——治理小文件与 checkpoint，短期加堆只买时间 → 详见：16-bigdata/01-hdfs.md#9. 小文件：量化危害与治理
-- **现象**：新上线的 DataNode 磁盘利用率长期 5%，没人写它 → 先查：新节点空盘属预期——排 Balancer 计划，`-setBalancerBandwidth` 错峰跑（搬迁流量与业务读写抢盘和网卡） → 详见：16-bigdata/01-hdfs.md#8. 运维核心三：Balancer 与数据再平衡
-- **现象**：YARN 作业一直 ACCEPTED，一个 container 都不动 → 先查：`yarn queue -status` + `yarn application -status`——队列满 / 单容器申请超 maximum-allocation / AM 被 am-percent 卡住 → 详见：16-bigdata/02-yarn.md#常见坑
-- **现象**：container 报 `running beyond virtual memory limits` 被 NM 杀（最经典"假 OOM"） → 先查：vmem-pmem-ratio 默认 2.1 对 JVM 堆外过紧——`yarn.nodemanager.vmem-check-enabled=false`（物理内存检查保留） → 详见：16-bigdata/02-yarn.md#2. 资源模型：Container = memory + vcores
-- **现象**：container 报 `running beyond physical memory limits`，退出码 137/143 → 先查：真超内存——executor/AM 的堆外按堆的 20~40% 预留，提高该角色 memory 配置 → 详见：16-bigdata/02-yarn.md#常见坑
-- **现象**：大队列里几百个小应用全在 ACCEPTED，队列明明还有资源 → 先查：`maximum-am-resource-percent` 默认 0.1 被 AM 占满——按负载形态调大，或把 Spark Thrift Server 类常驻应用挪独立队列 → 详见：16-bigdata/02-yarn.md#1. 三个角色：RM 全局调度、NM 本地执行、每应用一个 AM
-- **现象**：`yarn rmadmin -refreshQueues` 报错 → 先查：root 直接子队列 capacity 总和必须恒等于 100、不能删还有运行应用的队列（刷新失败不会弄挂 RM，放心改） → 详见：16-bigdata/02-yarn.md#6. 运维：队列配置热更新
-- **现象**：RM 主备切换后所有运行中作业失败重提 → 先查：HA 开了 recovery 没开——`yarn.resourcemanager.recovery.enabled=true` + ZK StateStore，否则切换=全集群作业清零 → 详见：16-bigdata/02-yarn.md#7. RM HA 与重启恢复
-- **现象**：beeline 卡在 `Connecting to jdbc:hive2://...` 数分钟，已建立的查询跟着变慢 → 先查：`ss -tn state established '( sport = :10000 )' | wc -l` 对比 max worker threads，HS2 Web UI Sessions 页查僵尸 session 与 idle 超时 → 详见：16-bigdata/03-hive-warehouse.md#8.2 HS2 连接打满排障
-- **现象**：Hive metastore 首次启动报 schema 版本不匹配 → 先查：元数据库未初始化或版本不配——`schematool -dbType mysql -initSchema`（升级用 `-upgradeSchema`） → 详见：16-bigdata/03-hive-warehouse.md#常见坑
-- **现象**：动态分区插入报 Dynamic partition strict mode → 先查：默认 strict 要求至少一个静态分区列——临时 `SET hive.exec.dynamic.partition.mode=nonstrict;`，长期在入仓脚本固定保留一级静态分区 → 详见：16-bigdata/03-hive-warehouse.md#常见坑
-- **现象**：ACID 事务表越查越慢，表目录下 delta 目录越堆越多 → 先查：`SHOW COMPACTIONS` 与 compactor worker 是否在跑——例行 `ALTER TABLE ... COMPACT`，delta 堆积直接拖垮读性能 → 详见：16-bigdata/03-hive-warehouse.md#7. ACID 事务表的演进
-- **现象**：查询明明带 dt 过滤却全表扫 → 先查：分区列被函数/别名包裹（如 `where dt=to_date(x)`）无法编译期常量折叠——`EXPLAIN` 看 Num rows 验证裁剪是否生效 → 详见：16-bigdata/03-hive-warehouse.md#常见坑
-- **现象**：误删表后恢复 metastore 备份，业务仍报错 → 先查：MySQL 元数据与 HDFS 文件撕裂（孤儿目录/表定义"复活"）——恢复 runbook 写清以哪边为准 + SHOW TABLES 抽查与关键分区 count 比对 → 详见：16-bigdata/03-hive-warehouse.md#8.1 metastore 本质是一个 MySQL 库
-- **现象**：Spark on YARN 报 `Container killed by YARN for exceeding memory limits`（K8s 上为 OOMKilled 137），executor 堆明明没用满 → 先查：RSS=堆+堆外超容器预算，netty 直接内存先膨胀——调 `spark.executor.memoryOverhead` 而不是盲目加大 -Xmx（容器上限 = memory + overhead） → 详见：16-bigdata/04-spark.md#7.3 高频故障表
-- **现象**：一个 stage 99% 的 task 秒级完成，个别 task 跑几十分钟且 Spill (disk) 十几 GB → 先查：数据倾斜——`EXPLAIN` 定位倾斜的 Exchange；null/空 key 先拆出去，再按口诀选 broadcast/两阶段聚合/加盐，先让 AQE 试 → 详见：16-bigdata/04-spark.md#5. 数据倾斜三板斧
-- **现象**：Spark 开了 dynamicAllocation 后 `FetchFailed` / `Map output lost` 反复出现，stage 反复重算 → 先查：executor 被回收后 shuffle 输出丢失——YARN 配 ESS（NM 常驻 7337），K8s 开 shuffleTracking → 详见：16-bigdata/04-spark.md#6. 动态资源分配与 external shuffle service
-- **现象**：broadcast join 把 Driver 打挂 → 先查："小表"实际几百 MB——调低 autoBroadcastJoinThreshold 或去掉 broadcast 提示 → 详见：16-bigdata/04-spark.md#常见坑
-- **现象**：Spark client 模式提交后关掉终端作业就死 → 先查：Driver 跑在提交机——生产用 cluster 模式（或 nohup/tmux 托管） → 详见：16-bigdata/04-spark.md#常见坑
-- **现象**：Driver 报 `Total size of serialized results > spark.driver.maxResultSize` → 先查：collect/take 往 Driver 拉了太多数据——改为 write 落盘，别把结果收回 Driver → 详见：16-bigdata/04-spark.md#7.3 高频故障表
-- **现象**：Spark 作业挂了却没有 4040 UI 可复盘（生产 Driver 一闪而过） → 先查：eventLog + History Server（18080）离线回放 stages/executors 全量页面——eventLog.dir 放 HDFS 并常驻 SHS → 详见：16-bigdata/04-spark.md#7.2 History Server 部署
-- **现象**：Doris 建表报 not enough backends / 副本不足 → 先查：默认 `replication_num=3` 而可用 BE 不够——实验表显式 `"replication_num"="1"`；生产扩 BE 而不是降副本 → 详见：16-bigdata/05-olap-doris-starrocks.md#常见坑
-- **现象**：Doris BE 注册后 `SHOW BACKENDS` 里 Alive=false → 先查：BE 日志——宿主机 `vm.max_map_count` 太低、ulimit 不够或 FE/BE 网络不通 → 详见：16-bigdata/05-olap-doris-starrocks.md#常见坑
-- **现象**：Doris 导入报 too many versions，compaction score 持续升高 → 先查：高频小批量导入让版本数超过合并能力——攒大批次降导入频率；不治会一路串成 Flink 反压 → Kafka lag → 详见：16-bigdata/05-olap-doris-starrocks.md#6.2 BE 磁盘与 compaction
-- **现象**：Doris FE Leader 宕机 30 秒，建表/导入提交全阻塞 → 先查：follower 多数派重选主期间元数据写阻塞是预期；FE 至少 3 个 FOLLOWER，OBSERVER 不参与 quorum 不算数 → 详见：16-bigdata/05-olap-doris-starrocks.md#6.1 FE 元数据与 Leader 选举
-- **现象**：Doris Stream Load 经 FE 8030 报 307 或 401 → 先查：FE 重定向到 BE 而 curl 不透传 Authorization 头——直发 BE 8040，或 `curl --location-trusted` → 详见：16-bigdata/05-olap-doris-starrocks.md#常见坑
-- **现象**：Flink 作业恢复重放后 Doris 大量 `Label Already Exists` → 先查：label 幂等 + 2PC 的正常表现，表里不会写两遍——核对 label 生成规则（前缀+checkpointId）即可，不要删 label → 详见：16-bigdata/05-olap-doris-starrocks.md#5. 导入通道：Stream Load 与 Flink Connector（串回 exactly-once）
-- **现象**：Doris 一张大报表把线上小查询拖死 → 先查：大查询与线上查询共享 BE 无隔离——资源标签分组（物理隔离）/ workload group 限流，大回刷错峰 → 详见：16-bigdata/05-olap-doris-starrocks.md#6.3 查询排队与资源隔离
-- **现象**：Doris FE 全部重启后起不来 → 先查：bdb 元数据损坏或过半丢失——从 image 检查点 + 备份恢复；FE 也要当有状态系统做备份（纪律同 etcd） → 详见：16-bigdata/05-olap-doris-starrocks.md#常见坑
-- **现象**：Iceberg 并发写报 commit 冲突；或湖表越写越慢、计划阶段就耗时 → 先查：多 writer 争同一表的 catalog 锁 + 小文件/manifest 碎片化——减少并发 writer、按分区隔离写，`rewrite_data_files`/`rewrite_manifests` 定时跑 → 详见：16-bigdata/07-lakehouse-table-formats.md#常见坑
-- **现象**：time travel 报 snapshot 不存在 → 先查：被 expire 清掉了——先查 `table.snapshots` 元数据表确认保留窗口，要长回溯调大 `history.expire.max-snapshot-age-ms` → 详见：16-bigdata/07-lakehouse-table-formats.md#常见坑
-- **现象**：Hudi MOR 表查询越来越慢 → 先查：compaction 积压——看 timeline 上 compaction requested 是否长期未执行；调度独立 compaction，临时用 read_optimized 查询 → 详见：16-bigdata/07-lakehouse-table-formats.md#常见坑
-- **现象**：Hudi 增量消费突然断流/丢数据 → 先查：cleaning 把保留窗口清得太狠——调大 `hoodie.cleaner.commits.retained`，按下游重放需求定 → 详见：16-bigdata/07-lakehouse-table-formats.md#常见坑
-- **现象**：Flink 写湖恢复后疑似重复数据，湖上无主文件增多 → 先查：checkpoint 被关或间隔过长，sink 提交与 checkpoint 脱钩——恢复 checkpoint 配置；孤儿文件用 `remove_orphan_files` 清（先核对无长事务） → 详见：16-bigdata/07-lakehouse-table-formats.md#7. 与 12-data-streaming 的衔接：exactly-once 落到湖写入路径
-- **现象**：Flink checkpoint 超时，第一嫌疑人是湖 commit / catalog 挂了写全阻塞 → 先查：对象存储限流（429/503）与 catalog 锁竞争——catalog 是湖表的 NameNode，HMS 路线的备份纪律等同 etcd → 详见：16-bigdata/07-lakehouse-table-formats.md#6.4 catalog 选型：HMS、REST catalog、Nessie
-- **现象**：湖表 snapshot/manifest 膨胀想监控，却发现没有 exporter 可装 → 先查：表格式无常驻进程——读 Iceberg 只读元数据表（snapshots/files/manifests）巡检推 Pushgateway 变 gauge，接既有告警体系 → 详见：16-bigdata/07-lakehouse-table-formats.md#6.2 snapshot / manifest 膨胀监控（指标与告警思路）
-- **现象**：ClickHouse 报 `Too many parts ... Merges are processing significantly slower than inserts`，上游跟着反压 → 先查：高频小 INSERT 产 parts 超过 merge 消化——攒万行/MB 级批次、小写入方开 async_insert、盯 MaxPartCountForPartition 趋势（与 Doris too many versions 同病） → 详见：16-bigdata/08-clickhouse.md#6. 后台 merge 与 parts："too many parts" 的因果链
-- **现象**：ReplacingMergeTree"去重没生效"，查出新旧两行 → 先查：去重只发生在后台 merge 碰巧合并时（异步不保证时机）——查询侧 `argMax(col,ver)` 或 `FINAL` 现场收敛；要写时收敛就别选 CH（对照 Doris MoW） → 详见：16-bigdata/08-clickhouse.md#2. MergeTree 引擎族：合并语义决定表的行为
-- **现象**：ClickHouse 副本表突然全部 is_readonly、INSERT 被拒 → 先查：ZK/Keeper 会话断（副本表降级只读保一致）——本地扫描查询不受影响，修 ZK/Keeper 后自动追平；告警优先级与 etcd 同级 → 详见：16-bigdata/08-clickhouse.md#4. 分片与副本：ReplicatedMergeTree 与 ZK/Keeper
-- **现象**：两个 ClickHouse 节点数据"没复制"或互相丢 part → 先查：ReplicatedMergeTree 的 zk_path/replica 名写错——路径不同=不复制，replica 同名=互踢；按 `/clickhouse/tables/{shard}/表名` 规范核对 macros 与建表参数 → 详见：16-bigdata/08-clickhouse.md#常见坑
-- **现象**：Distributed 表写入后马上查不到；或加了新分片数据不均衡 → 先查：默认异步——先落发起节点缓冲后台再发分片（查 `system.distributed` 队列）；新分片只接新写入，历史数据不自动迁移 → 详见：16-bigdata/08-clickhouse.md#5. 本地表 vs Distributed：双表架构与写入路径
-- **现象**：把高并发点查接到 ClickHouse 上，p99 惨不忍睹 → 先查：稀疏索引定位的是 8192 行粒度不是行（主键是排序描述不是行级索引）——点查明细走 MySQL/Redis，CH 主键面向"前缀过滤+大扫描收敛" → 详见：16-bigdata/08-clickhouse.md#3. 主键非索引的真相：排序键 + 稀疏索引 + 跳数索引
+- **现象**：MySQL 报 1040 Too many connections、CPU 100% 或 metadata lock 排队 → 先查：`SHOW PROCESSLIST` 分型（连接池泄漏/DNS 反解析/慢 SQL 并发/DDL 阻塞），先留证据再 KILL → 详见：13-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（连接打满）
+- **现象**：MySQL 所在盘 `No space left on device` → 先查：df → du 找大头 → `PURGE BINARY LOGS`（严禁 rm 物理文件，ibdata/undo 删了实例即毁） → 详见：13-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（磁盘满）
+- **现象**：MySQL 主从延迟（Seconds_Behind_Source 增长），或复制中断报 1062/1032 → 先查：延迟先判型（平稳=单线程重放慢 / 阶梯=大事务）；1062/1032 用 GTID 空事务跳过，不一致重搭 → 详见：13-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（主从延迟）；13-middleware/mysql/02-backup-replication.md#常见坑
+- **现象**：MySQL EXPLAIN 看着没问题但就是慢；加了索引不走 → 先查：EXPLAIN ANALYZE 看真实耗时；统计信息过期/隐式类型转换/列上函数 → 详见：13-middleware/mysql/03-tuning-troubleshooting.md#常见坑
+- **现象**：PG 表体积只增不减，DELETE 千万行后磁盘没变 → 先查：死元组原地保留是设计（无 undo 回滚段），vacuum 只标记复用基本不还给 OS——`pg_stat_user_tables` 看 n_dead_tup/dead_pct，per-table 收紧 autovacuum 阈值，重灾区 pg_repack → 详见：13-middleware/postgresql/03-tuning-troubleshooting.md#5. vacuum 与 bloat 深讲
+- **现象**：PG 主库 `pg_wal` 目录暴涨、磁盘告警（Flink CDC 作业挂一晚常是元凶） → 先查：复制槽（含 CDC 槽）pin 住 WAL——`pg_replication_slots` 看 retained 与 wal_status；`max_slot_wal_keep_size` 兜底 → 详见：13-middleware/postgresql/02-replication-and-ha.md#复制槽：防 WAL 清理的双刃剑
+- **现象**：PG 配了同步复制后写入全部挂起（卡死不是变慢） → 先查：`synchronous_standby_names` 与备库 `application_name` 是否完全一致——名单不匹配时主库认为没有同步备库，所有提交无限等待 → 详见：13-middleware/postgresql/02-replication-and-ha.md#常见坑
+- **现象**：PG 报 `sorry, too many clients already`，或连接数上 500 后 CPU sys 飙升 → 先查：`pg_stat_activity` 按 state 分型——idle in transaction 是头号罪犯（阻碍 vacuum+持锁）先杀再查应用；长期方案 pgbouncer transaction 池 → 详见：13-middleware/postgresql/03-tuning-troubleshooting.md#3. 连接打满排障
+- **现象**：白天一条 ALTER TABLE 后 PG 全站超时 → 先查：慢查询挡住 DDL 的 ACCESS EXCLUSIVE，DDL 在队列里又挡住身后所有读（锁队列不分读写公平排队）——DDL 会话先 `SET lock_timeout='5s'` → 详见：13-middleware/postgresql/03-tuning-troubleshooting.md#4. 锁等待：pg_locks 与 lock_timeout
+- **现象**：PG autovacuum 显示在跑但 dead_tup 不降 → 先查：三大阻碍者——长事务 xmin horizon / 复制槽 pin 住老 LSN / idle in transaction；`pg_stat_activity` 看最老 xact → 详见：13-middleware/postgresql/03-tuning-troubleshooting.md#5.2 表为什么会膨胀
+- **现象**：从 MySQL 转 PG，想防"事务 ID 回卷"这颗最易漏建的雷 → 先查：`age(datfrozenxid)` 库级/表级两张口径——超 1.5 亿 warning、逼近 16 亿 critical（三级防线：autovacuum freeze / failsafe / 拒绝写） → 详见：13-middleware/postgresql/01-architecture-and-mvcc.md#4. 事务 ID 回卷（wraparound）
+- **现象**：Patroni 集群"全只读不切换" → 先查：etcd 失去多数派（挂 2/3）——DCS 是唯一真相源，修 DCS 是唯一正解；容量规划保证 etcd 奇数多机房分布 → 详见：13-middleware/postgresql/02-replication-and-ha.md#3. Patroni + etcd：高可用架构
+- **现象**：Redis 磁盘满后所有写报错；或每分钟固定点延迟尖刺 → 先查：`stop-writes-on-bgsave-error` 是保护先修磁盘；`latest_fork_usec` 监控 fork 耗时 → 详见：13-middleware/redis/02-persistence-and-ha.md#常见坑
+- **现象**：Redis replica 闪断一次就全量同步；三哨兵挂俩不切换 → 先查：repl-backlog-size 按断线时长×写流量调大；哨兵需 ≥3 且奇数凑 majority → 详见：13-middleware/redis/02-persistence-and-ha.md#常见坑
+- **现象**：Redis 突发超时但 SLOWLOG 是空的 → 先查：四类元凶按序过筛——慢命令 → fork 卡顿 → swap（碎片率<1）→ AOF fsync 慢 → 详见：13-middleware/redis/03-caching-patterns-troubleshooting.md#3. 阻塞点排查：单线程模型下的四类元凶
+- **现象**：配了 volatile-lru 仍报 OOM；Redis 容器频繁 OOMKilled → 先查：没有 key 带 TTL 则 volatile 系无候选；limit 未给 fork COW 留余量（≥1.5×maxmemory） → 详见：13-middleware/redis/03-caching-patterns-troubleshooting.md#常见坑
+- **现象**：MongoDB 两节点副本集挂一个，另一个不能写 → 先查：剩 1/2 不够多数派（防脑裂），至少 3 个投票成员 → 详见：13-middleware/mongodb/02-replicaset-and-sharding.md#常见坑
+- **现象**：MongoDB 慢/超时，不知从哪查起 → 先查：四类对号入座——个别接口慢（索引）/整体抬升（cache）/qw 堆积（tickets）/连接暴涨（连接风暴） → 详见：13-middleware/mongodb/03-operations-troubleshooting.md#3. 排障套路：四类问题对号入座
+- **现象**：MongoDB 一天多次无故切主（选举震荡）；连接数瞬间打满 → 先查：`rs.status()` 看心跳超时成因（网络/资源打满）；maxPoolSize 收敛与重连风暴 → 详见：13-middleware/mongodb/03-operations-troubleshooting.md#常见坑
+- **现象**：Kafka 消费组频繁 rebalance / broker 磁盘满写入失败 / under-replicated 副本掉线 → 先查：三大排障表按日志关键词对号（max.poll.interval 超时、手动 rm segment、fetch 追不上） → 详见：14-data-streaming/kafka/03-operations-and-performance.md#5. 三大高频故障排障表
+- **现象**：Kafka 大量 NotEnoughReplicasException 写入失败 → 先查：ISR 收缩到 min.insync.replicas 以下——先救 ISR，别调小 min.insync → 详见：14-data-streaming/kafka/02-replication-and-reliability.md#常见坑
+- **现象**：Flink checkpoint 一直 timeout/failed，反压面板全红找不到瓶颈 → 先查：反压让 barrier 走不动；找第一个 busy≈1000 的算子（受害者不背锅） → 详见：14-data-streaming/flink/02-deployment-and-exactly-once.md#6. 反压：原理与定位
+- **现象**：Flink Pod 重建后作业状态全丢；savepoint 恢复报 cannot map → 先查：状态目录别指向容器内 file:///tmp；算子要固定 .uid() → 详见：14-data-streaming/flink/02-deployment-and-exactly-once.md#常见坑
+- **现象**：HDFS NameNode 重启后卡在 safemode 十几分钟，UI 显示 reported blocks 未达 0.999 → 先查：`hdfs dfsadmin -safemode get` + `-report` 看 Live Nodes 与块报告进度；手动 leave 的前提是 DN 全部在线 → 详见：18-bigdata/01-hdfs.md#6. 运维核心一：safemode 的语义与进出条件
+- **现象**：NN UI 报 Missing/Corrupt Blocks > 0，用户读文件报 Could not obtain block → 先查：`hdfs fsck / -list-corruptfileblocks` 拿清单再按 runbook 走——先确认 DN 是否暂时离线（多数 missing 等 10~30 分钟自愈），严禁一见 missing 就 `-delete` → 详见：18-bigdata/01-hdfs.md#7. 运维核心二：丢失块 / 损坏块的处理流程
+- **现象**：UnderReplicatedBlocks 暴涨，疑似 DN 批量故障 → 先查：DN 判死要约 10.5 分钟，机器重启/网络抖动属短暂离线——先等 DN 回来，多数自己落回去 → 详见：18-bigdata/01-hdfs.md#3. DataNode：心跳、块报告与"死"的判定
+- **现象**：fsck 显示某文件的 3 副本全落在同一机架，单机架断电即丢数据 → 先查：`hdfs fsck /path -blocks -locations -racks`——没配机架感知全体落 /default-rack；存量数据要 setrep 触发重复制，Balancer 只搬量不纠拓扑 → 详见：18-bigdata/01-hdfs.md#4. 块模型：128MB 块、3 副本放置与纠删码
+- **现象**：文件一直处于 `.tmp` 写不进去，或报 lease 相关错误 → 先查：writer 崩溃后租约未回收——`hdfs debug recoverLease -path <file>`，或等硬限自动回收 → 详见：18-bigdata/01-hdfs.md#常见坑
+- **现象**：NN 频繁 Full GC、RPC p99 抖动，重启回放 edits 比预期长一倍 → 先查：小文件把堆吃满（每对象约 150B）+ checkpoint 失效 edits 无限增长——治理小文件与 checkpoint，短期加堆只买时间 → 详见：18-bigdata/01-hdfs.md#9. 小文件：量化危害与治理
+- **现象**：新上线的 DataNode 磁盘利用率长期 5%，没人写它 → 先查：新节点空盘属预期——排 Balancer 计划，`-setBalancerBandwidth` 错峰跑（搬迁流量与业务读写抢盘和网卡） → 详见：18-bigdata/01-hdfs.md#8. 运维核心三：Balancer 与数据再平衡
+- **现象**：YARN 作业一直 ACCEPTED，一个 container 都不动 → 先查：`yarn queue -status` + `yarn application -status`——队列满 / 单容器申请超 maximum-allocation / AM 被 am-percent 卡住 → 详见：18-bigdata/02-yarn.md#常见坑
+- **现象**：container 报 `running beyond virtual memory limits` 被 NM 杀（最经典"假 OOM"） → 先查：vmem-pmem-ratio 默认 2.1 对 JVM 堆外过紧——`yarn.nodemanager.vmem-check-enabled=false`（物理内存检查保留） → 详见：18-bigdata/02-yarn.md#2. 资源模型：Container = memory + vcores
+- **现象**：container 报 `running beyond physical memory limits`，退出码 137/143 → 先查：真超内存——executor/AM 的堆外按堆的 20~40% 预留，提高该角色 memory 配置 → 详见：18-bigdata/02-yarn.md#常见坑
+- **现象**：大队列里几百个小应用全在 ACCEPTED，队列明明还有资源 → 先查：`maximum-am-resource-percent` 默认 0.1 被 AM 占满——按负载形态调大，或把 Spark Thrift Server 类常驻应用挪独立队列 → 详见：18-bigdata/02-yarn.md#1. 三个角色：RM 全局调度、NM 本地执行、每应用一个 AM
+- **现象**：`yarn rmadmin -refreshQueues` 报错 → 先查：root 直接子队列 capacity 总和必须恒等于 100、不能删还有运行应用的队列（刷新失败不会弄挂 RM，放心改） → 详见：18-bigdata/02-yarn.md#6. 运维：队列配置热更新
+- **现象**：RM 主备切换后所有运行中作业失败重提 → 先查：HA 开了 recovery 没开——`yarn.resourcemanager.recovery.enabled=true` + ZK StateStore，否则切换=全集群作业清零 → 详见：18-bigdata/02-yarn.md#7. RM HA 与重启恢复
+- **现象**：beeline 卡在 `Connecting to jdbc:hive2://...` 数分钟，已建立的查询跟着变慢 → 先查：`ss -tn state established '( sport = :10000 )' | wc -l` 对比 max worker threads，HS2 Web UI Sessions 页查僵尸 session 与 idle 超时 → 详见：18-bigdata/03-hive-warehouse.md#8.2 HS2 连接打满排障
+- **现象**：Hive metastore 首次启动报 schema 版本不匹配 → 先查：元数据库未初始化或版本不配——`schematool -dbType mysql -initSchema`（升级用 `-upgradeSchema`） → 详见：18-bigdata/03-hive-warehouse.md#常见坑
+- **现象**：动态分区插入报 Dynamic partition strict mode → 先查：默认 strict 要求至少一个静态分区列——临时 `SET hive.exec.dynamic.partition.mode=nonstrict;`，长期在入仓脚本固定保留一级静态分区 → 详见：18-bigdata/03-hive-warehouse.md#常见坑
+- **现象**：ACID 事务表越查越慢，表目录下 delta 目录越堆越多 → 先查：`SHOW COMPACTIONS` 与 compactor worker 是否在跑——例行 `ALTER TABLE ... COMPACT`，delta 堆积直接拖垮读性能 → 详见：18-bigdata/03-hive-warehouse.md#7. ACID 事务表的演进
+- **现象**：查询明明带 dt 过滤却全表扫 → 先查：分区列被函数/别名包裹（如 `where dt=to_date(x)`）无法编译期常量折叠——`EXPLAIN` 看 Num rows 验证裁剪是否生效 → 详见：18-bigdata/03-hive-warehouse.md#常见坑
+- **现象**：误删表后恢复 metastore 备份，业务仍报错 → 先查：MySQL 元数据与 HDFS 文件撕裂（孤儿目录/表定义"复活"）——恢复 runbook 写清以哪边为准 + SHOW TABLES 抽查与关键分区 count 比对 → 详见：18-bigdata/03-hive-warehouse.md#8.1 metastore 本质是一个 MySQL 库
+- **现象**：Spark on YARN 报 `Container killed by YARN for exceeding memory limits`（K8s 上为 OOMKilled 137），executor 堆明明没用满 → 先查：RSS=堆+堆外超容器预算，netty 直接内存先膨胀——调 `spark.executor.memoryOverhead` 而不是盲目加大 -Xmx（容器上限 = memory + overhead） → 详见：18-bigdata/04-spark.md#7.3 高频故障表
+- **现象**：一个 stage 99% 的 task 秒级完成，个别 task 跑几十分钟且 Spill (disk) 十几 GB → 先查：数据倾斜——`EXPLAIN` 定位倾斜的 Exchange；null/空 key 先拆出去，再按口诀选 broadcast/两阶段聚合/加盐，先让 AQE 试 → 详见：18-bigdata/04-spark.md#5. 数据倾斜三板斧
+- **现象**：Spark 开了 dynamicAllocation 后 `FetchFailed` / `Map output lost` 反复出现，stage 反复重算 → 先查：executor 被回收后 shuffle 输出丢失——YARN 配 ESS（NM 常驻 7337），K8s 开 shuffleTracking → 详见：18-bigdata/04-spark.md#6. 动态资源分配与 external shuffle service
+- **现象**：broadcast join 把 Driver 打挂 → 先查："小表"实际几百 MB——调低 autoBroadcastJoinThreshold 或去掉 broadcast 提示 → 详见：18-bigdata/04-spark.md#常见坑
+- **现象**：Spark client 模式提交后关掉终端作业就死 → 先查：Driver 跑在提交机——生产用 cluster 模式（或 nohup/tmux 托管） → 详见：18-bigdata/04-spark.md#常见坑
+- **现象**：Driver 报 `Total size of serialized results > spark.driver.maxResultSize` → 先查：collect/take 往 Driver 拉了太多数据——改为 write 落盘，别把结果收回 Driver → 详见：18-bigdata/04-spark.md#7.3 高频故障表
+- **现象**：Spark 作业挂了却没有 4040 UI 可复盘（生产 Driver 一闪而过） → 先查：eventLog + History Server（18080）离线回放 stages/executors 全量页面——eventLog.dir 放 HDFS 并常驻 SHS → 详见：18-bigdata/04-spark.md#7.2 History Server 部署
+- **现象**：Doris 建表报 not enough backends / 副本不足 → 先查：默认 `replication_num=3` 而可用 BE 不够——实验表显式 `"replication_num"="1"`；生产扩 BE 而不是降副本 → 详见：18-bigdata/05-olap-doris-starrocks.md#常见坑
+- **现象**：Doris BE 注册后 `SHOW BACKENDS` 里 Alive=false → 先查：BE 日志——宿主机 `vm.max_map_count` 太低、ulimit 不够或 FE/BE 网络不通 → 详见：18-bigdata/05-olap-doris-starrocks.md#常见坑
+- **现象**：Doris 导入报 too many versions，compaction score 持续升高 → 先查：高频小批量导入让版本数超过合并能力——攒大批次降导入频率；不治会一路串成 Flink 反压 → Kafka lag → 详见：18-bigdata/05-olap-doris-starrocks.md#6.2 BE 磁盘与 compaction
+- **现象**：Doris FE Leader 宕机 30 秒，建表/导入提交全阻塞 → 先查：follower 多数派重选主期间元数据写阻塞是预期；FE 至少 3 个 FOLLOWER，OBSERVER 不参与 quorum 不算数 → 详见：18-bigdata/05-olap-doris-starrocks.md#6.1 FE 元数据与 Leader 选举
+- **现象**：Doris Stream Load 经 FE 8030 报 307 或 401 → 先查：FE 重定向到 BE 而 curl 不透传 Authorization 头——直发 BE 8040，或 `curl --location-trusted` → 详见：18-bigdata/05-olap-doris-starrocks.md#常见坑
+- **现象**：Flink 作业恢复重放后 Doris 大量 `Label Already Exists` → 先查：label 幂等 + 2PC 的正常表现，表里不会写两遍——核对 label 生成规则（前缀+checkpointId）即可，不要删 label → 详见：18-bigdata/05-olap-doris-starrocks.md#5. 导入通道：Stream Load 与 Flink Connector（串回 exactly-once）
+- **现象**：Doris 一张大报表把线上小查询拖死 → 先查：大查询与线上查询共享 BE 无隔离——资源标签分组（物理隔离）/ workload group 限流，大回刷错峰 → 详见：18-bigdata/05-olap-doris-starrocks.md#6.3 查询排队与资源隔离
+- **现象**：Doris FE 全部重启后起不来 → 先查：bdb 元数据损坏或过半丢失——从 image 检查点 + 备份恢复；FE 也要当有状态系统做备份（纪律同 etcd） → 详见：18-bigdata/05-olap-doris-starrocks.md#常见坑
+- **现象**：Iceberg 并发写报 commit 冲突；或湖表越写越慢、计划阶段就耗时 → 先查：多 writer 争同一表的 catalog 锁 + 小文件/manifest 碎片化——减少并发 writer、按分区隔离写，`rewrite_data_files`/`rewrite_manifests` 定时跑 → 详见：18-bigdata/07-lakehouse-table-formats.md#常见坑
+- **现象**：time travel 报 snapshot 不存在 → 先查：被 expire 清掉了——先查 `table.snapshots` 元数据表确认保留窗口，要长回溯调大 `history.expire.max-snapshot-age-ms` → 详见：18-bigdata/07-lakehouse-table-formats.md#常见坑
+- **现象**：Hudi MOR 表查询越来越慢 → 先查：compaction 积压——看 timeline 上 compaction requested 是否长期未执行；调度独立 compaction，临时用 read_optimized 查询 → 详见：18-bigdata/07-lakehouse-table-formats.md#常见坑
+- **现象**：Hudi 增量消费突然断流/丢数据 → 先查：cleaning 把保留窗口清得太狠——调大 `hoodie.cleaner.commits.retained`，按下游重放需求定 → 详见：18-bigdata/07-lakehouse-table-formats.md#常见坑
+- **现象**：Flink 写湖恢复后疑似重复数据，湖上无主文件增多 → 先查：checkpoint 被关或间隔过长，sink 提交与 checkpoint 脱钩——恢复 checkpoint 配置；孤儿文件用 `remove_orphan_files` 清（先核对无长事务） → 详见：18-bigdata/07-lakehouse-table-formats.md#7. 与 14-data-streaming 的衔接：exactly-once 落到湖写入路径
+- **现象**：Flink checkpoint 超时，第一嫌疑人是湖 commit / catalog 挂了写全阻塞 → 先查：对象存储限流（429/503）与 catalog 锁竞争——catalog 是湖表的 NameNode，HMS 路线的备份纪律等同 etcd → 详见：18-bigdata/07-lakehouse-table-formats.md#6.4 catalog 选型：HMS、REST catalog、Nessie
+- **现象**：湖表 snapshot/manifest 膨胀想监控，却发现没有 exporter 可装 → 先查：表格式无常驻进程——读 Iceberg 只读元数据表（snapshots/files/manifests）巡检推 Pushgateway 变 gauge，接既有告警体系 → 详见：18-bigdata/07-lakehouse-table-formats.md#6.2 snapshot / manifest 膨胀监控（指标与告警思路）
+- **现象**：ClickHouse 报 `Too many parts ... Merges are processing significantly slower than inserts`，上游跟着反压 → 先查：高频小 INSERT 产 parts 超过 merge 消化——攒万行/MB 级批次、小写入方开 async_insert、盯 MaxPartCountForPartition 趋势（与 Doris too many versions 同病） → 详见：18-bigdata/08-clickhouse.md#6. 后台 merge 与 parts："too many parts" 的因果链
+- **现象**：ReplacingMergeTree"去重没生效"，查出新旧两行 → 先查：去重只发生在后台 merge 碰巧合并时（异步不保证时机）——查询侧 `argMax(col,ver)` 或 `FINAL` 现场收敛；要写时收敛就别选 CH（对照 Doris MoW） → 详见：18-bigdata/08-clickhouse.md#2. MergeTree 引擎族：合并语义决定表的行为
+- **现象**：ClickHouse 副本表突然全部 is_readonly、INSERT 被拒 → 先查：ZK/Keeper 会话断（副本表降级只读保一致）——本地扫描查询不受影响，修 ZK/Keeper 后自动追平；告警优先级与 etcd 同级 → 详见：18-bigdata/08-clickhouse.md#4. 分片与副本：ReplicatedMergeTree 与 ZK/Keeper
+- **现象**：两个 ClickHouse 节点数据"没复制"或互相丢 part → 先查：ReplicatedMergeTree 的 zk_path/replica 名写错——路径不同=不复制，replica 同名=互踢；按 `/clickhouse/tables/{shard}/表名` 规范核对 macros 与建表参数 → 详见：18-bigdata/08-clickhouse.md#常见坑
+- **现象**：Distributed 表写入后马上查不到；或加了新分片数据不均衡 → 先查：默认异步——先落发起节点缓冲后台再发分片（查 `system.distributed` 队列）；新分片只接新写入，历史数据不自动迁移 → 详见：18-bigdata/08-clickhouse.md#5. 本地表 vs Distributed：双表架构与写入路径
+- **现象**：把高并发点查接到 ClickHouse 上，p99 惨不忍睹 → 先查：稀疏索引定位的是 8192 行粒度不是行（主键是排序描述不是行级索引）——点查明细走 MySQL/Redis，CH 主键面向"前缀过滤+大扫描收敛" → 详见：18-bigdata/08-clickhouse.md#3. 主键非索引的真相：排序键 + 稀疏索引 + 跳数索引
 
 ## 5 性能与资源（CPU 高 / 内存涨 / OOM / 磁盘满 / 限流 / 队列积压）
 
@@ -152,40 +152,40 @@
 - **现象**：free 很少被当内存不足告警 → 先查：buff/cache 可回收，看 available 列才是真实余量 → 详见：01-linux/03-memory-deep-dive.md#常见坑
 - **现象**：iowait 低就排除 IO 问题；SSD %util 100% 当满载；VM 里 st 高调优无果 → 先查：CPU 一忙 wa 被挤掉，配 iostat await；%util 不度量并行度；st 高找宿主机资源方 → 详见：01-linux/06-performance-analysis.md#常见坑
 - **现象**：kubelet 报 running with swap on；磁盘满后服务行为诡异 → 先查：swapoff -a 并注释 fstab；journald 写满 /var/log 用 --vacuum-size + SystemMaxUse → 详见：01-linux/01-boot-and-systemd.md#常见坑
-- **现象**：nginx 报 Too many open files / worker_connections are not enough → 先查：worker_rlimit_nofile 与 systemd LimitNOFILE；反代每请求占 2 个连接槽 → 详见：11-middleware/nginx/01-architecture-and-process-model.md#常见坑
-- **现象**：压测偶发 502 且报 Cannot assign requested address；调大 somaxconn 无效 → 先查：upstream 未配 keepalive 致源端口耗尽；listen backlog 默认 511 更小 → 详见：11-middleware/nginx/03-performance-troubleshooting.md#常见坑
+- **现象**：nginx 报 Too many open files / worker_connections are not enough → 先查：worker_rlimit_nofile 与 systemd LimitNOFILE；反代每请求占 2 个连接槽 → 详见：13-middleware/nginx/01-architecture-and-process-model.md#常见坑
+- **现象**：压测偶发 502 且报 Cannot assign requested address；调大 somaxconn 无效 → 先查：upstream 未配 keepalive 致源端口耗尽；listen backlog 默认 511 更小 → 详见：13-middleware/nginx/03-performance-troubleshooting.md#常见坑
 - **现象**：Celery 队列越积越多、CPU 却很闲；新扩容的 worker 也接不到活 → 先查：IO 密集任务用了 prefork 小 `-c`（换 `-P gevent -c 100+`）；`worker_prefetch_multiplier` 默认 4 让老 worker 囤光消息——长任务固定配 1 → 详见：02-programming/06-celery-task-queue.md#4. worker 并发模型：prefork / gevent / threads
 - **现象**：Celery 的 LLEN 积压告警阈值不知道怎么设 → 先查：按消化时长不按绝对条数——积压消化时间 ≈ LLEN ÷ 完成速率；排障三板斧：LLEN 看积压在不在 → `celery -A tasks inspect ping` 看 worker 活没活 → `inspect active` 看是卡死还是慢跑 → 详见：02-programming/06-celery-task-queue.md#7. 积压监控：LLEN / flower / 探针
 
 ## 6 交付流水线（CI 挂了 / ArgoCD 不同步 / 漂移 / 镜像仓库 / 质量门禁 / Terraform state 锁）
 
-- **现象**：git push 被拒 non-fast-forward；detached HEAD 上的提交切分支后不见 → 先查：先 `pull --rebase`；`git reflog` 找回 hash，慌的时候先 reflog 别乱 reset → 详见：06-cicd-iac-gitops/01-git-deep-dive.md#常见坑（救命操作见同文件 #5. 救命操作：stash 与 reflog）
-- **现象**：GitLab CI job 一直 pending 提示 no runner；docker build 连不上 daemon → 先查：job tags 与 runner 标签匹配、`gitlab-runner verify`；dind 设 `DOCKER_TLS_CERTDIR=""` 或挂 socket → 详见：06-cicd-iac-gitops/02-gitlab-ci.md#常见坑
-- **现象**：deploy-prod 阶段拿不到密码变量 → 先查：变量设了 protected 而 tag 不在 Protected tags → 详见：06-cicd-iac-gitops/02-gitlab-ci.md#常见坑
-- **现象**：Jenkins agent 一直离线；job 排队不执行 → 先查：JNLP 50000 端口与 NTP；agent label 匹配与 executor 数 → 详见：06-cicd-iac-gitops/03-jenkins-and-github-actions.md#常见坑
-- **现象**：ArgoCD 一直 OutOfSync 但资源看着一样；改了 Git 半天不生效 → 先查：`argocd app diff` 看默认值差异配 ignoreDifferences；默认 3 分钟才 refresh，配 webhook → 详见：06-cicd-iac-gitops/04-argocd-gitops.md#常见坑
-- **现象**：手动 kubectl 改动后 ArgoCD 不回滚（漂移） → 先查：selfHeal 未开——sync 只管"Git 变了"，selfHeal 才管"集群被手改" → 详见：06-cicd-iac-gitops/04-argocd-gitops.md#常见坑
-- **现象**：Ansible 报 UNREACHABLE Permission denied；handler 没触发；command 模块每次都 changed → 先查：ssh-copy-id 打通免密；notify 与 handler 名一致；command 天然不幂等换专用模块 → 详见：06-cicd-iac-gitops/05-ansible.md#常见坑
-- **现象**：Terraform plan 显示 -/+ 要重建资源 → 先查：改了不可更新字段（cidr/镜像），评估停机或分批迁移 → 详见：06-cicd-iac-gitops/06-terraform.md#常见坑
-- **现象**：apply 时卡在 Acquiring state lock → 先查：上次 apply 异常退出未释放锁，确认无 apply 在跑后 force-unlock → 详见：06-cicd-iac-gitops/06-terraform.md#常见坑
-- **现象**：怀疑有人绕过 IaC 手改了云资源 → 先查：`terraform plan -detailed-exitcode`（exit 2=有漂移），nightly 跑 CI 告警 → 详见：06-cicd-iac-gitops/06-terraform.md#5. 漂移检测：state 说的和云上不一致
-- **现象**：docker push Harbor 报 `server gave HTTP response to HTTPS client` → 先查：http 部署但客户端按 https 连——daemon.json 配 insecure-registries，或给 Harbor 上 TLS → 详见：06-cicd-iac-gitops/09-harbor.md#常见坑
-- **现象**：Harbor docker login 报 unauthorized 但密码没输错 → 先查：机器人用户名没带 `robot$项目+名` 全称，或 secret 复制带空格——用户名完整复制 UI 里的值，必要时重新生成 secret → 详见：06-cicd-iac-gitops/09-harbor.md#常见坑
-- **现象**：Harbor 装完 UI 打不开、`docker compose ps` 里 core 反复重启 → 先查：内存不足（全家桶约 4G）或 harbor.yml 缩进错——`docker logs harbor-core` 看报错行，释放内存后重来 → 详见：06-cicd-iac-gitops/09-harbor.md#常见坑
-- **现象**：Harbor 勾了"阻止拉取有漏洞镜像"后，CI 推完镜像立即被集群拉取失败 → 先查：push 后扫描未完成，镜像处于未评估状态——CI 改为"推 → 扫描完成 → 再触发部署"，或对 CI 专用项目关掉该开关 → 详见：06-cicd-iac-gitops/09-harbor.md#常见坑
-- **现象**：Harbor retention 删了 20 个旧 tag，磁盘一点没降 → 先查：retention 只删 artifact 引用，blob 要 GC 才释放——先 DRY RUN 预估再 GC NOW（在线执行不必停推拉） → 详见：06-cicd-iac-gitops/09-harbor.md#7.1 磁盘回收（retention → gc 两步走）
-- **现象**：Harbor 复制规则一直 Failed → 先查：目标 registry 凭据失效/网络不通/TLS 不信任——编辑规则点 Test Connection，jobservice 日志看具体错误 → 详见：06-cicd-iac-gitops/09-harbor.md#常见坑
-- **现象**：SonarQube 的 Elasticsearch 起不来，日志报 max virtual memory areas 不足 → 先查：vm.max_map_count 未调——`sysctl -w vm.max_map_count=524288` 并持久化（最高频安装故障） → 详见：06-cicd-iac-gitops/10-sonarqube.md#常见坑
-- **现象**：sonar-scanner 报 Missing blame information / Could not find ref → 先查：浅克隆拿不到全量历史——CI 里 `GIT_DEPTH: "0"`（本地跑则别用 --depth clone） → 详见：06-cicd-iac-gitops/10-sonarqube.md#常见坑
-- **现象**：CI 里 SonarQube 分析成功但门禁从不阻塞 → 先查：没加 `sonar.qualitygate.wait=true`（scanner 发射后不管），或 job 设了 allow_failure: true → 详见：06-cicd-iac-gitops/10-sonarqube.md#常见坑
-- **现象**：SonarQube coverage 永远 0% → 先查：没把覆盖率报告喂给 scanner——按语言配 `sonar.<lang>.coverage.reportPaths`，且 CI 先跑测试再跑 sonar → 详见：06-cicd-iac-gitops/10-sonarqube.md#常见坑
-- **现象**：首次给老仓库接 SonarQube，第二天"门禁永远红" → 先查：首次分析全部算"新代码"——先跑基线分析再启用严格门禁，或临时用宽松 gate 过渡 → 详见：06-cicd-iac-gitops/10-sonarqube.md#常见坑
-- **现象**：MR 里看不到 SonarQube 行内评论 → 先查：用的 Community Build（免费版无 PR 分析/装饰）——走 pipeline 阻塞形态（wait=true 挡合并）或上商业版 → 详见：06-cicd-iac-gitops/10-sonarqube.md#4.3 PR decoration：MR 页内联评论
-- **现象**：晋升靠复制粘贴 YAML 到"生产目录"，环境差异越来越说不清 → 先查：差异不可 review、无审计——base+overlays + 晋升 MR，差异显式可评审 → 详见：06-cicd-iac-gitops/11-delivery-platform.md#常见坑（交付平台反模式清单）
-- **现象**：门禁只在 CI，部署侧裸奔，有人手 kubectl apply 野镜像直达 prod → 先查：CI 门只约束走流水线的人——签名验证下沉 prod admission（Kyverno verifyImages），CI 门负责快速反馈 → 详见：06-cicd-iac-gitops/11-delivery-platform.md#5. 供应链三道门的放置位置
-- **现象**：Image Updater 与人工提交互相覆盖，"谁放的行"说不清 → 先查：自动跟新覆盖了评审结论——write-back 只授权 dev/test 目录，prod 只认人工 MR（建议 digest 形式） → 详见：06-cicd-iac-gitops/11-delivery-platform.md#3. 晋升策略：PR-based vs 自动跟新
-- **现象**：镜像引用用浮动 tag（latest），回滚失效、扫的不是跑的 → 先查：tag 可覆盖、不可复现——CI 产出用 commit SHA tag，prod 钉 digest → 详见：06-cicd-iac-gitops/11-delivery-platform.md#常见坑（交付平台反模式清单）
-- **现象**：告警通知风暴刷屏，值班麻木、真告警被淹没 → 先查：通知无分级——分级路由 + grouping/inhibit + 静默窗口三件套，CI 通知只报失败 → 详见：06-cicd-iac-gitops/11-delivery-platform.md#6.3 分级路由与通知治理
+- **现象**：git push 被拒 non-fast-forward；detached HEAD 上的提交切分支后不见 → 先查：先 `pull --rebase`；`git reflog` 找回 hash，慌的时候先 reflog 别乱 reset → 详见：06-ci-cd/01-git-deep-dive.md#常见坑（救命操作见同文件 #5. 救命操作：stash 与 reflog）
+- **现象**：GitLab CI job 一直 pending 提示 no runner；docker build 连不上 daemon → 先查：job tags 与 runner 标签匹配、`gitlab-runner verify`；dind 设 `DOCKER_TLS_CERTDIR=""` 或挂 socket → 详见：06-ci-cd/02-gitlab-ci.md#常见坑
+- **现象**：deploy-prod 阶段拿不到密码变量 → 先查：变量设了 protected 而 tag 不在 Protected tags → 详见：06-ci-cd/02-gitlab-ci.md#常见坑
+- **现象**：Jenkins agent 一直离线；job 排队不执行 → 先查：JNLP 50000 端口与 NTP；agent label 匹配与 executor 数 → 详见：06-ci-cd/03-jenkins-and-github-actions.md#常见坑
+- **现象**：ArgoCD 一直 OutOfSync 但资源看着一样；改了 Git 半天不生效 → 先查：`argocd app diff` 看默认值差异配 ignoreDifferences；默认 3 分钟才 refresh，配 webhook → 详见：07-cd-gitops/00-argocd-gitops.md#常见坑
+- **现象**：手动 kubectl 改动后 ArgoCD 不回滚（漂移） → 先查：selfHeal 未开——sync 只管"Git 变了"，selfHeal 才管"集群被手改" → 详见：07-cd-gitops/00-argocd-gitops.md#常见坑
+- **现象**：Ansible 报 UNREACHABLE Permission denied；handler 没触发；command 模块每次都 changed → 先查：ssh-copy-id 打通免密；notify 与 handler 名一致；command 天然不幂等换专用模块 → 详见：08-iac/00-ansible.md#常见坑
+- **现象**：Terraform plan 显示 -/+ 要重建资源 → 先查：改了不可更新字段（cidr/镜像），评估停机或分批迁移 → 详见：08-iac/01-terraform.md#常见坑
+- **现象**：apply 时卡在 Acquiring state lock → 先查：上次 apply 异常退出未释放锁，确认无 apply 在跑后 force-unlock → 详见：08-iac/01-terraform.md#常见坑
+- **现象**：怀疑有人绕过 IaC 手改了云资源 → 先查：`terraform plan -detailed-exitcode`（exit 2=有漂移），nightly 跑 CI 告警 → 详见：08-iac/01-terraform.md#5. 漂移检测：state 说的和云上不一致
+- **现象**：docker push Harbor 报 `server gave HTTP response to HTTPS client` → 先查：http 部署但客户端按 https 连——daemon.json 配 insecure-registries，或给 Harbor 上 TLS → 详见：06-ci-cd/05-harbor.md#常见坑
+- **现象**：Harbor docker login 报 unauthorized 但密码没输错 → 先查：机器人用户名没带 `robot$项目+名` 全称，或 secret 复制带空格——用户名完整复制 UI 里的值，必要时重新生成 secret → 详见：06-ci-cd/05-harbor.md#常见坑
+- **现象**：Harbor 装完 UI 打不开、`docker compose ps` 里 core 反复重启 → 先查：内存不足（全家桶约 4G）或 harbor.yml 缩进错——`docker logs harbor-core` 看报错行，释放内存后重来 → 详见：06-ci-cd/05-harbor.md#常见坑
+- **现象**：Harbor 勾了"阻止拉取有漏洞镜像"后，CI 推完镜像立即被集群拉取失败 → 先查：push 后扫描未完成，镜像处于未评估状态——CI 改为"推 → 扫描完成 → 再触发部署"，或对 CI 专用项目关掉该开关 → 详见：06-ci-cd/05-harbor.md#常见坑
+- **现象**：Harbor retention 删了 20 个旧 tag，磁盘一点没降 → 先查：retention 只删 artifact 引用，blob 要 GC 才释放——先 DRY RUN 预估再 GC NOW（在线执行不必停推拉） → 详见：06-ci-cd/05-harbor.md#7.1 磁盘回收（retention → gc 两步走）
+- **现象**：Harbor 复制规则一直 Failed → 先查：目标 registry 凭据失效/网络不通/TLS 不信任——编辑规则点 Test Connection，jobservice 日志看具体错误 → 详见：06-ci-cd/05-harbor.md#常见坑
+- **现象**：SonarQube 的 Elasticsearch 起不来，日志报 max virtual memory areas 不足 → 先查：vm.max_map_count 未调——`sysctl -w vm.max_map_count=524288` 并持久化（最高频安装故障） → 详见：06-ci-cd/04-sonarqube.md#常见坑
+- **现象**：sonar-scanner 报 Missing blame information / Could not find ref → 先查：浅克隆拿不到全量历史——CI 里 `GIT_DEPTH: "0"`（本地跑则别用 --depth clone） → 详见：06-ci-cd/04-sonarqube.md#常见坑
+- **现象**：CI 里 SonarQube 分析成功但门禁从不阻塞 → 先查：没加 `sonar.qualitygate.wait=true`（scanner 发射后不管），或 job 设了 allow_failure: true → 详见：06-ci-cd/04-sonarqube.md#常见坑
+- **现象**：SonarQube coverage 永远 0% → 先查：没把覆盖率报告喂给 scanner——按语言配 `sonar.<lang>.coverage.reportPaths`，且 CI 先跑测试再跑 sonar → 详见：06-ci-cd/04-sonarqube.md#常见坑
+- **现象**：首次给老仓库接 SonarQube，第二天"门禁永远红" → 先查：首次分析全部算"新代码"——先跑基线分析再启用严格门禁，或临时用宽松 gate 过渡 → 详见：06-ci-cd/04-sonarqube.md#常见坑
+- **现象**：MR 里看不到 SonarQube 行内评论 → 先查：用的 Community Build（免费版无 PR 分析/装饰）——走 pipeline 阻塞形态（wait=true 挡合并）或上商业版 → 详见：06-ci-cd/04-sonarqube.md#4.3 PR decoration：MR 页内联评论
+- **现象**：晋升靠复制粘贴 YAML 到"生产目录"，环境差异越来越说不清 → 先查：差异不可 review、无审计——base+overlays + 晋升 MR，差异显式可评审 → 详见：07-cd-gitops/03-delivery-platform.md#常见坑（交付平台反模式清单）
+- **现象**：门禁只在 CI，部署侧裸奔，有人手 kubectl apply 野镜像直达 prod → 先查：CI 门只约束走流水线的人——签名验证下沉 prod admission（Kyverno verifyImages），CI 门负责快速反馈 → 详见：07-cd-gitops/03-delivery-platform.md#5. 供应链三道门的放置位置
+- **现象**：Image Updater 与人工提交互相覆盖，"谁放的行"说不清 → 先查：自动跟新覆盖了评审结论——write-back 只授权 dev/test 目录，prod 只认人工 MR（建议 digest 形式） → 详见：07-cd-gitops/03-delivery-platform.md#3. 晋升策略：PR-based vs 自动跟新
+- **现象**：镜像引用用浮动 tag（latest），回滚失效、扫的不是跑的 → 先查：tag 可覆盖、不可复现——CI 产出用 commit SHA tag，prod 钉 digest → 详见：07-cd-gitops/03-delivery-platform.md#常见坑（交付平台反模式清单）
+- **现象**：告警通知风暴刷屏，值班麻木、真告警被淹没 → 先查：通知无分级——分级路由 + grouping/inhibit + 静默窗口三件套，CI 通知只报失败 → 详见：07-cd-gitops/03-delivery-platform.md#6.3 分级路由与通知治理
 - **现象**：CI 里 kubectl/命令行为和本地不一样（cron/runner 环境） → 先查：cron 与 CI 的 PATH 极简，脚本内绝对路径或重设 PATH → 详见：02-programming/01-shell-fundamentals.md#常见坑
 - **现象**：批量 ssh 脚本卡死在某台机器 → 先查：`-o ConnectTimeout=5 BatchMode=yes`（TCP 黑洞无超时） → 详见：02-programming/02-shell-ops-patterns.md#常见坑
 - **现象**：Celery 任务偶发被执行两次（短信发两遍、库存扣两次），系统层面无任何报错 → 先查：任务执行时长超过 visibility_timeout，正常执行中的消息也被判超时重投（Redis broker 铁律：visibility_timeout > 最长任务时长含重试）；任务本身用 task_id+业务唯一键幂等兜底 → 详见：02-programming/06-celery-task-queue.md#3. broker 选型：Redis vs RabbitMQ
@@ -197,81 +197,81 @@
 - **现象**：不知道这个 K8s 故障该用什么命令查 → 先查：kubectl 排障命令矩阵——按"现象 | 第一入口 | 深挖命令"三列对号 → 详见：04-k8s-fundamentals/14-observability.md#4. kubectl 排障命令矩阵
 - **现象**：kubectl top 报 Metrics API not available；metrics-server 日志报 x509；部分节点无指标 → 先查：metrics-server Pod 与 apiservice；实验集群加 --kubelet-insecure-tls；到 kubelet:10250 的连通性 → 详见：04-k8s-fundamentals/14-observability.md#常见坑
 - **现象**：排障时证据拿不到——2 小时前的 Events 空了、logs --previous not found → 先查：--event-ttl 默认 1 小时；旧容器日志已被 GC，历史靠中心化采集 → 详见：04-k8s-fundamentals/14-observability.md#常见坑
-- **现象**：PromQL 报 expected type range vector；正则 `=~"5"` 匹配不到 5xx → 先查：rate/over_time 要补 [5m] 窗口；正则全锚定需写 `5..` → 详见：08-pca/03-promql-guide.md#常见坑
-- **现象**：histogram_quantile 输出怪值 / P99 曲线不动 / summary 多实例 avg 当整体 P99 → 先查：聚合别丢 le 标签；P99 落在过宽桶要埋点加窄桶；分位数不可平均改 histogram → 详见：08-pca/03-promql-guide.md#常见坑
-- **现象**：告警一直 pending 不 firing；PrometheusRule 死活不生效 → 先查：for 太长或 expr 抖动（窗口≥4×抓取间隔）；规则缺 release 标签或放错 namespace → 详见：08-pca/05-alerting-alertmanager.md#常见坑
-- **现象**：告警风暴一屏同种告警；同一故障收到两封；silence 了还收到 → 先查：group_by 加关键维度、group_wait 给足；规则重复定义；amtool silence ls 核对 matcher → 详见：08-pca/05-alerting-alertmanager.md#常见坑
-- **现象**：blackbox 探测一切正常但目标明明挂了 → 先查：看的是 up 而非 probe_success，告警应盯 `probe_success == 0` → 详见：08-pca/04-instrumentation-exporters.md#常见坑
-- **现象**：备份任务"永远成功"；Pushgateway 序列数持续增长 → 先查：指标不衰减的两大陷阱——监控 time() - push_time_seconds；grouping key 带随机成分 → 详见：08-pca/04-instrumentation-exporters.md#5.2 两大陷阱
-- **现象**：链路在某跳断成两截（trace 断链） → 先查：对账 traceparent——该跳没装 propagator/代理剥头/异步丢 context → 详见：09-otel/01-signals-and-context-propagation.md#常见坑（断链高发区见同文件 #3.4 三种载体与断链高发区）
-- **现象**：加了采样后链路断半截；Jaeger 里 service 名是 unknown_service → 先查：采样器用 parentbased 系列跟随根决策；显式设 OTEL_SERVICE_NAME → 详见：09-otel/02-instrumentation.md#常见坑
-- **现象**：Collector 被 OOMKilled；改组件配置毫无变化 → 先查：memory_limiter 放 pipelines 首位且低于容器 limit 约 20%；组件需被 service.pipelines 引用 → 详见：09-otel/03-collector.md#常见坑
-- **现象**：有 trace 但不会用它定位根因 → 先查：六步法（指标定层→trace 定点→属性定因→日志定据→K8s 验证→修复回归）+ 故障形态指纹表 → 详见：09-otel/05-otel-demo-astronomy-shop.md#实战演练三：故障注入与"从 trace 定位根因"
-- **现象**：日志明明写入了 Kibana 搜不到；ES 磁盘 85% 后索引变只读 → 先查：手动 _refresh 排除、data view 时间窗；flood_stage 水位保护，清理后删 read_only 块 → 详见：10-logging/02-elk-stack.md#常见坑
-- **现象**：Loki push 返回 429 / entry too far behind；`{job="app"}` 查询永远慢 → 先查：高基数标签撞每流速率限制；标签太宽扫的 chunk 太多，补收窄标签 → 详见：10-logging/03-loki-stack.md#常见坑
-- **现象**：采集器抓不到某 Pod 日志；Pod 重建后日志从头再收 → 先查：应用写文件而非 stdout（加 sidecar）；positions 文件在容器可写层要挂 hostPath → 详见：10-logging/04-k8s-logging.md#常见坑
-- **现象**：每班十几个 page 团队麻木；半夜 page 没人响应 → 先查：不可操作告警删或降级；时限驱动的升级阶梯（T+5 secondary、T+15 manager） → 详见：13-sre-methodology/03-oncall-incident-management.md#2. 告警分级与升级路径
-- **现象**：面板查无数据（No data）；缩放时间范围后 rate 断点 → 先查：数据源 URL 别用 localhost；窗口 <4×抓取间隔会断，用 $__rate_interval → 详见：08-pca/06-grafana-dashboards.md#常见坑
+- **现象**：PromQL 报 expected type range vector；正则 `=~"5"` 匹配不到 5xx → 先查：rate/over_time 要补 [5m] 窗口；正则全锚定需写 `5..` → 详见：10-pca/03-promql-guide.md#常见坑
+- **现象**：histogram_quantile 输出怪值 / P99 曲线不动 / summary 多实例 avg 当整体 P99 → 先查：聚合别丢 le 标签；P99 落在过宽桶要埋点加窄桶；分位数不可平均改 histogram → 详见：10-pca/03-promql-guide.md#常见坑
+- **现象**：告警一直 pending 不 firing；PrometheusRule 死活不生效 → 先查：for 太长或 expr 抖动（窗口≥4×抓取间隔）；规则缺 release 标签或放错 namespace → 详见：10-pca/05-alerting-alertmanager.md#常见坑
+- **现象**：告警风暴一屏同种告警；同一故障收到两封；silence 了还收到 → 先查：group_by 加关键维度、group_wait 给足；规则重复定义；amtool silence ls 核对 matcher → 详见：10-pca/05-alerting-alertmanager.md#常见坑
+- **现象**：blackbox 探测一切正常但目标明明挂了 → 先查：看的是 up 而非 probe_success，告警应盯 `probe_success == 0` → 详见：10-pca/04-instrumentation-exporters.md#常见坑
+- **现象**：备份任务"永远成功"；Pushgateway 序列数持续增长 → 先查：指标不衰减的两大陷阱——监控 time() - push_time_seconds；grouping key 带随机成分 → 详见：10-pca/04-instrumentation-exporters.md#5.2 两大陷阱
+- **现象**：链路在某跳断成两截（trace 断链） → 先查：对账 traceparent——该跳没装 propagator/代理剥头/异步丢 context → 详见：11-otel/01-signals-and-context-propagation.md#常见坑（断链高发区见同文件 #3.4 三种载体与断链高发区）
+- **现象**：加了采样后链路断半截；Jaeger 里 service 名是 unknown_service → 先查：采样器用 parentbased 系列跟随根决策；显式设 OTEL_SERVICE_NAME → 详见：11-otel/02-instrumentation.md#常见坑
+- **现象**：Collector 被 OOMKilled；改组件配置毫无变化 → 先查：memory_limiter 放 pipelines 首位且低于容器 limit 约 20%；组件需被 service.pipelines 引用 → 详见：11-otel/03-collector.md#常见坑
+- **现象**：有 trace 但不会用它定位根因 → 先查：六步法（指标定层→trace 定点→属性定因→日志定据→K8s 验证→修复回归）+ 故障形态指纹表 → 详见：11-otel/05-otel-demo-astronomy-shop.md#实战演练三：故障注入与"从 trace 定位根因"
+- **现象**：日志明明写入了 Kibana 搜不到；ES 磁盘 85% 后索引变只读 → 先查：手动 _refresh 排除、data view 时间窗；flood_stage 水位保护，清理后删 read_only 块 → 详见：12-logging/02-elk-stack.md#常见坑
+- **现象**：Loki push 返回 429 / entry too far behind；`{job="app"}` 查询永远慢 → 先查：高基数标签撞每流速率限制；标签太宽扫的 chunk 太多，补收窄标签 → 详见：12-logging/03-loki-stack.md#常见坑
+- **现象**：采集器抓不到某 Pod 日志；Pod 重建后日志从头再收 → 先查：应用写文件而非 stdout（加 sidecar）；positions 文件在容器可写层要挂 hostPath → 详见：12-logging/04-k8s-logging.md#常见坑
+- **现象**：每班十几个 page 团队麻木；半夜 page 没人响应 → 先查：不可操作告警删或降级；时限驱动的升级阶梯（T+5 secondary、T+15 manager） → 详见：15-sre-methodology/03-oncall-incident-management.md#2. 告警分级与升级路径
+- **现象**：面板查无数据（No data）；缩放时间范围后 rate 断点 → 先查：数据源 URL 别用 localhost；窗口 <4×抓取间隔会断，用 $__rate_interval → 详见：10-pca/06-grafana-dashboards.md#常见坑
 
 ## 8 安全（PSA 拒绝 / 证书过期 / 镜像高危 / 权限 403）
 
 - 【靶场】**现象**：业务 Pod Running 但日志持续刷 Forbidden：SA cannot list pods → 先查：`kubectl auth can-i list pods --as=<报错里的 User>`，再查 Role 与 Binding 谁没了 → 详见：scripts/faults/FIXES.md#6. break-rbac
 - **现象**：Pod 内调 API 报 403；1.24 后拿不到 SA 的 token Secret → 先查：default SA 零权限，专用 SA + RoleBinding；token 用 `kubectl create token`（短时） → 详见：04-k8s-fundamentals/12-rbac-and-service-accounts.md#常见坑
 - **现象**：有 pods 读权限但 kubectl logs Forbidden；RoleBinding 绑 ClusterRole 却只在一个 ns 生效 → 先查：logs 走 pods/log 子资源；作用域由 Binding 决定，全集群要 ClusterRoleBinding → 详见：04-k8s-fundamentals/12-rbac-and-service-accounts.md#常见坑
-- **现象**：PSA label 打了不生效；enforce=restricted 后大量 Pod 被拒 → 先查：label 必须打在 namespace 上；镜像默认 root，加 runAsNonRoot 与非 0 runAsUser → 详见：07-cks/03-microservice-vulnerabilities.md#常见坑
-- **现象**：NetworkPolicy 似乎完全无效；改 automount 后 Pod 里还有 token → 先查：CNI 未就绪/不支持或 podSelector 不匹配；旧 Pod 滚动重启，删 Pod 级显式 true → 详见：07-cks/03-microservice-vulnerabilities.md#常见坑
-- **现象**：CI 里 trivy --exit-code 1 全线打红；离线环境扫描卡住 → 先查：--ignore-unfixed 加 .trivyignore；预热度缓存或 --skip-db-update 配离线库 → 详见：07-cks/04-supply-chain-security.md#常见坑
-- **现象**：配了 admission webhook 后全集群建不了 Pod，甚至 apiserver 起不来 → 先查：fail-closed 后端不可达——先 patch failurePolicy: Ignore 降级再排障，事后回滚 → 详见：07-cks/04-supply-chain-security.md#常见坑
-- **现象**：distroless Pod CrashLoop 无从排查（exec 报无 sh） → 先查：kubectl debug 临时容器注入排障现场 → 详见：07-cks/04-supply-chain-security.md#常见坑
-- **现象**：audit.log 一直是空文件；审计日志量爆炸打满磁盘 → 先查：policy 文件 flag + volumeMount 缺一不可；watch 用 None、Secret 记 Metadata 三限位 → 详见：07-cks/05-monitoring-auditing-runtime.md#常见坑
-- **现象**：Falco 装完服务 failed；自定义规则不生效；k8s.pod.name 字段为空 → 先查：驱动不可用改 modern_eBPF；falco --validate 校验；只读挂 containerd.sock → 详见：07-cks/05-monitoring-auditing-runtime.md#常见坑
-- **现象**：readOnlyRootFilesystem 后应用崩 → 先查：应用要写 /tmp、/var/log，emptyDir 挂必写路径，别回退只读 → 详见：07-cks/05-monitoring-auditing-runtime.md#常见坑
-- **现象**：开启 Secret 加密后 apiserver CrashLoop；轮换后部分 Secret 解不开 → 先查：缩进/非 base64/key 非 32 字节；旧 key 删早了只能 etcd 快照恢复，按重写→验前缀→再删流程 → 详见：07-cks/06-secret-encryption.md#常见坑
-- **现象**：开启加密后老 Secret 在 etcd 里仍明文 → 先查：加密只对新写入生效，全量重写（get -o json | replace），按 ns 分批 → 详见：07-cks/06-secret-encryption.md#常见坑
+- **现象**：PSA label 打了不生效；enforce=restricted 后大量 Pod 被拒 → 先查：label 必须打在 namespace 上；镜像默认 root，加 runAsNonRoot 与非 0 runAsUser → 详见：09-cks/03-microservice-vulnerabilities.md#常见坑
+- **现象**：NetworkPolicy 似乎完全无效；改 automount 后 Pod 里还有 token → 先查：CNI 未就绪/不支持或 podSelector 不匹配；旧 Pod 滚动重启，删 Pod 级显式 true → 详见：09-cks/03-microservice-vulnerabilities.md#常见坑
+- **现象**：CI 里 trivy --exit-code 1 全线打红；离线环境扫描卡住 → 先查：--ignore-unfixed 加 .trivyignore；预热度缓存或 --skip-db-update 配离线库 → 详见：09-cks/04-supply-chain-security.md#常见坑
+- **现象**：配了 admission webhook 后全集群建不了 Pod，甚至 apiserver 起不来 → 先查：fail-closed 后端不可达——先 patch failurePolicy: Ignore 降级再排障，事后回滚 → 详见：09-cks/04-supply-chain-security.md#常见坑
+- **现象**：distroless Pod CrashLoop 无从排查（exec 报无 sh） → 先查：kubectl debug 临时容器注入排障现场 → 详见：09-cks/04-supply-chain-security.md#常见坑
+- **现象**：audit.log 一直是空文件；审计日志量爆炸打满磁盘 → 先查：policy 文件 flag + volumeMount 缺一不可；watch 用 None、Secret 记 Metadata 三限位 → 详见：09-cks/05-monitoring-auditing-runtime.md#常见坑
+- **现象**：Falco 装完服务 failed；自定义规则不生效；k8s.pod.name 字段为空 → 先查：驱动不可用改 modern_eBPF；falco --validate 校验；只读挂 containerd.sock → 详见：09-cks/05-monitoring-auditing-runtime.md#常见坑
+- **现象**：readOnlyRootFilesystem 后应用崩 → 先查：应用要写 /tmp、/var/log，emptyDir 挂必写路径，别回退只读 → 详见：09-cks/05-monitoring-auditing-runtime.md#常见坑
+- **现象**：开启 Secret 加密后 apiserver CrashLoop；轮换后部分 Secret 解不开 → 先查：缩进/非 base64/key 非 32 字节；旧 key 删早了只能 etcd 快照恢复，按重写→验前缀→再删流程 → 详见：09-cks/06-secret-encryption.md#常见坑
+- **现象**：开启加密后老 Secret 在 etcd 里仍明文 → 先查：加密只对新写入生效，全量重写（get -o json | replace），按 ns 分批 → 详见：09-cks/06-secret-encryption.md#常见坑
 - **现象**：--cap-drop ALL 后 nginx 起不来；非 root 写 volume 报拒绝 → 先查：监听 80 需 NET_BIND_SERVICE（或改 8080）；卷初拷属主是 root，chown 后降权 → 详见：03-docker/06-security-best-practices.md#常见坑
-- **现象**：seccomp/AppArmor/gVisor/Kata Pod 起不来（profile not found / cannot load / runsc 未注册） → 先查：profile 路径与节点放置；annotation 容器名精确匹配；RuntimeClass 键名与 handler 一致 → 详见：07-cks/02-system-hardening.md#常见坑
+- **现象**：seccomp/AppArmor/gVisor/Kata Pod 起不来（profile not found / cannot load / runsc 未注册） → 先查：profile 路径与节点放置；annotation 容器名精确匹配；RuntimeClass 键名与 handler 一致 → 详见：09-cks/02-system-hardening.md#常见坑
 
 ## 9 分布式与共识（ZK 脑旋 / 失 quorum / 脑裂双主 / 锁误删 / 时钟漂移 / Paxos 活锁 / CRDT 丢写 / 注册中心排障）
 
-- **现象**：ZK 的 `mntr`/`stat` 发过去没反应，`srvr` 却正常 → 先查：3.5+ 四字命令白名单默认只放行 `srvr`——配 `4lw.commands.whitelist`，或走 admin server 8080 的 HTTP JSON → 详见：16-bigdata/06-zookeeper.md#6.1 四字命令与 admin server
-- **现象**：HBase/HDFS 频繁重新选主，ZK 的 Mode 频繁变化、latency 尖刺（脑旋） → 先查：JVM 长 GC / 事务日志盘 fsync 慢 / 网络抖动——dataLogDir 独立低延迟盘、堆给 3~4GB 缩 GC、对 Mode 变化做告警 → 详见：16-bigdata/06-zookeeper.md#6.3 脑旋与脑裂防护
-- **现象**：ZK 加了一台节点，集群反而写不进了 → 先查：多数派从 2 变 3，滚动重启窗口凑不齐过半——一次只加一台、等它同步完成再动下一台；扩容走 3→5 跳过 4 → 详见：16-bigdata/06-zookeeper.md#6.5 扩容为什么必须逐台重启
-- **现象**：业务报"锁丢了"但持有进程还活着 → 先查：会话被服务端判死（GC 停顿/网络分区），临时节点已删、新主已选出——会话超时按业务最长暂停调 + 下游 fencing token 拒绝旧持有者 → 详见：16-bigdata/06-zookeeper.md#4. watch 一次性触发与会话：最容易踩语义坑的地方
-- **现象**：ZK watch 时灵时不灵，配置变更偶尔收不到通知 → 先查：watch 是一次性触发且会话过期后全部作废——收到事件立即"重注册+全量读"，或用 Curator Cache 类封装 → 详见：16-bigdata/06-zookeeper.md#4. watch 一次性触发与会话：最容易踩语义坑的地方
-- **现象**：客户端写 >1MB 数据到 znode 报错，被误判为"ZK 不稳定" → 先查：`jute.maxbuffer` 默认 ~1MB 且客户端+全部服务端要同步调大；正确姿势是 ZK 只放指针、大内容放对象存储/DB → 详见：16-bigdata/06-zookeeper.md#6.2 jute.maxbuffer：大 znode 的坑
-- **现象**：ZK 集群起不来，日志报无法过半（unable to form quorum） → 先查：`dataDir/myid` 与 zoo.cfg 的 `server.N` 是否一一对应、起来的节点是否够过半、端口是否通 → 详见：16-bigdata/06-zookeeper.md#常见坑
-- **现象**："集群健康"（进程都在）却持续报错 → 先查：健康检查要区分"进程在"与"过半在"——看 ZK 的 Mode、etcd `endpoint health`（它本身就是一次提交提案的写探针） → 详见：17-distributed/00-distributed-overview.md#1.3 部分故障：集群健康不是 0/1
-- **现象**：跨节点日志"应答的时间比请求还早"，事件顺序拼不出来 → 先查：三步对表法量出偏差量再读时间线；关键链路用 trace_id/offset/revision 串联，别用墙钟排序 → 详见：17-distributed/01-failure-models-and-time.md#5. 运维含义：日志时间戳对齐的坑
-- **现象**：网络流量大盘突然出现尖刺，设备侧却无感知 → 先查：目标端时钟跳变让 rate() 的分母（样本时间戳差）错位——查 `node_timex_sync_status` 与 offset 斜率，排除后再谈容量 → 详见：17-distributed/01-failure-models-and-time.md#2.2 为什么监控看斜率、不看绝对差
-- **现象**：节点反复"被判定宕机又回来"，依赖方跟着反复切主 → 先查：长 GC/慢盘造出的时序故障（ZK 脑旋元凶）——先治慢（缩 GC、独立日志盘），再谈调超时 → 详见：17-distributed/01-failure-models-and-time.md#常见坑
-- **现象**：新节点加入集群被拒，报证书/授权失败 → 先查：该机时钟偏离导致证书校验不过——先修 NTP 再排证书链 → 详见：17-distributed/01-failure-models-and-time.md#常见坑
-- **现象**："写完立刻读不到"工单被升级成集群故障 → 先查：五步排查先定性——读路径连的是谁（主/从/缓存）、什么一致性级别；串行读/本地读/读从库读到旧值是"按合同履约"不是故障 → 详见：17-distributed/02-consistency-models.md#5. 运维含义："读到了旧数据"先查一致性级别，再怀疑故障
-- **现象**：把 ZK 当强一致读用，偶发读到旧配置 → 先查：ZK 默认本地读是顺序一致（可能旧值）——要"读己之写"先 `sync()`，或改走带版本号的 watch 通知 → 详见：17-distributed/02-consistency-models.md#3. 现实系统落位表
-- **现象**：kubectl get 正常但 create/apply 全超时，apiserver 本身 Running → 先查：etcd 失 quorum（读走 watch cache 所以还通）——`etcdctl endpoint status` 数存活成员 vs quorum，先救一台别急重建 → 详见：17-distributed/03-consensus-and-replication.md#常见坑
-- **现象**：控制面频繁切主、component 状态反复跳变，磁盘又没告警 → 先查：WAL fsync 慢 → 心跳/选举超时（脑旋）——etcd 独占低延迟盘、调大 election-timeout、对 leader 变化告警 → 详见：17-distributed/03-consensus-and-replication.md#常见坑
-- **现象**：共识集群加了第 4 个成员，以为"更稳"了 → 先查：N=4 容错与 N=3 相同、确认成本反而更高——奇数原则，扩容走 3→5；etcd 先 `--learner` 追平再 promote → 详见：17-distributed/03-consensus-and-replication.md#2.2 N=3 容 1、N=5 容 2：两张账要分开算
-- **现象**：消费者明明做了幂等还是出现重复订单 → 先查：只挡了"消息重投"，没挡"两个来源写同一业务键"（定时任务+消息并发）——最后一道防线永远在数据库唯一键约束上 → 详见：17-distributed/04-distributed-transactions.md#6. 幂等设计模式速查
-- **现象**：Flink 作业频繁报事务超时 / 数据延迟可见 → 先查：`transaction.timeout.ms` ≤ checkpoint 间隔——调大事务超时或调小 checkpoint 间隔，且不超过 broker 的 `transaction.max.timeout.ms` → 详见：17-distributed/04-distributed-transactions.md#5.1 Flink：把 2PC 装进 checkpoint
-- **现象**：版本号乐观锁用时间戳，偶发失效（旧写覆盖新写） → 先查：时钟回拨/漂移让版本回退——换单调递增整数或数据库自增，别用任何墙钟当版本 → 详见：17-distributed/04-distributed-transactions.md#常见坑
-- **现象**：扩容后集群反而更慢/超时（Redis 迁槽、任何再平衡） → 先查：迁移流量撞业务高峰 + MIGRATE 大批次阻塞源节点单线程——低峰 + 小批量（10~100 key/批）+ 限速 + 可暂停 → 详见：17-distributed/05-sharding-and-rebalancing.md#4. 再平衡的运维代价与窗口选择
-- **现象**：Redis 迁槽迁到一半放弃，整个集群写失败 → 先查：`cluster-require-full-coverage=yes` 下有槽无归属即整层拒写——要么完成要么显式 `SETSLOT` 归还，别留孤儿中间态 → 详见：17-distributed/05-sharding-and-rebalancing.md#常见坑
-- **现象**：新加的 Kafka broker 空转，磁盘 0 增长 → 先查：分区是静态元数据，扩容不自动迁移老分区——KafkaRebalance（add-brokers）或 `kafka-reassign-partitions.sh` 显式搬 → 详见：17-distributed/05-sharding-and-rebalancing.md#常见坑
-- **现象**："拿了 Redis/ZK 锁就认为绝对安全"，下游偶发重复扣款/发货 → 先查：zombie writer——旧持有者从长 GC 醒来继续写下游，quorum 管不到下游——下游加 fencing token 原子校验（只接受更大令牌） → 详见：17-distributed/06-gossip-membership-fencing.md#4.4 Fencing token：让旧主"写不进去"
-- **现象**：SETNX 拿锁、释放时直接 DEL，删掉了别人的锁（双主开端） → 先查：自己已超时、锁已被新持有者接手——SET 带唯一 token + Lua 比对令牌再删 → 详见：17-distributed/06-gossip-membership-fencing.md#常见坑
-- **现象**：lease 到期判定写在客户端本地时钟上，两侧同时认为自己持有 → 先查：NTP 步进/回拨——租约要服务端统一计时（etcd lease 模式）或单调钟；租约只能收窄僵尸窗口，清零靠 fencing → 详见：17-distributed/06-gossip-membership-fencing.md#4.3 租约 lease：有时限的授权
-- **现象**：5 成员共识集群挂 3 台，同事提议"把剩下 2 台组成新集群继续写" → 先查：不可写≠丢数据——已提交条目在过半成员上大概率仍在；先抢修任一台，重组等于人为制造双写史 → 详见：17-distributed/07-distributed-troubleshooting.md#2. quorum 计算速查表
-- **现象**：一半成员互相失联但各自"活着"，写超时集中在部分客户端（疑似脑裂） → 先查：从一台机器分别 ping/telnet 全部成员取分区证据；比对各成员 term/epoch 与 leader 认知（`endpoint status`/`srvr`/`rs.status()`） → 详见：17-distributed/07-distributed-troubleshooting.md#3.1 脑裂（分区两侧各自主）
-- **现象**：etcd `proposals_failed_total` 持续上涨 / WAL fsync p99 抬高 → 先查：quorum 交互在失败（磁盘慢/网络/失多数派前兆）——`/metrics` 摘这两项，下一步 iostat await/util 查盘 → 详见：17-distributed/07-distributed-troubleshooting.md#1.1 写路径 = 协调者 → quorum 确认链
-- **现象**：Paxos 系统提案编号（ballot）持续上抬，但没有任何值被选中，也没有节点故障 → 先查：两个 proposer 交替抬编号的决斗活锁——安全性无损、活性饿死；解药是唯一提案者（distinguished proposer/leader） → 详见：17-distributed/09-paxos-deep-dive.md#3. 活锁：安全但可能永远选不出
-- **现象**：Cassandra 计数字段偶发"少加"，集群与应用日志均无异常 → 先查：用 LWW 字段做 read-modify-write 的 +=，并发写互裁、输者静默丢——换 counter 表或收敛到单写者，这类丢写无日志无痕迹 → 详见：17-distributed/10-crdt-and-convergence.md#常见坑
-- **现象**：CRDB 多活集群个别 String 更新"消失" → 先查：String 按时间戳 LWW 裁决 + 实例间时钟漂移"选错赢家"——严 NTP 纪律、关键值改 Hash 逐字段/计数类型，排查先对表 → 详见：17-distributed/10-crdt-and-convergence.md#常见坑
-- **现象**：CRDT 集合删除某元素后再添加同元素，删掉的内容"复活" → 先查：删除是加墓碑，同 ID 元素再添加时合并语义复活旧成员——元素用唯一 ID（时间戳+序号）而不是业务值本身 → 详见：17-distributed/10-crdt-and-convergence.md#常见坑
-- **现象**：协同文档 / CRDT 存储越用越大，删除也不缩小 → 先查：半格只增不减 + 墓碑与字符 ID 元数据不可回退——用实现自带的 GC/压缩能力，并监控对象大小 → 详见：17-distributed/10-crdt-and-convergence.md#常见坑
-- **现象**：Consul 新 agent 加入后成员视图迟迟不汇合，或 HTTP API 正常而 DNS 查询间歇超时 → 先查：LAN gossip 8301 的 UDP 没放行（UDP 只出现在 gossip 与 DNS 上）；超大池汇合慢还要拆分 LAN 池 → 详见：17-distributed/11-coordination-tools.md#6.2 Consul：Agent 模式与 LAN/WAN gossip
-- **现象**：Consul 已摘除实例，调用方还在打 → 先查：摘除预算漏算了客户端 DNS 缓存 TTL——预算 = 检查间隔×失败次数 + 服务端传播 + 客户端缓存 TTL → 详见：17-distributed/11-coordination-tools.md#常见坑
-- **现象**：发布重启窗口内实例被误摘、进程起来后又注册回来 → 先查：keepalive/心跳在滚动窗口内中断而摘除阈值小于发布耗时——阈值 > 发布耗时，或发布流水线里先反注册再停进程 → 详见：17-distributed/11-coordination-tools.md#常见坑
-- **现象**：Nacos 控制台一切正常，SDK 却全连不上 → 先查：2.x SDK 走 gRPC 长连接，端口按"主端口+1000"偏移（8848→9848/9849）——安全组只放行 8848 的经典症状 → 详见：17-distributed/11-coordination-tools.md#常见坑
-- **现象**：Nacos 集群各节点数据对不上 / 重启后配置丢失 → 先查：集群模式误用内嵌 Derby（Derby 只支持单机）——集群必须外置 MySQL，≥3 节点起步 + cluster.conf 各节点一致 → 详见：17-distributed/11-coordination-tools.md#常见坑
+- **现象**：ZK 的 `mntr`/`stat` 发过去没反应，`srvr` 却正常 → 先查：3.5+ 四字命令白名单默认只放行 `srvr`——配 `4lw.commands.whitelist`，或走 admin server 8080 的 HTTP JSON → 详见：18-bigdata/06-zookeeper.md#6.1 四字命令与 admin server
+- **现象**：HBase/HDFS 频繁重新选主，ZK 的 Mode 频繁变化、latency 尖刺（脑旋） → 先查：JVM 长 GC / 事务日志盘 fsync 慢 / 网络抖动——dataLogDir 独立低延迟盘、堆给 3~4GB 缩 GC、对 Mode 变化做告警 → 详见：18-bigdata/06-zookeeper.md#6.3 脑旋与脑裂防护
+- **现象**：ZK 加了一台节点，集群反而写不进了 → 先查：多数派从 2 变 3，滚动重启窗口凑不齐过半——一次只加一台、等它同步完成再动下一台；扩容走 3→5 跳过 4 → 详见：18-bigdata/06-zookeeper.md#6.5 扩容为什么必须逐台重启
+- **现象**：业务报"锁丢了"但持有进程还活着 → 先查：会话被服务端判死（GC 停顿/网络分区），临时节点已删、新主已选出——会话超时按业务最长暂停调 + 下游 fencing token 拒绝旧持有者 → 详见：18-bigdata/06-zookeeper.md#4. watch 一次性触发与会话：最容易踩语义坑的地方
+- **现象**：ZK watch 时灵时不灵，配置变更偶尔收不到通知 → 先查：watch 是一次性触发且会话过期后全部作废——收到事件立即"重注册+全量读"，或用 Curator Cache 类封装 → 详见：18-bigdata/06-zookeeper.md#4. watch 一次性触发与会话：最容易踩语义坑的地方
+- **现象**：客户端写 >1MB 数据到 znode 报错，被误判为"ZK 不稳定" → 先查：`jute.maxbuffer` 默认 ~1MB 且客户端+全部服务端要同步调大；正确姿势是 ZK 只放指针、大内容放对象存储/DB → 详见：18-bigdata/06-zookeeper.md#6.2 jute.maxbuffer：大 znode 的坑
+- **现象**：ZK 集群起不来，日志报无法过半（unable to form quorum） → 先查：`dataDir/myid` 与 zoo.cfg 的 `server.N` 是否一一对应、起来的节点是否够过半、端口是否通 → 详见：18-bigdata/06-zookeeper.md#常见坑
+- **现象**："集群健康"（进程都在）却持续报错 → 先查：健康检查要区分"进程在"与"过半在"——看 ZK 的 Mode、etcd `endpoint health`（它本身就是一次提交提案的写探针） → 详见：19-distributed/00-distributed-overview.md#1.3 部分故障：集群健康不是 0/1
+- **现象**：跨节点日志"应答的时间比请求还早"，事件顺序拼不出来 → 先查：三步对表法量出偏差量再读时间线；关键链路用 trace_id/offset/revision 串联，别用墙钟排序 → 详见：19-distributed/01-failure-models-and-time.md#5. 运维含义：日志时间戳对齐的坑
+- **现象**：网络流量大盘突然出现尖刺，设备侧却无感知 → 先查：目标端时钟跳变让 rate() 的分母（样本时间戳差）错位——查 `node_timex_sync_status` 与 offset 斜率，排除后再谈容量 → 详见：19-distributed/01-failure-models-and-time.md#2.2 为什么监控看斜率、不看绝对差
+- **现象**：节点反复"被判定宕机又回来"，依赖方跟着反复切主 → 先查：长 GC/慢盘造出的时序故障（ZK 脑旋元凶）——先治慢（缩 GC、独立日志盘），再谈调超时 → 详见：19-distributed/01-failure-models-and-time.md#常见坑
+- **现象**：新节点加入集群被拒，报证书/授权失败 → 先查：该机时钟偏离导致证书校验不过——先修 NTP 再排证书链 → 详见：19-distributed/01-failure-models-and-time.md#常见坑
+- **现象**："写完立刻读不到"工单被升级成集群故障 → 先查：五步排查先定性——读路径连的是谁（主/从/缓存）、什么一致性级别；串行读/本地读/读从库读到旧值是"按合同履约"不是故障 → 详见：19-distributed/02-consistency-models.md#5. 运维含义："读到了旧数据"先查一致性级别，再怀疑故障
+- **现象**：把 ZK 当强一致读用，偶发读到旧配置 → 先查：ZK 默认本地读是顺序一致（可能旧值）——要"读己之写"先 `sync()`，或改走带版本号的 watch 通知 → 详见：19-distributed/02-consistency-models.md#3. 现实系统落位表
+- **现象**：kubectl get 正常但 create/apply 全超时，apiserver 本身 Running → 先查：etcd 失 quorum（读走 watch cache 所以还通）——`etcdctl endpoint status` 数存活成员 vs quorum，先救一台别急重建 → 详见：19-distributed/03-consensus-and-replication.md#常见坑
+- **现象**：控制面频繁切主、component 状态反复跳变，磁盘又没告警 → 先查：WAL fsync 慢 → 心跳/选举超时（脑旋）——etcd 独占低延迟盘、调大 election-timeout、对 leader 变化告警 → 详见：19-distributed/03-consensus-and-replication.md#常见坑
+- **现象**：共识集群加了第 4 个成员，以为"更稳"了 → 先查：N=4 容错与 N=3 相同、确认成本反而更高——奇数原则，扩容走 3→5；etcd 先 `--learner` 追平再 promote → 详见：19-distributed/03-consensus-and-replication.md#2.2 N=3 容 1、N=5 容 2：两张账要分开算
+- **现象**：消费者明明做了幂等还是出现重复订单 → 先查：只挡了"消息重投"，没挡"两个来源写同一业务键"（定时任务+消息并发）——最后一道防线永远在数据库唯一键约束上 → 详见：19-distributed/04-distributed-transactions.md#6. 幂等设计模式速查
+- **现象**：Flink 作业频繁报事务超时 / 数据延迟可见 → 先查：`transaction.timeout.ms` ≤ checkpoint 间隔——调大事务超时或调小 checkpoint 间隔，且不超过 broker 的 `transaction.max.timeout.ms` → 详见：19-distributed/04-distributed-transactions.md#5.1 Flink：把 2PC 装进 checkpoint
+- **现象**：版本号乐观锁用时间戳，偶发失效（旧写覆盖新写） → 先查：时钟回拨/漂移让版本回退——换单调递增整数或数据库自增，别用任何墙钟当版本 → 详见：19-distributed/04-distributed-transactions.md#常见坑
+- **现象**：扩容后集群反而更慢/超时（Redis 迁槽、任何再平衡） → 先查：迁移流量撞业务高峰 + MIGRATE 大批次阻塞源节点单线程——低峰 + 小批量（10~100 key/批）+ 限速 + 可暂停 → 详见：19-distributed/05-sharding-and-rebalancing.md#4. 再平衡的运维代价与窗口选择
+- **现象**：Redis 迁槽迁到一半放弃，整个集群写失败 → 先查：`cluster-require-full-coverage=yes` 下有槽无归属即整层拒写——要么完成要么显式 `SETSLOT` 归还，别留孤儿中间态 → 详见：19-distributed/05-sharding-and-rebalancing.md#常见坑
+- **现象**：新加的 Kafka broker 空转，磁盘 0 增长 → 先查：分区是静态元数据，扩容不自动迁移老分区——KafkaRebalance（add-brokers）或 `kafka-reassign-partitions.sh` 显式搬 → 详见：19-distributed/05-sharding-and-rebalancing.md#常见坑
+- **现象**："拿了 Redis/ZK 锁就认为绝对安全"，下游偶发重复扣款/发货 → 先查：zombie writer——旧持有者从长 GC 醒来继续写下游，quorum 管不到下游——下游加 fencing token 原子校验（只接受更大令牌） → 详见：19-distributed/06-gossip-membership-fencing.md#4.4 Fencing token：让旧主"写不进去"
+- **现象**：SETNX 拿锁、释放时直接 DEL，删掉了别人的锁（双主开端） → 先查：自己已超时、锁已被新持有者接手——SET 带唯一 token + Lua 比对令牌再删 → 详见：19-distributed/06-gossip-membership-fencing.md#常见坑
+- **现象**：lease 到期判定写在客户端本地时钟上，两侧同时认为自己持有 → 先查：NTP 步进/回拨——租约要服务端统一计时（etcd lease 模式）或单调钟；租约只能收窄僵尸窗口，清零靠 fencing → 详见：19-distributed/06-gossip-membership-fencing.md#4.3 租约 lease：有时限的授权
+- **现象**：5 成员共识集群挂 3 台，同事提议"把剩下 2 台组成新集群继续写" → 先查：不可写≠丢数据——已提交条目在过半成员上大概率仍在；先抢修任一台，重组等于人为制造双写史 → 详见：19-distributed/07-distributed-troubleshooting.md#2. quorum 计算速查表
+- **现象**：一半成员互相失联但各自"活着"，写超时集中在部分客户端（疑似脑裂） → 先查：从一台机器分别 ping/telnet 全部成员取分区证据；比对各成员 term/epoch 与 leader 认知（`endpoint status`/`srvr`/`rs.status()`） → 详见：19-distributed/07-distributed-troubleshooting.md#3.1 脑裂（分区两侧各自主）
+- **现象**：etcd `proposals_failed_total` 持续上涨 / WAL fsync p99 抬高 → 先查：quorum 交互在失败（磁盘慢/网络/失多数派前兆）——`/metrics` 摘这两项，下一步 iostat await/util 查盘 → 详见：19-distributed/07-distributed-troubleshooting.md#1.1 写路径 = 协调者 → quorum 确认链
+- **现象**：Paxos 系统提案编号（ballot）持续上抬，但没有任何值被选中，也没有节点故障 → 先查：两个 proposer 交替抬编号的决斗活锁——安全性无损、活性饿死；解药是唯一提案者（distinguished proposer/leader） → 详见：19-distributed/09-paxos-deep-dive.md#3. 活锁：安全但可能永远选不出
+- **现象**：Cassandra 计数字段偶发"少加"，集群与应用日志均无异常 → 先查：用 LWW 字段做 read-modify-write 的 +=，并发写互裁、输者静默丢——换 counter 表或收敛到单写者，这类丢写无日志无痕迹 → 详见：19-distributed/10-crdt-and-convergence.md#常见坑
+- **现象**：CRDB 多活集群个别 String 更新"消失" → 先查：String 按时间戳 LWW 裁决 + 实例间时钟漂移"选错赢家"——严 NTP 纪律、关键值改 Hash 逐字段/计数类型，排查先对表 → 详见：19-distributed/10-crdt-and-convergence.md#常见坑
+- **现象**：CRDT 集合删除某元素后再添加同元素，删掉的内容"复活" → 先查：删除是加墓碑，同 ID 元素再添加时合并语义复活旧成员——元素用唯一 ID（时间戳+序号）而不是业务值本身 → 详见：19-distributed/10-crdt-and-convergence.md#常见坑
+- **现象**：协同文档 / CRDT 存储越用越大，删除也不缩小 → 先查：半格只增不减 + 墓碑与字符 ID 元数据不可回退——用实现自带的 GC/压缩能力，并监控对象大小 → 详见：19-distributed/10-crdt-and-convergence.md#常见坑
+- **现象**：Consul 新 agent 加入后成员视图迟迟不汇合，或 HTTP API 正常而 DNS 查询间歇超时 → 先查：LAN gossip 8301 的 UDP 没放行（UDP 只出现在 gossip 与 DNS 上）；超大池汇合慢还要拆分 LAN 池 → 详见：19-distributed/11-coordination-tools.md#6.2 Consul：Agent 模式与 LAN/WAN gossip
+- **现象**：Consul 已摘除实例，调用方还在打 → 先查：摘除预算漏算了客户端 DNS 缓存 TTL——预算 = 检查间隔×失败次数 + 服务端传播 + 客户端缓存 TTL → 详见：19-distributed/11-coordination-tools.md#常见坑
+- **现象**：发布重启窗口内实例被误摘、进程起来后又注册回来 → 先查：keepalive/心跳在滚动窗口内中断而摘除阈值小于发布耗时——阈值 > 发布耗时，或发布流水线里先反注册再停进程 → 详见：19-distributed/11-coordination-tools.md#常见坑
+- **现象**：Nacos 控制台一切正常，SDK 却全连不上 → 先查：2.x SDK 走 gRPC 长连接，端口按"主端口+1000"偏移（8848→9848/9849）——安全组只放行 8848 的经典症状 → 详见：19-distributed/11-coordination-tools.md#常见坑
+- **现象**：Nacos 集群各节点数据对不上 / 重启后配置丢失 → 先查：集群模式误用内嵌 Derby（Derby 只支持单机）——集群必须外置 MySQL，≥3 节点起步 + cluster.conf 各节点一致 → 详见：19-distributed/11-coordination-tools.md#常见坑
 
 ---
 
@@ -293,9 +293,9 @@
 
 - **集群层综合**：`05-cka/labs/20-cluster-recovery-drill/task.md`——一次注入三重故障（DNS/RBAC/kubelet），按 check-list 逐个恢复。
 - **应用层排障**：`05-cka/labs/15~19`（静态 Pod 修复 / kubelet NotReady / DNS / CrashLoop / 资源压力）。
-- **中间件演练**：`11-middleware/*/labs/01-*`（MySQL 复制救援 / Redis 哨兵 failover / nginx 反代 HA / Mongo 副本集追平）。
-- **可观测演练**：`09-otel/labs/03-demo-fault-tracing/task.md`（从 trace 定位注入的故障）。
-- **方法论演练**：`13-sre-methodology/labs/02-chaos-drill/task.md`（完整混沌演练 + 无责复盘，路线 B 直接复用 break-dns-config.sh）。
+- **中间件演练**：`13-middleware/*/labs/01-*`（MySQL 复制救援 / Redis 哨兵 failover / nginx 反代 HA / Mongo 副本集追平）。
+- **可观测演练**：`11-otel/labs/03-demo-fault-tracing/task.md`（从 trace 定位注入的故障）。
+- **方法论演练**：`15-sre-methodology/labs/02-chaos-drill/task.md`（完整混沌演练 + 无责复盘，路线 B 直接复用 break-dns-config.sh）。
 
 ### 日常使用姿势
 

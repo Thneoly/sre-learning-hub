@@ -68,10 +68,10 @@ Celery 对 broker 只要求"能存取消息"，于是两个主流选项的语义
 
 | 维度 | Redis | RabbitMQ |
 |---|---|---|
-| 消息模型 | LPUSH/BRPOP 一个 list（默认 key 就叫 `celery`），list 底层是 quicklist（[redis 01 章 §list](../11-middleware/redis/01-data-structures-and-memory.md)） | AMQP：exchange 按 routing key 分发到 queue，支持 topic/fanout 灵活路由 |
+| 消息模型 | LPUSH/BRPOP 一个 list（默认 key 就叫 `celery`），list 底层是 quicklist（[redis 01 章 §list](../13-middleware/redis/01-data-structures-and-memory.md)） | AMQP：exchange 按 routing key 分发到 queue，支持 topic/fanout 灵活路由 |
 | 确认语义 | **无原生 ack**。Celery/kombu 自己记账：取走的消息塞进 `unacked` hash，确认后删除——"确认"是模拟出来的 | 原生 AMQP ack，unacked 消息在连接断开时自动重新入队 |
 | 重复执行风险 | **可见性超时陷阱**（下文详解）：unacked 消息超过 `visibility_timeout`（默认 3600s）未确认即被重新投递 | 连接断开才重投，处理中的消息不会被"超时抢走" |
-| 持久化 | AOF everysec 最坏丢约 2 秒（[redis 02 章 §3](../11-middleware/redis/02-persistence-and-ha.md)），broker 重启可能丢这 2 秒内的 enqueue | 队列与消息可标记持久化，落盘语义明确 |
+| 持久化 | AOF everysec 最坏丢约 2 秒（[redis 02 章 §3](../13-middleware/redis/02-persistence-and-ha.md)），broker 重启可能丢这 2 秒内的 enqueue | 队列与消息可标记持久化，落盘语义明确 |
 | 优先级/延迟队列 | 优先级支持有限（分多个 list 模拟）；延迟要靠 ETA 或额外组件 | 原生 priority 队列；延迟可用插件（以官方文档为准） |
 | 运维成本 | 一鱼多吃：缓存+队列共用一套，已有 Redis 就零新增组件 | 独立集群、独立监控，但管理界面与语义更完整 |
 | 适合 | 已有 Redis、任务可幂等、允许极端情况重复 | 任务路由复杂、可靠性要求高、长任务多 |
@@ -108,7 +108,7 @@ Celery 对 broker 只要求"能存取消息"，于是两个主流选项的语义
 | 默认（early ack） | **收到任务就 ack** | 任务直接丢失，无重投。换来的是绝无重复 |
 | `acks_late=True` | **执行完才 ack** | 任务被重新投递、再次执行——"至少一次" |
 
-这正是 [17-distributed/04 §5](../17-distributed/04-distributed-transactions.md) 拆穿的"恰好一次真相"在任务队列里的化身：**acks_late 买到的是"不丢"，代价是"可能重"**，工程上能兑现的只有 at-least-once + 幂等——没有任何 ack 时机能同时给出不丢与不重。配套参数 `task_reject_on_worker_lost=True`（默认 False）决定 worker 进程被杀死时任务是否立即 requeue；而 kill -9 掉整个 worker（父进程也死）时，Redis broker 下的重投靠的是第 3 节的可见性超时恢复。
+这正是 [19-distributed/04 §5](../19-distributed/04-distributed-transactions.md) 拆穿的"恰好一次真相"在任务队列里的化身：**acks_late 买到的是"不丢"，代价是"可能重"**，工程上能兑现的只有 at-least-once + 幂等——没有任何 ack 时机能同时给出不丢与不重。配套参数 `task_reject_on_worker_lost=True`（默认 False）决定 worker 进程被杀死时任务是否立即 requeue；而 kill -9 掉整个 worker（父进程也死）时，Redis broker 下的重投靠的是第 3 节的可见性超时恢复。
 
 运维上的推论：**所有配了 acks_late 的任务，一律按"会被执行两次"来设计**——发短信要去重、扣款要幂等、写文件要先写临时名再原子 rename。lab 里我们会真刀真枪 kill 一次 worker，把重复执行的证据落盘。
 
@@ -138,7 +138,7 @@ def sync_inventory(sku: str):
 
 ### 6.2 幂等：重试的承重墙
 
-重试必然带来重复，幂等模式直接复用 [17-distributed/04 §6](../17-distributed/04-distributed-transactions.md) 的速查表：能落库用业务唯一键（`UNIQUE KEY` + `INSERT IGNORE`），跨系统用消息 ID 去重表，短窗口去重用 `SET NX EX`。落到 Celery 语境的映射：**task_id 就是现成的消息 ID**——消费侧以 `(task_name, task_id)` 建去重键，第二个 worker 重新执行同一条任务时命中去重，副作用只发生一次。去重键的窗口必须覆盖"最长重投延迟"（可见性超时 + 重试链），太短等于没设。
+重试必然带来重复，幂等模式直接复用 [19-distributed/04 §6](../19-distributed/04-distributed-transactions.md) 的速查表：能落库用业务唯一键（`UNIQUE KEY` + `INSERT IGNORE`），跨系统用消息 ID 去重表，短窗口去重用 `SET NX EX`。落到 Celery 语境的映射：**task_id 就是现成的消息 ID**——消费侧以 `(task_name, task_id)` 建去重键，第二个 worker 重新执行同一条任务时命中去重，副作用只发生一次。去重键的窗口必须覆盖"最长重投延迟"（可见性超时 + 重试链），太短等于没设。
 
 ## 7. 积压监控：LLEN / flower / 探针
 
@@ -260,7 +260,7 @@ KEDA 的 Redis Lists scaler 原生支持以 list 长度为伸缩信号（trigger
 | 扩容的 worker 接不到活 | prefetch_multiplier 默认 4，老 worker 囤光 | `worker_prefetch_multiplier=1` 重启全部 worker |
 | 任务报 `SoftTimeLimitExceeded` 后仍卡着 | 软超时抛异常但任务吞了异常继续跑 | 确保不捕获裸 Exception；硬 time_limit 是最后防线 |
 | flower 上看不到任务 | worker 没发事件 | worker 启动加 `-E`（或 `worker_send_task_events=True`） |
-| Redis 重启后丢了一批 enqueue | AOF everysec 的 2 秒丢失窗口（[redis 02 章 §3](../11-middleware/redis/02-persistence-and-ha.md)） | 重要队列评估 RabbitMQ；Redis 侧确认 AOF 开启且磁盘健康 |
+| Redis 重启后丢了一批 enqueue | AOF everysec 的 2 秒丢失窗口（[redis 02 章 §3](../13-middleware/redis/02-persistence-and-ha.md)） | 重要队列评估 RabbitMQ；Redis 侧确认 AOF 开启且磁盘健康 |
 | 定时任务全部执行了两遍 | beat 多副本 | 只留一个 beat 实例，其余下线 |
 
 ## 自测
@@ -272,7 +272,7 @@ worker A 在 t=0 取走任务（时长 30 分钟，visibility_timeout=10 分钟�
 
 <details><summary>2. acks_late=True 到底买到了什么、付出了什么？为什么说它和 early ack 都不是"恰好一次"？</summary>
 
-买到：worker 半途死亡（kill -9、OOM）时任务不丢——未确认消息会被重新投递。付出：至少一次语义，重复执行成为必须面对的现实（[17-distributed/04 §5](../17-distributed/04-distributed-transactions.md)：exactly-once delivery 不存在，能兑现的只有效果恰好一次）。early ack 是"至多一次"（崩了就丢），acks_late 是"至少一次"（崩了就重）——确认时机只是在丢失与重复之间选边，两全的唯一出路是 at-least-once + 下游幂等（task_id 去重、业务唯一键）。
+买到：worker 半途死亡（kill -9、OOM）时任务不丢——未确认消息会被重新投递。付出：至少一次语义，重复执行成为必须面对的现实（[19-distributed/04 §5](../19-distributed/04-distributed-transactions.md)：exactly-once delivery 不存在，能兑现的只有效果恰好一次）。early ack 是"至多一次"（崩了就丢），acks_late 是"至少一次"（崩了就重）——确认时机只是在丢失与重复之间选边，两全的唯一出路是 at-least-once + 下游幂等（task_id 去重、业务唯一键）。
 </details>
 
 <details><summary>3. 同一批 IO 密集任务，prefork -c 4 改成 gevent -c 4 为什么可能没提升，改成 gevent -c 200 才有？什么时候反而不该这么改？</summary>

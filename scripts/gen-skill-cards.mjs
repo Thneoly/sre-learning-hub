@@ -198,7 +198,7 @@ const FAULT_MODULE = {
   'break-apiserver-port': '05-cka',
   'break-static-pod': '04-k8s-fundamentals',
   'break-cni': '04-k8s-fundamentals',
-  'break-rbac': '07-cks',
+  'break-rbac': '09-cks',
   'break-endpoints': '04-k8s-fundamentals',
   'break-ipforward': '04-k8s-fundamentals',
   'break-scheduler-pod': '04-k8s-fundamentals',
@@ -243,13 +243,13 @@ function parseScenarios(failures) {
 
 /* ---------------- 3. quiz-data.js 题库 ---------------- */
 const QUIZ_MODULE = {
-  pca: '08-pca', cka: '05-cka', cks: '07-cks', basics: '04-k8s-fundamentals',
+  pca: '10-pca', cka: '05-cka', cks: '09-cks', basics: '04-k8s-fundamentals',
   linux: '01-linux', programming: '02-programming', celery: '02-programming',
-  cicd: '06-cicd-iac-gitops', otel: '09-otel', logging: '10-logging',
-  middleware: '11-middleware', pg: '11-middleware',
-  datastream: '12-data-streaming', sre: '13-sre-methodology', cloud: '14-cloud',
-  aiops: '15-aiops-llm', bigdata: '16-bigdata', clickhouse: '16-bigdata',
-  distributed: '17-distributed'
+  cicd: '06-ci-cd', otel: '11-otel', logging: '12-logging',
+  middleware: '13-middleware', pg: '13-middleware',
+  datastream: '14-data-streaming', sre: '15-sre-methodology', cloud: '16-cloud',
+  aiops: '17-aiops-llm', bigdata: '18-bigdata', clickhouse: '18-bigdata',
+  distributed: '19-distributed'
 };
 const QUIZ_ORDER = ['pca', 'cka', 'cks', 'basics', 'linux', 'programming', 'celery', 'cicd',
   'otel', 'logging', 'middleware', 'pg', 'datastream', 'sre', 'cloud', 'aiops',

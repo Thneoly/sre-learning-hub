@@ -1,14 +1,14 @@
-﻿# build-content.ps1 —— 把全部 17 个模块目录的 Markdown 打包为 portal/content.js
+﻿# build-content.ps1 —— 把全部 19 个模块目录的 Markdown 打包为 portal/content.js
 # 用法（在 portal 目录下，或任意位置指定路径执行）：
 #   powershell -ExecutionPolicy Bypass -File .\build-content.ps1
 # 兼容 Windows PowerShell 5.1（不使用 PS7 独有语法；$PSScriptRoot 为空时自动兜底）。
 #
-# 收集范围：learning-hub 根目录下 17 个模块（含 labs 子目录里的 task.md / solution.md，
-# 以及 11-middleware / 12-data-streaming 的子目录结构，键为相对根目录的完整路径）：
+# 收集范围：learning-hub 根目录下 19 个模块（含 labs 子目录里的 task.md / solution.md，
+# 以及 13-middleware / 14-data-streaming 的子目录结构，键为相对根目录的完整路径）：
 #   01-linux / 02-programming / 03-docker / 04-k8s-fundamentals / 05-cka /
-#   06-cicd-iac-gitops / 07-cks / 08-pca / 09-otel / 10-logging /
-#   11-middleware / 12-data-streaming / 13-sre-methodology / 14-cloud / 15-aiops-llm /
-#   16-bigdata / 17-distributed
+#   06-ci-cd / 07-cd-gitops / 08-iac / 09-cks / 10-pca / 11-otel / 12-logging /
+#   13-middleware / 14-data-streaming / 15-sre-methodology / 16-cloud / 17-aiops-llm /
+#   18-bigdata / 19-distributed
 # 另外打包根目录的全局文档（键名用原文件名，如 "SCENARIOS.md"）：SCENARIOS.md / README.md / ROADMAP.md，
 # 场景速查页与阅读器可直接用 #/read/SCENARIOS.md 这样的路径打开它们。
 # 目录不存在时跳过并告警，不中断；如需纳入更多模块，改下方 $modules 数组即可。
@@ -40,9 +40,9 @@ $outFile = Join-Path $portalDir 'content.js'
 # 全部模块目录（相对 learning-hub 根目录，按教学顺序排列）
 $modules = @(
     '01-linux', '02-programming', '03-docker', '04-k8s-fundamentals', '05-cka',
-    '06-cicd-iac-gitops', '07-cks', '08-pca', '09-otel', '10-logging',
-    '11-middleware', '12-data-streaming', '13-sre-methodology', '14-cloud', '15-aiops-llm',
-    '16-bigdata', '17-distributed'
+    '06-ci-cd', '07-cd-gitops', '08-iac', '09-cks', '10-pca', '11-otel', '12-logging',
+    '13-middleware', '14-data-streaming', '15-sre-methodology', '16-cloud', '17-aiops-llm',
+    '18-bigdata', '19-distributed'
 )
 
 # 源文件统一按 UTF-8 读入（ReadAllText 会自动剥掉可能存在的 BOM）；写出带 BOM

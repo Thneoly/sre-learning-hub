@@ -297,7 +297,7 @@ kubectl -n kube-system exec etcd-$(hostname) -- env ETCDCTL_API=3 etcdctl \
 #   "password":"UzNjM3QhIQ=="
 ```
 
-结论：base64 是编码不是加密。真正的防线有三道：etcd 静态加密（EncryptionConfiguration，aescbc/kms provider，CKS 重点，见第 07-cks 模块）、RBAC（谁能 get/list secrets）、以及尽量少把口令放 env（`/proc/1/environ` 全程可读、易被打进日志）而用卷挂载。
+结论：base64 是编码不是加密。真正的防线有三道：etcd 静态加密（EncryptionConfiguration，aescbc/kms provider，CKS 重点，见第 09-cks 模块）、RBAC（谁能 get/list secrets）、以及尽量少把口令放 env（`/proc/1/environ` 全程可读、易被打进日志）而用卷挂载。
 
 节点侧的兜底：kubelet 把 Secret 挂为 tmpfs，不写入节点磁盘；Pod 删除后随之消失（镜像拉取用的 dockerconfigjson 除外，运行时会写临时文件）。
 

@@ -26,14 +26,16 @@ const MODULES = [
   { dir: '03-docker', title: '03 · Docker 容器', pillar: 'platform' },
   { dir: '04-k8s-fundamentals', title: '04 · Kubernetes 原理', pillar: 'platform' },
   { dir: '05-cka', title: '05 · CKA 备考', pillar: 'platform' },
-  { dir: '06-cicd-iac-gitops', title: '06 · CI/CD · IaC · GitOps', pillar: 'devops' },
-  { dir: '07-cks', title: '07 · CKS 安全', pillar: 'platform' },
-  { dir: '08-pca', title: '08 · PCA 可观测', pillar: 'observability' },
-  { dir: '09-otel', title: '09 · OpenTelemetry', pillar: 'observability' },
-  { dir: '10-logging', title: '10 · 日志体系（ELK/Loki）', pillar: 'observability' },
+  { dir: '06-ci-cd', title: '06 · CI/CD', pillar: 'devops' },
+  { dir: '07-cd-gitops', title: '07 · CD · GitOps', pillar: 'devops' },
+  { dir: '08-iac', title: '08 · IaC', pillar: 'devops' },
+  { dir: '09-cks', title: '09 · CKS 安全', pillar: 'platform' },
+  { dir: '10-pca', title: '10 · PCA 可观测', pillar: 'observability' },
+  { dir: '11-otel', title: '11 · OpenTelemetry', pillar: 'observability' },
+  { dir: '12-logging', title: '12 · 日志体系（ELK/Loki）', pillar: 'observability' },
   {
-    dir: '11-middleware',
-    title: '11 · 中间件五件套',
+    dir: '13-middleware',
+    title: '13 · 中间件五件套',
     pillar: 'platform',
     topics: [
       { dir: 'nginx', title: 'Nginx' },
@@ -44,19 +46,19 @@ const MODULES = [
     ],
   },
   {
-    dir: '12-data-streaming',
-    title: '12 · 数据流（Kafka/Flink）',
+    dir: '14-data-streaming',
+    title: '14 · 数据流（Kafka/Flink）',
     pillar: 'platform',
     topics: [
       { dir: 'kafka', title: 'Kafka' },
       { dir: 'flink', title: 'Flink' },
     ],
   },
-  { dir: '13-sre-methodology', title: '13 · SRE 方法论', pillar: 'observability' },
-  { dir: '14-cloud', title: '14 · 云平台', pillar: 'platform' },
-  { dir: '15-aiops-llm', title: '15 · AIOps 与 LLM', pillar: 'aiops' },
-  { dir: '16-bigdata', title: '16 · 大数据体系', pillar: 'platform' },
-  { dir: '17-distributed', title: '17 · 分布式理论', pillar: 'platform' },
+  { dir: '15-sre-methodology', title: '15 · SRE 方法论', pillar: 'observability' },
+  { dir: '16-cloud', title: '16 · 云平台', pillar: 'platform' },
+  { dir: '17-aiops-llm', title: '17 · AIOps 与 LLM', pillar: 'aiops' },
+  { dir: '18-bigdata', title: '18 · 大数据体系', pillar: 'platform' },
+  { dir: '19-distributed', title: '19 · 分布式理论', pillar: 'platform' },
 ]
 
 // ---------- 工具 ----------
@@ -94,7 +96,7 @@ const chapterItems = (dir) => {
 
 /** labs 目录 -> 侧栏条目：
  *  - NN-xxx/ 子目录 -> 可折叠的 "Lab NN · 标题"（题目/解答两个子项）
- *  - 直接散落的 .md（如 08-pca 的题集）-> 单独条目 */
+ *  - 直接散落的 .md（如 10-pca 的题集）-> 单独条目 */
 const labItems = (labsDir) => {
   if (!existsSync(labsDir)) return []
   const entries = readdirSync(labsDir, { withFileTypes: true }).sort((a, b) =>
@@ -168,7 +170,7 @@ const sidebar = {
       collapsed: false,
       items: [
         { text: '首页', link: '/' },
-        { text: '学习路线图（27 周 / 10 阶段）', link: '/ROADMAP.html' },
+        { text: '学习路线图（29 周 / 10 阶段）', link: '/ROADMAP.html' },
         { text: '故障场景速查', link: '/SCENARIOS.html' },
         { text: '仓库说明（README）', link: '/README.html' },
       ],

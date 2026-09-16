@@ -173,7 +173,7 @@ kubectl uncordon k8s-w1
 ```
 
 ```bash
-# [master] 3) 监控栈多节点采集（08-pca 前置）：node-exporter 每个节点一个 Pod
+# [master] 3) 监控栈多节点采集（10-pca 前置）：node-exporter 每个节点一个 Pod
 kubectl get pod -n monitoring -l app.kubernetes.io/name=prometheus-node-exporter -o wide
 ```
 

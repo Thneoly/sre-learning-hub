@@ -20,7 +20,7 @@ scripts/
 │   ├── install-docker.sh      # Docker CE + compose-plugin 安装（03-docker 模块用）
 │   ├── kubeadm-single-node.sh # 一键从裸机到可用集群（kubeadm + Calico + 组件）
 │   ├── reset-cluster.sh       # kubeadm reset + 清理 CNI 残留
-│   ├── install-prom-stack.sh  # Prometheus + Alertmanager + Grafana + node-exporter（08-pca 用）
+│   ├── install-prom-stack.sh  # Prometheus + Alertmanager + Grafana + node-exporter（10-pca 用）
 │   └── MULTI-NODE.md          # VMware 克隆扩容为 1 master + 2 worker 指南
 └── faults/                    # 12 个故障注入脚本 + FIXES.md（独立模块，本 README 不展开）
 ```
@@ -35,8 +35,8 @@ scripts/
 第 2 步  [master] bash setup/kubeadm-single-node.sh     约 5~10 分钟，含镜像拉取
 第 3 步  [master] kubectl get nodes                     看到 Ready 即成功
    ↓      （做 04-k8s-fundamentals 章节实战 / 05-cka 的 labs）
-第 4 步  [master] bash setup/install-prom-stack.sh      进入 08-pca 前执行
-   ↓      （做 08-pca 的题库练习）
+第 4 步  [master] bash setup/install-prom-stack.sh      进入 10-pca 前执行
+   ↓      （做 10-pca 的题库练习）
 第 5 步  [master] bash ../faults/break-<name>.sh       按需注入故障练排错（<name> 见 faults/FIXES.md，先打快照！）
 随时     [master] bash setup/reset-cluster.sh          集群玩坏了，重置后重跑第 2 步
 ```

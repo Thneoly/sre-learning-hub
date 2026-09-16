@@ -1674,7 +1674,7 @@ window.QUIZ_DATA = {
                 "买到『不丢』（worker 半路被 kill 时任务重新投递），付出『可能重』——至少一次语义；所有配了 acks_late 的任务一律按『会被执行两次』设计：task_id 去重、业务唯一键、写文件先写临时名再原子 rename"
       ],
       "answer": 3,
-      "explain": "early ack 是至多一次（崩了就丢），acks_late 是至少一次（崩了就重）——确认时机只是在丢失与重复之间选边，两全的唯一出路是 at-least-once + 下游幂等（17-distributed/04 拆穿的『恰好一次真相』在任务队列里的化身）。配套 task_reject_on_worker_lost 决定 worker 进程被杀时是否立即 requeue。"
+      "explain": "early ack 是至多一次（崩了就丢），acks_late 是至少一次（崩了就重）——确认时机只是在丢失与重复之间选边，两全的唯一出路是 at-least-once + 下游幂等（19-distributed/04 拆穿的『恰好一次真相』在任务队列里的化身）。配套 task_reject_on_worker_lost 决定 worker 进程被杀时是否立即 requeue。"
     },
     {
       "q": "LLEN=500 该不该报警？正确的判断方法与排障三板斧是？",
@@ -1822,7 +1822,7 @@ window.QUIZ_DATA = {
                 "本地仓库与远端失去关联，必须重新 clone"
       ],
       "answer": 1,
-      "explain": "HEAD 正常指向分支名（分支再指向提交），detached 即直接指向提交；此时产生的提交没有分支引用兜底，切走后成为悬空对象。对应 06-cicd-iac-gitops「01 · Git 深入：对象模型、分支本质与救命操作」一章。易错点：CI 按 tag/commit SHA checkout 天然处于 detached 状态，做构建没问题但不要在其中推新提交；新语法 git switch --detach 与之等价。"
+      "explain": "HEAD 正常指向分支名（分支再指向提交），detached 即直接指向提交；此时产生的提交没有分支引用兜底，切走后成为悬空对象。对应 06-ci-cd「01 · Git 深入：对象模型、分支本质与救命操作」一章。易错点：CI 按 tag/commit SHA checkout 天然处于 detached 状态，做构建没问题但不要在其中推新提交；新语法 git switch --detach 与之等价。"
     },
     {
       "q": "GitLab CI 中同一 stage 内多个 job 的执行方式，以及下一 stage 何时开始，正确的是？",
@@ -1833,7 +1833,7 @@ window.QUIZ_DATA = {
                 "同 stage 的 job 默认并行执行（各自分给可用 runner），下一个 stage 要等上一个 stage 的全部 job 成功后才启动"
       ],
       "answer": 3,
-      "explain": "stage 是同步屏障：stage 内并行带来速度（依赖多 runner），任一 job 失败则后续 stage 不再启动（除非 allow_failure 豁免）；要跨 stage 按作业级精确依赖、进一步并行，用 needs: 拉成 DAG。对应 06-cicd-iac-gitops「02 · GitLab CI：从 pipeline 概念到多环境交付」一章。易错点：误以为默认串行而把可并行的检查拆进多个 stage 拖慢流水线；实际并行度还受 runner 并发与 resource_group 约束。"
+      "explain": "stage 是同步屏障：stage 内并行带来速度（依赖多 runner），任一 job 失败则后续 stage 不再启动（除非 allow_failure 豁免）；要跨 stage 按作业级精确依赖、进一步并行，用 needs: 拉成 DAG。对应 06-ci-cd「02 · GitLab CI：从 pipeline 概念到多环境交付」一章。易错点：误以为默认串行而把可并行的检查拆进多个 stage 拖慢流水线；实际并行度还受 runner 并发与 resource_group 约束。"
     },
     {
       "q": "Kustomize 中 base 与 overlays 的关系，正确的是？",
@@ -1844,7 +1844,7 @@ window.QUIZ_DATA = {
                 "一个 base 只能被一个 overlay 引用，跨团队复用必须复制目录"
       ],
       "answer": 2,
-      "explain": "对应 06-cicd-iac-gitops「07 · Kustomize」第 2 节：overlay 只是 base 的有序变换序列，渲染是纯函数（无模板引擎、不碰集群），这正是它天然适配 GitOps 的原因（ArgoCD 的 repo-server 内部就是调它渲染）；对应关系是多对多——一个 base 可被 N 个 overlay 引用，overlay 的 resources 还能引用远程 URL。「base 是模板」是 Helm 的心智模型。"
+      "explain": "对应 07-cd-gitops「07 · Kustomize」第 2 节：overlay 只是 base 的有序变换序列，渲染是纯函数（无模板引擎、不碰集群），这正是它天然适配 GitOps 的原因（ArgoCD 的 repo-server 内部就是调它渲染）；对应关系是多对多——一个 base 可被 N 个 overlay 引用，overlay 的 resources 还能引用远程 URL。「base 是模板」是 Helm 的心智模型。"
     },
     {
       "q": "kustomization.yaml 里声明 patchesStrategicMerge 时报错 field not found，原因与正确改法是？",
@@ -2135,7 +2135,7 @@ window.QUIZ_DATA = {
                 "span.setStatus 设为 Error（可附描述），并用 span.recordException 把异常类型、消息与堆栈记录为带时间戳的事件"
       ],
       "answer": 3,
-      "explain": "状态与异常是两个动作：recordException 写入 exception.type / exception.message / exception.stacktrace 属性的事件，setStatus 才决定后端按什么口径统计错误率；多数自动埋点在捕获异常时会两步都做，手写代码别漏。对应 09-otel「01 · 三大信号与上下文传播」与「02 · 埋点：手动 SDK、自动注入与采样」两章。易错点：只 record 不 setStatus，这条失败请求会从错误率指标里消失；trace-flags 只携带采样位，与错误语义无关。"
+      "explain": "状态与异常是两个动作：recordException 写入 exception.type / exception.message / exception.stacktrace 属性的事件，setStatus 才决定后端按什么口径统计错误率；多数自动埋点在捕获异常时会两步都做，手写代码别漏。对应 11-otel「01 · 三大信号与上下文传播」与「02 · 埋点：手动 SDK、自动注入与采样」两章。易错点：只 record 不 setStatus，这条失败请求会从错误率指标里消失；trace-flags 只携带采样位，与错误语义无关。"
     },
     {
       "q": "微服务调用链中上游已对某请求采样（traceparent 的 flags=1），下游服务默认采样器的行为是？",
@@ -2146,7 +2146,7 @@ window.QUIZ_DATA = {
                 "下游按自己的比例独立重新采样，与上游决定无关"
       ],
       "answer": 1,
-      "explain": "采样决策编码在 traceparent 的采样位里随上下文传播，各语言 SDK 默认的 ParentBased 采样器读取它做跟随，这是链路不残缺的前提；若各服务独立配置固定比例采样，同一条 trace 就会出现『半截』。对应 09-otel「01 · 三大信号与上下文传播」与「02 · 埋点」的采样小节。易错点：用调小头部采样比例来省成本时，错误链路也被等比例丢弃，应配合 Collector 尾部采样兜底（保错保慢）。"
+      "explain": "采样决策编码在 traceparent 的采样位里随上下文传播，各语言 SDK 默认的 ParentBased 采样器读取它做跟随，这是链路不残缺的前提；若各服务独立配置固定比例采样，同一条 trace 就会出现『半截』。对应 11-otel「01 · 三大信号与上下文传播」与「02 · 埋点」的采样小节。易错点：用调小头部采样比例来省成本时，错误链路也被等比例丢弃，应配合 Collector 尾部采样兜底（保错保慢）。"
     }
   ],
 
@@ -2272,7 +2272,7 @@ window.QUIZ_DATA = {
                 "由 Kibana 充当第三方仲裁节点"
       ],
       "answer": 2,
-      "explain": "多数派仲裁是共识底线：master 候选节点建议奇数个（如 3 个容忍 1 个故障），分区后少数派自我罢免；6.x 需手工设 discovery.zen.minimum_master_nodes，7.x 改为自动投票配置（首次组建用 cluster.initial_master_nodes 引导），该 zen 参数已被移除。对应 10-logging「02 · ELK 栈：Elasticsearch 原理与日志管道」一章。易错点：2 个候选主节点在 1:1 分区时两侧都不足多数、全集群无主；少数派侧的请求是被拒绝而非静默双写。"
+      "explain": "多数派仲裁是共识底线：master 候选节点建议奇数个（如 3 个容忍 1 个故障），分区后少数派自我罢免；6.x 需手工设 discovery.zen.minimum_master_nodes，7.x 改为自动投票配置（首次组建用 cluster.initial_master_nodes 引导），该 zen 参数已被移除。对应 12-logging「02 · ELK 栈：Elasticsearch 原理与日志管道」一章。易错点：2 个候选主节点在 1:1 分区时两侧都不足多数、全集群无主；少数派侧的请求是被拒绝而非静默双写。"
     }
   ],
 
@@ -2988,7 +2988,7 @@ window.QUIZ_DATA = {
     }
   ],
 
-  // ========== bigdata：大数据平台（20 题，按 16-bigdata 各章命题）==========
+  // ========== bigdata：大数据平台（20 题，按 18-bigdata 各章命题）==========
 
   bigdata: [
 
@@ -3408,7 +3408,7 @@ window.QUIZ_DATA = {
         "跨分区也有全局序，多个分区的消息天然按写入顺序可排序"
       ],
       "answer": 0,
-      "explain": "一致性阶梯：线性一致 ⊃ 顺序一致 ⊃ 因果一致 ⊃ 最终一致，单分区 FIFO 落在顺序一致（复制状态机 + 唯一 leader 决定全序），缺的是“写应答后立即可读”的实时序保证；跨分区/跨 topic 没有全局序，要全局有序只能单分区或按 key 分区（牺牲并行度）。可见性边界由 HW 兜底（消费者只能读 ISR 集体确认过的位置，机制细节见 12-data-streaming 的对应题），它是实现细节而非一致性分级本身。unclean.leader.election 允许落后副本上位 = 用丢数据换可用（CAP 的 A 侧），此时出现截断要查 ISR 收缩记录——那是事故不是履约。"
+      "explain": "一致性阶梯：线性一致 ⊃ 顺序一致 ⊃ 因果一致 ⊃ 最终一致，单分区 FIFO 落在顺序一致（复制状态机 + 唯一 leader 决定全序），缺的是“写应答后立即可读”的实时序保证；跨分区/跨 topic 没有全局序，要全局有序只能单分区或按 key 分区（牺牲并行度）。可见性边界由 HW 兜底（消费者只能读 ISR 集体确认过的位置，机制细节见 14-data-streaming 的对应题），它是实现细节而非一致性分级本身。unclean.leader.election 允许落后副本上位 = 用丢数据换可用（CAP 的 A 侧），此时出现截断要查 ISR 收缩记录——那是事故不是履约。"
     },
 
     // --- 共识与 Raft（4 题）---

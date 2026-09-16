@@ -1,4 +1,4 @@
-# Learning Hub — 云原生 SRE 学习中心（17 模块）
+# Learning Hub — 云原生 SRE 学习中心（19 模块）
 
 一套自包含的**学习材料 + 学习平台 + 练习平台**，专为以下情况设计：
 
@@ -14,7 +14,7 @@
 - 证书备考与三视图（学习顺序/能力支柱/场景索引）见 `ROADMAP.md`、`SCENARIOS.md`
 - 许可：代码 MIT，文档 CC BY-NC-SA 4.0（见 LICENSE）
 
-## 17 个模块
+## 19 个模块
 
 | # | 目录 | 内容 | 定位 |
 |---|---|---|---|
@@ -23,18 +23,20 @@
 | 03 | `03-docker/` | 7 章 + 8 labs | 容器原理：namespace/cgroup/镜像分层/网络/安全/运行时生态 |
 | 04 | `04-k8s-fundamentals/` | 14 章 | **原理层**：架构与控制循环、Pod、网络、存储、调度、RBAC、etcd |
 | 05 | `05-cka/` | 7 章 + 20 labs + 题库手册 | CKA 备考：缺口补全（RBAC/kubeadm/etcd 备份）+ 考试策略 |
-| 06 | `06-cicd-iac-gitops/` | 12 章 + 9 labs | **工程化**：DevOps 概念、Git、GitLab CI、Jenkins/GHA、ArgoCD、Ansible+Jinja2、Terraform、Kustomize、Helm、**Harbor、SonarQube、交付平台 capstone（多环境晋升/供应链闸门/飞书通知/面板聚合）** |
-| 07 | `07-cks/` | 7 章 + 10 labs | CKS 备考：加固、审计、Falco/Trivy/AppArmor/gVisor/加密 |
-| 08 | `08-pca/` | 7 章 + 2 题集 | PCA 备考：Prometheus 架构、PromQL(28%)、告警、Grafana |
-| 09 | `09-otel/` | 6 章 + 3 labs | OpenTelemetry(1.x 行业事实标准)：三信号、Collector、K8s 自动注入 |
-| 10 | `10-logging/` | 4 章 + 1 lab | 日志支柱：ELK（面试高频）+ Loki（云原生主流）+ K8s 日志 |
-| 11 | `11-middleware/` | 五件套（各 3 章 + lab） | nginx/MySQL/**PostgreSQL**/Redis/MongoDB：SRE 运维视角全覆盖 |
-| 12 | `12-data-streaming/` | Kafka 3 章 + Flink 2 章 + labs | 日志模型、ISR/KRaft、流处理、exactly-once、反压 |
-| 13 | `13-sre-methodology/` | 5 章 + 2 labs | **中级→高级分水岭**：SLO/错误预算、On-call、无责复盘、混沌工程 |
-| 14 | `14-cloud/` | 3 章 + 1 lab | 云平台：阿里云实操 + AWS 对照 + 认证路径 |
-| 15 | `15-aiops-llm/` | 4 章 + 1 lab | **差异化选修**：LLM 辅助排障、RAG 知识库、Agent skill、安全护栏 |
-| 16 | `16-bigdata/` | 9 章 + 5 labs | 大数据平台（运维专线岗画像）：HDFS/YARN/Hive 数仓/Spark/Doris·StarRocks/ZooKeeper/ClickHouse/**湖仓表格式深讲（Iceberg/Hudi/Paimon，含 Arrow）** |
-| 17 | `17-distributed/` | 12 章 + 3 labs | **分布式理论层**（面试深水区）：故障模型与时钟/一致性模型/共识与 Raft/分布式事务/分片再平衡/Gossip 与脑裂/排障方法论/经典不可能性/Paxos/CRDT/协调工具选型——每个概念映射到已学组件（etcd/Kafka/Redis/Flink） |
+| 06 | `06-ci-cd/` | 6 章 + 3 labs | **工程化·CI**：DevOps 概念、Git、GitLab CI、Jenkins/GHA、**SonarQube 质量门禁、Harbor 企业镜像仓库** |
+| 07 | `07-cd-gitops/` | 4 章 + 4 labs | **工程化·CD**：ArgoCD GitOps、Kustomize、Helm、**交付平台 capstone（多环境晋升/供应链闸门/飞书通知/面板聚合）** |
+| 08 | `08-iac/` | 2 章 + 2 labs | **工程化·IaC**：Ansible+Jinja2、Terraform（资源/配置双引擎） |
+| 09 | `09-cks/` | 7 章 + 10 labs | CKS 备考：加固、审计、Falco/Trivy/AppArmor/gVisor/加密 |
+| 10 | `10-pca/` | 7 章 + 2 题集 | PCA 备考：Prometheus 架构、PromQL(28%)、告警、Grafana |
+| 11 | `11-otel/` | 6 章 + 3 labs | OpenTelemetry(1.x 行业事实标准)：三信号、Collector、K8s 自动注入 |
+| 12 | `12-logging/` | 4 章 + 1 lab | 日志支柱：ELK（面试高频）+ Loki（云原生主流）+ K8s 日志 |
+| 13 | `13-middleware/` | 五件套（各 3 章 + lab） | nginx/MySQL/**PostgreSQL**/Redis/MongoDB：SRE 运维视角全覆盖 |
+| 14 | `14-data-streaming/` | Kafka 3 章 + Flink 2 章 + labs | 日志模型、ISR/KRaft、流处理、exactly-once、反压 |
+| 15 | `15-sre-methodology/` | 5 章 + 2 labs | **中级→高级分水岭**：SLO/错误预算、On-call、无责复盘、混沌工程 |
+| 16 | `16-cloud/` | 3 章 + 1 lab | 云平台：阿里云实操 + AWS 对照 + 认证路径 |
+| 17 | `17-aiops-llm/` | 4 章 + 1 lab | **差异化选修**：LLM 辅助排障、RAG 知识库、Agent skill、安全护栏 |
+| 18 | `18-bigdata/` | 9 章 + 5 labs | 大数据平台（运维专线岗画像）：HDFS/YARN/Hive 数仓/Spark/Doris·StarRocks/ZooKeeper/ClickHouse/**湖仓表格式深讲（Iceberg/Hudi/Paimon，含 Arrow）** |
+| 19 | `19-distributed/` | 12 章 + 3 labs | **分布式理论层**（面试深水区）：故障模型与时钟/一致性模型/共识与 Raft/分布式事务/分片再平衡/Gossip 与脑裂/排障方法论/经典不可能性/Paxos/CRDT/协调工具选型——每个概念映射到已学组件（etcd/Kafka/Redis/Flink） |
 
 ## 能力支柱视图（"我是谁 / 补哪块"的叙事层）
 
@@ -42,10 +44,10 @@
 
 | 支柱 | 回答的岗位画像 | 覆盖模块 | 支柱的"一句话" |
 |---|---|---|---|
-| **云原生平台域** | 云原生运维 / 容器平台工程师 | 01-linux · 02-programming · 03-docker · 04-k8s · 05-cka · 07-cks · 11-middleware · 12-data-streaming · 14-cloud · 16-bigdata · 17-distributed | 以容器为中心的平台栈：从内核底座、数据面组件到分布式理论底座 |
-| **DevOps 工程域** | DevOps 工程师 / 交付效率方向 | 06-cicd-iac-gitops（DevOps 概念/Git/GitLab CI/Jenkins/ArgoCD/Ansible/Terraform） | 优化软件交付流程：流动、反馈、持续学习（三步工作法） |
-| **可观测与 SRE 域** | SRE / 稳定性方向 | 08-pca · 09-otel · 10-logging · 13-sre-methodology | 优化系统可用性：指标/日志/追踪 + SLO/错误预算/混沌 |
-| **AIOps 智能域**（增值） | 智能运维 / AIOps 工程师 | 15-aiops-llm + scripts/faults 靶场 | 用 LLM 增强判断：辅助排障、RAG 知识库、Agent 护栏 |
+| **云原生平台域** | 云原生运维 / 容器平台工程师 | 01-linux · 02-programming · 03-docker · 04-k8s · 05-cka · 09-cks · 13-middleware · 14-data-streaming · 16-cloud · 18-bigdata · 19-distributed | 以容器为中心的平台栈：从内核底座、数据面组件到分布式理论底座 |
+| **DevOps 工程域** | DevOps 工程师 / 交付效率方向 | 06-ci-cd · 07-cd-gitops · 08-iac（DevOps 概念/Git/GitLab CI/Jenkins/ArgoCD/Ansible/Terraform） | 优化软件交付流程：流动、反馈、持续学习（三步工作法） |
+| **可观测与 SRE 域** | SRE / 稳定性方向 | 10-pca · 11-otel · 12-logging · 15-sre-methodology | 优化系统可用性：指标/日志/追踪 + SLO/错误预算/混沌 |
+| **AIOps 智能域**（增值） | 智能运维 / AIOps 工程师 | 17-aiops-llm + scripts/faults 靶场 | 用 LLM 增强判断：辅助排障、RAG 知识库、Agent 护栏 |
 
 三支柱的关系（也是面试的标准答法）：DevOps 优化**工程流程**，SRE 优化**系统可用性**，云原生是两者的**平台底座**，AIOps 是叠加在三者上的**能力倍增器**。
 
@@ -53,12 +55,12 @@
 
 ### 1. 学习平台（浏览器打开）
 
-双击 `portal/index.html`——无需服务器、无需联网。含：17 模块进度追踪（自动存本地）、内置题库测验、CKA 考试计时器、kubectl/vim/PromQL 速查。
+双击 `portal/index.html`——无需服务器、无需联网。含：19 模块进度追踪（自动存本地）、内置题库测验、CKA 考试计时器、kubectl/vim/PromQL 速查。
 （如需站内阅读 markdown，先在 portal/ 下运行 `build-content.ps1` 生成 content.js。）
 
 ### 2. 系统学习（按 ROADMAP.md 的阶段与闭环推进）
 
-见 [ROADMAP.md](ROADMAP.md)：28 周、10 个阶段、每个阶段一个贯穿闭环（代码→镜像→IaC→CI/CD→监控→注故障→排查→复盘）。
+见 [ROADMAP.md](ROADMAP.md)：29 周、10 个阶段、每个阶段一个贯穿闭环（代码→镜像→IaC→CI/CD→监控→注故障→排查→复盘）。
 `05-cka/question-bank-manual-v1.35.md` 是配套的题库操作手册（不入库，见上文公开仓说明），与基础章节 1:1 互补：先读原理章 → 再做题库题 → 最后 lab 巩固。
 
 ### 3. 练习平台（在 Ubuntu VM 上跑）

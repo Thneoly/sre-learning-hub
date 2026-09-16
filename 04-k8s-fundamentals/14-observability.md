@@ -176,7 +176,7 @@ sleep 3 && sudo tail -n 1 /var/log/audit/audit.log | python3 -m json.tool | head
 # 预期: 一条 JSON, 含 level/auditID/stage/user(kubernetes-admin)/verb/list/resource/secrets
 ```
 
-记录级别四档由细到粗：`None`（不记）、`Metadata`（只记谁做了什么，不含请求体）、`Request`（含请求体）、`RequestResponse`（含响应体）。策略要点：默认放行一条兜底规则，对高频低价值流量（kube-proxy 的 endpoints 更新等）用 `None` 降噪。完整演练在 `07-cks/labs/06-audit-policy/`。
+记录级别四档由细到粗：`None`（不记）、`Metadata`（只记谁做了什么，不含请求体）、`Request`（含请求体）、`RequestResponse`（含响应体）。策略要点：默认放行一条兜底规则，对高频低价值流量（kube-proxy 的 endpoints 更新等）用 `None` 降噪。完整演练在 `09-cks/labs/06-audit-policy/`。
 
 ## 4. kubectl 排障命令矩阵
 
@@ -204,7 +204,7 @@ sleep 3 && sudo tail -n 1 /var/log/audit/audit.log | python3 -m json.tool | head
 metrics-server 的三个先天局限：**只有瞬时值**（内存态，重启归零）、**只覆盖 CPU/内存**（没有网络、磁盘、业务指标）、**不能查询**（没有历史就没有 PromQL 这类语言）。生产的完整可观测栈是 Prometheus 全家桶——数据同源（cAdvisor、kubelet、apiserver 的 /metrics 端点）但架构完全不同：pull 模型 + TSDB 历史存储 + PromQL + Alertmanager + Grafana。
 
 ```promql
-# [master] Prometheus/Grafana 中执行 —— 先尝两口 PromQL(08-pca 展开)
+# [master] Prometheus/Grafana 中执行 —— 先尝两口 PromQL(10-pca 展开)
 # 节点 CPU 利用率(%): 空闲率取反
 100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))
 
@@ -214,7 +214,7 @@ sum by (namespace, pod) (
 )
 ```
 
-学习路径与 PCA 认证对齐：`08-pca/01-observability-concepts`（指标/日志/追踪三支柱）→ `02-prometheus-architecture`（TSDB、抓取、服务发现）→ `03-promql-guide`（rate/聚合/直方图）→ `04-instrumentation-exporters`（exporter 与埋点）→ `05-alerting-alertmanager`（告警路由与抑制）→ `06-grafana-dashboards`（面板）。练习集群可用 `scripts/setup/install-prom-stack.sh` 一键装 kube-prometheus-stack，届时回来对照本章第 1 节的链路图，能看到两条并行的数据链路各自服务谁。
+学习路径与 PCA 认证对齐：`10-pca/01-observability-concepts`（指标/日志/追踪三支柱）→ `02-prometheus-architecture`（TSDB、抓取、服务发现）→ `03-promql-guide`（rate/聚合/直方图）→ `04-instrumentation-exporters`（exporter 与埋点）→ `05-alerting-alertmanager`（告警路由与抑制）→ `06-grafana-dashboards`（面板）。练习集群可用 `scripts/setup/install-prom-stack.sh` 一键装 kube-prometheus-stack，届时回来对照本章第 1 节的链路图，能看到两条并行的数据链路各自服务谁。
 
 ## 实战演练
 
