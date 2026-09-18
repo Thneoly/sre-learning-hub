@@ -69,7 +69,7 @@ checkpoint 触发条件默认是"每 1 小时或累计 100 万事务"（`dfs.nam
 - JournalNode 部署 3 或 5 台（允许各坏 1 或 2 台），通常复用在 NN/ZK 所在机器。
 - **fencing 必须配且必须验证**：两个 Active 同时接受写入会撕裂命名空间。sshfence 要求两台 NN 互相免密 ssh；切换演练时故意拔网线验证。
 - 手动切换与状态查看：`hdfs haadmin -ns mycluster -getAllServiceState`、`hdfs haadmin -failover nn1 nn2`。自动切换发生后要人工确认根因，不能放着不管。
-- 与 12 模块对照：这套"多数派日志 + 选主"和 Kafka KRaft/ISR 的思想一致（`14-data-streaming/kafka/02-replication-and-reliability.md`），差别是 Kafka 把日志和副本数据合在一起，HDFS 把"元数据日志"（JN）与"数据副本"（DN）拆成两套。
+- 与 14 模块对照：这套"多数派日志 + 选主"和 Kafka KRaft/ISR 的思想一致（`14-data-streaming/kafka/02-replication-and-reliability.md`），差别是 Kafka 把日志和副本数据合在一起，HDFS 把"元数据日志"（JN）与"数据副本"（DN）拆成两套。
 
 ## 3. DataNode：心跳、块报告与"死"的判定
 

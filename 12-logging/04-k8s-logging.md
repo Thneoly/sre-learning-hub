@@ -109,6 +109,41 @@ app/SDK ──OTLP──► 中心 Collector（Deployment/gateway）──► �
 
 经验法则：**A 打底，B 兜特例，C 做治理层**。C 与 11-otel/03 的三种 Collector 部署模式一节完全同构（agent/gateway 两级是生产标配）。
 
+**模式 A 的最小 Fluent Bit 配置**（与第 4 节 OTel filelog 配方等价，按团队技术栈二选一）。Fluent Bit（CNCF 毕业项目，C 编写，常驻内存几 MB 量级）是节点 agent 的另一主流选择，DaemonSet 化要处理的三件事与 promtail/OTel 完全同构：挂日志目录、positions 持久化、K8s 元数据 RBAC。
+
+```ini
+# [master] fluent-bit 核心配置（fluent-bit.conf，装进 ConfigMap；DaemonSet/RBAC 细节见下）
+[SERVICE]
+    Flush         5
+    Log_Level     info
+    storage.path  /var/log/flb-storage/     # 磁盘缓冲：后端故障时落盘而非丢弃
+
+[INPUT]
+    Name              tail
+    Path              /var/log/containers/*.log
+    Tag               kube.*
+    Parser            cri                     # 剥 CRI 外壳；Docker 遗产换 docker parser
+    multiline.parser  cri                     # 按 P 标记重组被截断的超长行
+    DB                /var/log/flb-kube.db    # positions：断点续读
+    Mem_Buf_Limit     10MB
+    Skip_Long_Lines   On
+
+[FILTER]
+    Name        kubernetes
+    Match       kube.*
+    Labels      On
+    Annotations Off
+
+[OUTPUT]
+    Name   loki
+    Match  kube.*
+    Host   loki.logging.svc.cluster.local
+    Port   3100
+    Labels namespace=$kubernetes['namespace_name'], app=$kubernetes['labels']['app']
+```
+
+DaemonSet 与 RBAC 的注意点（与 promtail 的 [labs/01-loki-pipeline](labs/01-loki-pipeline/task.md) 同构，不展开）：hostPath 挂 `/var/log`（同时覆盖 pods 与 containers 两层），`DB` 与 `storage.path` 落在持久位置——写进容器可写层等于每次发布重读全量日志；控制面 taint 要加 toleration；kubernetes filter 需要 SA 对 pods 的 get/list/watch（RBAC 形状与第 4 节 k8sattributes 相同）。`Labels` 只放低基数字段（第 3 章原则），pod 名这类取值随发布变化的留给查询时提取。
+
 ## 4. 与 OTel Collector 的日志管道衔接
 
 11-otel 模块（见 [11-otel/03-collector.md](../11-otel/03-collector.md)）讲过 Collector 的 receivers → processors → exporters 管道。日志腿的标准配方是 **filelog receiver + k8sattributes processor + otlphttp exporter 到 Loki**（Loki 3.x 原生接收 OTLP HTTP）：

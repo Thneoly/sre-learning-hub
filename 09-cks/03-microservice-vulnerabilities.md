@@ -8,6 +8,7 @@
 - 能用一条命令链识别集群里的过度权限 RBAC 并收敛为最小 Role
 - 能说明 automountServiceAccountToken 的作用域并验证 token 不再被挂载
 - 能设计"先全禁、再按需开"的 NetworkPolicy 分层并验证连通性
+- 能说明 NetworkPolicy 的 L3/L4 能力边界，以及 mTLS 补位"加密与身份"的思路
 
 ## 1. 纵深防御：四个互相独立的闸门
 
@@ -379,6 +380,40 @@ kubectl exec np-outside -n default -- nc -zv -w3 payment-api.payment.svc.cluster
 
 策略校验小技巧：`kubectl get networkpolicy -n payment -o yaml | grep -c policyTypes` 快速确认 L0 覆盖了两个方向。
 
+## 6. L3/L4 之上：mTLS 一瞥
+
+NetworkPolicy 再严密，也只回答"谁可以连谁"——它工作在 L3/L4，靠 IP、label 和端口做判断。这留下两个它管不到的缺口：
+
+1. **放行的流量是明文**。两个 Pod 之间的报文不加密：同节点走 CNI 本地转发，跨节点经 overlay（VXLAN 等）封装后照样明文过物理网络。能在路径上抓包的人就能读到全部内容——数据库凭据、API key、业务数据
+2. **端口匹配不等于内容可信**。放行 8080 就是放行 8080 上的一切协议，NetworkPolicy 不看 HTTP path/method，更不能按调用方身份做细粒度决策
+
+mTLS（双向 TLS）补的正是这两块：给每个 workload 一个**加密身份**（证书，而非 IP/label），通信双方在连接建立时互相验证书，验过再加密传输。service mesh（Istio、Linkerd）是最常见的落地形态，概念级视图：
+
+```
+Pod A                                    Pod B
+┌─────────────┐                          ┌─────────────┐
+│ app 容器     │                          │ app 容器     │
+│   ↕ 明文本地  │                          │   ↕ 明文本地  │
+│ sidecar 代理 │ ──── mTLS 加密隧道 ────> │ sidecar 代理 │
+└─────────────┘     （跨节点网络全是密文）  └─────────────┘
+  证书由 mesh 控制面 CA 统一签发并自动轮换（典型 24h）
+  身份形如 spiffe://cluster/ns/payment/sa/webapp（namespace+SA，非 IP）
+```
+
+关键机制三点：sidecar 由控制面按 namespace label 自动注入，应用代码零改动；身份基于 namespace＋ServiceAccount，比 IP 稳定且无法伪造；明文只存在于"app 容器 ↔ 本机 sidecar"一段（loopback），出 Pod 即密文。
+
+与 NetworkPolicy 的能力边界对比：
+
+| 维度 | NetworkPolicy | mesh mTLS |
+| --- | --- | --- |
+| 工作层级 | L3/L4（IP、端口） | L4 传输加密 ＋ L7 策略（path/method/header） |
+| 身份凭据 | podSelector/namespaceSelector/CIDR | 证书（加密身份，验不过握不了手） |
+| 加密 | 无 | 工作负载间全加密 |
+| 实现依赖 | CNI 支持（Calico/Cilium 等） | 控制面 ＋ sidecar（或 Cilium eBPF 免 sidecar） |
+| 失败模式 | CNI 不支持则策略静默无效 | sidecar 未注入的 Pod 不在网格内，mesh 内外不自动加密 |
+
+定位结论：NetworkPolicy 管"不该连的连不上"，mTLS 管"连上的流量可信且加密"，生产环境常两者叠加（mTLS 做身份与加密，NetworkPolicy 做兜底隔离）。对 CKS 而言，考纲落在 NetworkPolicy 与 apiserver 的 TLS 配置上，mesh 只需概念级理解——考试不需要（也没时间）装 Istio。
+
 ## 实战演练：把一个"裸奔"namespace 修成纵深防御
 
 初始状态：namespace `payment` 无 PSA label、无 NetworkPolicy，业务 Pod 用 default SA 且 token 自动挂载。
@@ -400,6 +435,8 @@ kubectl exec -n payment $TOKENPOD -- ls /var/run/secrets/kubernetes.io/serviceac
 # [master] Step5 确认 RBAC 无多余权限
 kubectl auth can-i --list --as=system:serviceaccount:payment:webapp -n payment
 ```
+
+配套练习：[labs/02-psa-levels](labs/02-psa-levels/task.md)（PSA 三级模式实验）与 [labs/10-network-segmentation](labs/10-network-segmentation/task.md)（默认拒绝＋按需放开端口），分别覆盖本章 Step1 与 Step4 的可判分版本。
 
 ## 常见坑
 
@@ -456,3 +493,4 @@ automountServiceAccountToken=false 使常规业务 Pod 根本没有 token（拿�
 - RBAC Good Practices：<https://kubernetes.io/docs/concepts/security/rbac-good-practices/>
 - Configure Service Accounts for Pods：<https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/>
 - NetworkPolicies：<https://kubernetes.io/docs/concepts/services-networking/network-policies/>
+- Istio 安全概念（mTLS 身份与授权）：<https://istio.io/latest/docs/concepts/security/>

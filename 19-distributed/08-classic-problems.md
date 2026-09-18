@@ -10,7 +10,7 @@
 - 能解释一致割（consistent cut）与 Chandy-Lamport 的 marker 规则，并把 Flink 的 barrier 对齐与 unaligned checkpoint 逐条映射回算法
 - 能用"毁掉哪条假设 → 工程怎么妥协"的框架，给四个结果各配一个已学系统的现场
 
-本章延续本模块的纪律：不推导证明，只讲语义、代价、运维后果与面试答法。四个结果的共同姿势是——**理论先证明"完美解不存在"，工程再花小钱把不可能绕过去**；绕的路径，你在 03/04/12 模块早就敲过命令了。
+本章延续本模块的纪律：不推导证明，只讲语义、代价、运维后果与面试答法。四个结果的共同姿势是——**理论先证明"完美解不存在"，工程再花小钱把不可能绕过去**；绕的路径，你在 03/04/14 模块早就敲过命令了。
 
 ## 1. 两将军问题：为什么 ACK 永远差一轮
 
@@ -143,7 +143,7 @@ P ──m1──m2──► [MARKER] ──m3──► Q      快照从 P 发起
 - **快照不对应任何真实物理时刻**：P 割在 t1、Q 割在 t2——但两刀拼出一个**"可能发生过"的全局状态**（可达状态），从它恢复继续跑，结果依然正确。这份"理论牌照"正是 Flink 从 checkpoint 回放而不心虚的底气。
 - **channel 状态是算法的灵魂**：只有"发端割前发出、收端割后才收到"的消息会跨割，被 channel 状态接住，恒等式（发送侧割内 ⇔ 接收侧割内或在 channel 状态）才闭合。
 
-### 4.3 工程化身：Flink 的 barrier（串 [12-flink/02](../14-data-streaming/flink/02-deployment-and-exactly-once.md)）
+### 4.3 工程化身：Flink 的 barrier（串 [14-flink/02](../14-data-streaming/flink/02-deployment-and-exactly-once.md)）
 
 [flink 02 章 §3](../14-data-streaming/flink/02-deployment-and-exactly-once.md) 已把 checkpoint 全流程（JM 触发、source 注入 barrier、算子对齐、ACK、completed）讲完，本节只做理论对账：
 

@@ -8,6 +8,7 @@
 - 能解释 `--ignore-daemonsets`、`--delete-emptydir-data`、`--force` 三个参数分别放行什么
 - 能沿着五层排错决策树（get nodes → 控制面 Pod → describe events → crictl → journalctl）定位任意故障题
 - 能查表处理 10 个最高频的故障现象，每条都知道"第一检查命令"是什么
+- 能部署 metrics-server 并用 kubectl top 读数，沿四步定位 top 报错（monitor metrics 考点）
 
 ## 1. 节点维护三命令：语义与边界
 
@@ -149,6 +150,70 @@ journalctl 能回答"kubelet 为什么没起来/为什么报证书错/为什么�
 
 使用方式：考场上对号入座先跑"第一检查命令"，80% 的题在第一跳就能看到答案；剩下的 20% 沿第 2 节决策树换层。
 
+## 4. metrics-server 与 kubectl top：资源监控链路
+
+`kubectl top` 是考纲 "monitor cluster and application metrics" 的直接考点，也是 HPA 的数据来源（labs/02）。它不是 kubectl 的内置功能，而是走一条完整的 API 链路，任何一环断了 top 就报错——排错前先记住链路长什么样：
+
+```
+kubectl top node / top pod
+   │ 请求 /apis/metrics.k8s.io/v1beta1/...
+   ▼
+kube-apiserver ──聚合层（aggregation layer）──▶ metrics-server（kube-system 里的普通 Deployment）
+                                                  │ 轮询各节点 kubelet 的 Summary API（:10250）
+                                                  ▼
+                                              kubelet ──▶ cAdvisor（容器/节点实时用量）
+```
+
+记清分工：**metrics-server 管"现在用了多少"（top 与 HPA 的数据源），Prometheus 栈管"历史趋势与告警"（10-pca 模块）**——两套并存，互不替代。
+
+### 4.1 部署与正常用法
+
+练习集群已由 `scripts/setup/` 装好 metrics-server；手工补装与常用姿势：
+
+```bash
+# [master] 安装（版本以官方 release 页为准）
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+# [master] kubeadm 集群常见的一步：kubelet 证书与其 IP 不匹配导致抓取失败，
+# 给 Deployment 补 --kubelet-insecure-tls（仅练习环境；生产应修 kubelet 证书）
+kubectl -n kube-system patch deploy metrics-server --type=json \
+  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+
+# [master] 正常用法三连
+kubectl top nodes                                   # 节点实时 CPU/内存
+kubectl top pods -n kube-system --sort-by=cpu       # 按占用排序，定位吃资源的 Pod
+kubectl top pod <podName> --containers              # 容器粒度（多容器 Pod 必用）
+```
+
+读数语义别混：`kubectl top pod` 是**实际用量**，`kubectl describe node` 的 Allocated resources 是 **requests 账面**——排资源题时"账面还有余量但实际已满"的矛盾正是靠这对命令暴露的（lab 19 的主题就是它）。
+
+### 4.2 top 报错的分层定位（四步）
+
+top 的报错只有一句 `Metrics API not available`，真正的病因要自己分层找：
+
+| 步 | 检查什么 | 命令 | 结论分支 |
+| --- | --- | --- | --- |
+| 1 | metrics-server Pod 活着吗 | `kubectl -n kube-system get pod -o wide \| grep metrics` | 不存在/不 Running → 按 4.1 节装或修 |
+| 2 | 它自己在报什么 | `kubectl -n kube-system logs deploy/metrics-server --tail=20` | `x509` → kubelet 证书不匹配；`connection refused` → 到节点 10250 的网络/防火墙断 |
+| 3 | APIService 可用吗 | `kubectl get apiservice v1beta1.metrics.k8s.io` | Available=False → 聚合链路问题；若伴随证书报错，查 05 章坑表里 front-proxy-client.crt 那行 |
+| 4 | 数据面到底有没有货 | `kubectl get --raw "/apis/metrics.k8s.io/v1beta1/nodes"` | 出 JSON 数据 → 链路通，问题在 kubectl 侧（context/权限）；空或报错 → 回第 3 步 |
+
+两个高频关联症状先排除混淆：HPA 显示 `<unknown>/50%` 是"容器没写 requests，分母不存在"（labs/02 的坑），不是 metrics-server 挂了；`kubectl top node` 单独报错而 `top pod` 正常，优先怀疑聚合层与证书（05 章）。
+
+### 4.3 五分钟动手（考试真题形态）
+
+```bash
+# [master] 验证整条链路，再制造一次真实故障并复原
+kubectl top nodes
+kubectl -n kube-system scale deploy metrics-server --replicas=0
+kubectl top nodes                                          # 此时报 error: Metrics API not available
+kubectl get apiservice v1beta1.metrics.k8s.io              # Available 变 False——对应 4.2 节第 3 步
+kubectl -n kube-system scale deploy metrics-server --replicas=1
+kubectl top nodes                                          # 等 Pod Ready 后恢复出数
+```
+
+这套"断链→定位→复原"走一遍，考场上见到 top 报错就不会从 `kubectl get nodes` 开始乱撞。
+
 ## 实战演练：一次完整的维护窗口 + 一次排错全链
 
 ### 演练 A：worker1 维护窗口（约 15 分钟）
@@ -212,6 +277,8 @@ df -h /var/lib/etcd /var/lib/kubelet && free -h && ip br | head
 | describe Pod 的 Events 为空 | 事件已过 1 小时被聚合清理 | `kubectl get events -n <ns> --sort-by=.lastTimestamp`；或直接删 Pod 重建复现 |
 | `kubectl logs` 报容器已重启看不到旧日志 | 看的是当前实例 | 加 `--previous` 看上一次的现场（CrashLoop 必用） |
 | endpoints 有值、Pod Running，curl 仍不通 | CNI/NetworkPolicy/目标端口错 | 按决策树换层：`calicoctl node status` 或查 NetworkPolicy；`curl PodIP:targetPort` 直连二分 |
+| `kubectl top` 报 Metrics API not available | metrics-server 未装/被缩容/挂掉 | 按 4.2 节四步分层：Pod → logs → APIService → raw 直查 |
+| metrics-server 日志刷 x509 / Failed to scrape | kubelet 自签证书与节点 IP 不匹配 | 练习环境加 `--kubelet-insecure-tls`；生产修 kubelet 证书 |
 
 ## 自测
 
@@ -250,11 +317,20 @@ SSH 到 master 上：`crictl ps -a`（直接问 containerd，不经 apiserver）
 三条命令：`kubectl drain node2 --ignore-daemonsets --delete-emptydir-data` → 等副本在其他节点 Ready（`kubectl get pod -A -o wide`）→ `kubectl uncordon node2`。若 node2 是唯一 worker：驱逐的 Pod 无处可去，会全部 Pending（有 PDB 时 drain 直接卡住）——先扩容一个 worker（03 章 join 流程）或临时把 master 的 control-plane taint 去掉接收负载，再执行 drain。
 </details>
 
+6. `kubectl top nodes` 报 `error: Metrics API not available`，但 `kubectl get pod -A` 里一切 Running。给出定位顺序与每步要确认的事实。
+
+<details><summary>答案</summary>
+
+（1）`kubectl -n kube-system get pod | grep metrics`——metrics-server 是否存在且 Running：它可能没装、被缩容到 0（4.3 节演示的现场）；（2）`kubectl -n kube-system logs deploy/metrics-server`——它自己报什么：x509 是 kubelet 证书不匹配，refused 是到 10250 的网络断；（3）`kubectl get apiservice v1beta1.metrics.k8s.io`——Available 是否 True，False 且带证书错要查聚合层（front-proxy，05 章）；（4）`kubectl get --raw /apis/metrics.k8s.io/v1beta1/nodes`——数据面有无值，区分"链路断"与"kubectl 侧 context/权限问题"。四步分别覆盖 Pod 层、日志层、API 注册层、数据层。
+</details>
+
 ## 延伸阅读
 
 - 安全清空节点（drain 官方语义）：https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/
 - 手动节点管理（cordon/uncordon）：https://kubernetes.io/docs/concepts/architecture/nodes/#manual-node-administration
 - 应用故障排查（CrashLoop/ImagePull 等）：https://kubernetes.io/docs/tasks/debug/
 - 集群故障排查（含 crictl）：https://kubernetes.io/docs/tasks/debug/debug-cluster/
+- metrics-server（官方仓库与部署说明）：https://github.com/kubernetes-sigs/metrics-server
+- 资源指标链路（kubectl top 与 Metrics API）：https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/
 - cri-tools（crictl 官方仓库）：https://github.com/kubernetes-sigs/cri-tools
 - 本模块配套练习：labs 14-kubeadm-upgrade-drain、16-kubelet-troubleshoot、17-dns-debugging、18-crashloop-triage、19-resource-pressure-diagnosis、20-cluster-recovery-drill

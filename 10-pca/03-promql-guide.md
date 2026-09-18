@@ -346,6 +346,8 @@ spec:
 
 验证方法：每题先预测"返回几条序列、各带什么标签"，再执行对照。预测错的地方就是你理解的空洞——这正是 PCA 读代码题的训练方式。
 
+十题只是热身：完整 60 道梯度题（按 selector/rate/histogram/子查询分组，含折叠答案与常见错法）在 [labs/promql-exercises](labs/promql-exercises.md)。
+
 ## 常见坑
 
 | 症状 | 原因 | 解法 |

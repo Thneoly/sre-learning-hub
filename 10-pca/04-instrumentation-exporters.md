@@ -7,6 +7,7 @@
 - 能根据"要回答的问题"为 counter/gauge/histogram/summary 做出正确选型
 - 能用 client 库给一个应用加上最小可用的 /metrics 端点并验证
 - 能准确区分 node_exporter、kube-state-metrics、cAdvisor 三者的数据来源与职责（必考）
+- 能配置 blackbox exporter 的 module，并说清探测类采集器与内部采集器的分工
 - 能说出 Pushgateway 的适用边界与两大陷阱，并给出规避做法
 - 能在 code review 中识别会导致高基数的 label 设计
 
@@ -125,7 +126,9 @@ echo 'db_backup_success 1' > /var/lib/node_exporter/textfile_collector/backup.pr
 curl -s http://127.0.0.1:9100/metrics | grep db_backup_success
 ```
 
-### 3.2 blackbox exporter：从外部探测
+### 3.2 blackbox exporter：第四类采集器——从外部探测
+
+第 4 节必考辨析的三大采集器（node_exporter/cAdvisor/KSM）全部站在**集群内部**测量；blackbox exporter 是第四类——**站在用户的位置从外部探测**，回答"服务现在能不能用"。
 
 - **数据来源**：自己发起 http/https/tcp/icmp/dns 探测（probe），测的是"用户视角是否可达"
 - **形态**：集中部署少量实例；Prometheus 把"探测谁"作为参数传给 `/probe` 端点：
@@ -149,7 +152,66 @@ curl -s http://127.0.0.1:9100/metrics | grep db_backup_success
         replacement: 127.0.0.1:9115
 ```
 
-读结果：`probe_success`（0/1）、`probe_duration_seconds`、`probe_http_status_code`。注意 up 衡量"blackbox 活着"，**probe_success 才是目标活着**——高频辨析点。
+**module：探测行为的模板**。职责一分为二：Prometheus 的 scrape config 决定"探谁"，blackbox 自己的配置文件（blackbox.yml）决定"怎么探"。`module` 是一组探测参数的命名模板，scrape config 用 `params.module` 引用：
+
+```yaml
+# [任意节点] blackbox.yml 片段：四个常用 module
+modules:
+  http_2xx:                       # 最常用：HTTP GET，期待 2xx
+    prober: http
+    timeout: 5s
+    http:
+      preferred_ip_protocol: ip4  # 双栈环境避免解析到 v6 被防火墙拦
+  tcp_connect:                    # 只验 TCP 握手（数据库/缓存端口连通性）
+    prober: tcp
+  icmp:                           # ping；容器化部署需 NET_RAW 能力
+    prober: icmp
+    icmp:
+      preferred_ip_protocol: ip4
+  dns_prometheus:                 # 验证 DNS 解析（域名与返回码）
+    prober: dns
+    dns:
+      query_name: prometheus.io
+      valid_rcodes: [NOERROR]
+```
+
+module 可以手工调试，不必经过 Prometheus——排障时先绕开监控链路确认探测行为本身：
+
+```bash
+# [任意节点] 直接调 /probe 看原始结果（重点看末尾的 probe_success）
+curl -s 'http://127.0.0.1:9115/probe?target=prometheus.io&module=http_2xx' | grep -E '^probe_(success|duration|http_status)'
+```
+
+**指标读法**：每次 probe 产出一组以 `probe_` 为前缀的指标，核心三个：
+
+```promql
+# [Prometheus Web UI] 目标是否通过本次探测（0/1，唯一该直接告警的信号）
+probe_success
+
+# [Prometheus Web UI] 整个探测的总耗时（秒）
+probe_duration_seconds
+
+# [Prometheus Web UI] HTTP 探测的分阶段耗时：dns/connect/tls/processing/transfer
+probe_http_duration_seconds
+
+# [Prometheus Web UI] 其他常用：状态码、证书剩余有效期（http module）
+probe_http_status_code
+probe_ssl_earliest_cert_expiry - time()   # 证书还有多少秒到期
+```
+
+注意 up 衡量"blackbox 活着"，**probe_success 才是目标活着**——高频辨析点：告警条件写 `probe_success == 0`，而不是 `up == 0`。
+
+**探测类与内部采集器的分工**：
+
+| | blackbox exporter（探测类） | 三大内部采集器（node/cAdvisor/KSM） |
+| --- | --- | --- |
+| 回答的问题 | 用户现在能不能用（外部视角） | 系统内部状态如何（资源/对象） |
+| 部署位置 | 集群边缘或外部，模拟用户路径 | 每个节点/对象旁边 |
+| 失败语义 | probe_success=0 即"服务不可用"，直接面向可用性 SLO | 资源趋势（CPU 涨、副本缺），需再推理才到"影响用户" |
+| up 的含义 | up=exporter 自身，probe_success=目标 | up 即目标本体 |
+| 典型配合 | probe_success==0 发现症状 | 内部指标定位病灶（哪个节点/哪个容器） |
+
+一句话分工：**外部探测发现症状，内部采集定位病灶**。K8s 场景下"探谁"的清单通常用 02 文件表里的 service/ingress role 自动发现，kube-prometheus-stack 用户则直接提交 Probe CRD（见 02 文件 3.4 节）。
 
 ### 3.3 mysqld exporter：数据库翻译器
 
@@ -290,6 +352,8 @@ sum by (code) (increase(demo_requests_total[5m]))
 ```
 
 预期：错误率约 5%（代码里 500 权重）；P95 随延迟档位落在 0.5~1s 区间；`increase` 返回带小数的估算值（03 文件 6.3 节）。
+
+本章指标的查询手感（rate/histogram/聚合共 60 道梯度题）继续在 [labs/promql-exercises](labs/promql-exercises.md) 里练。
 
 ## 常见坑
 

@@ -8,6 +8,7 @@
 - 能用 query variable + label_values 建立可复用的 dashboard 模板，并在查询中正确引用
 - 能为给定数据形态选择正确面板（stat/time series/heatmap 等）并说明理由
 - 能用 recording rules 预聚合减轻面板查询压力，并知道何时值得这么做
+- 能说清 Explore 与 dashboard 的排障分工，以及 Grafana Alerting 与 Prometheus+Alertmanager 的选择依据
 
 ## 1. Grafana 在链路中的位置与数据源
 
@@ -212,6 +213,72 @@ data:
 
 apply 后稍等片刻 dashboard 出现在 Dashboards 里；改 ConfigMap 即滚动更新。从此 dashboard 跟应用一起走 GitOps，重建集群不丢图。
 
+**数据源 provisioning：第二条 sidecar 通道**。数据源同样可以 as-code：sidecar 还监听带 `grafana_datasource: "1"` 标签的 ConfigMap，内容是 Grafana 的 datasources provisioning 格式（不是 dashboard JSON）：
+
+```yaml
+# [master] kubectl apply -f pca-extra-datasources.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pca-extra-datasources
+  namespace: monitoring
+  labels:
+    grafana_datasource: "1"       # 注意与 dashboard 通道的标签不同
+data:
+  pca-datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prom-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090
+        isDefault: true
+```
+
+两条通道只差一个标签：`grafana_dashboard: "1"` 装的是 dashboard JSON，`grafana_datasource: "1"` 装的是 provisioning YAML。kube-prometheus-stack 自动创建的那个 Prometheus 数据源走的正是后者，可以直接验证：
+
+```bash
+# [master] 列出 sidecar 正在管理的数据源 ConfigMap
+kubectl -n monitoring get cm -l grafana_datasource=1
+```
+
+收益与 dashboard as-code 相同：定义进 Git、可 review、重建集群与多环境一致；URL 写错也能在 diff 里抓住，而不是等某天面板集体 No data。
+
+## 6. Explore：交互式排障入口
+
+Dashboard 面向"反复看"，Explore 面向"一次查清"——排障时的正确分工：
+
+| | Dashboard | Explore |
+| --- | --- | --- |
+| 定位 | 保存下来的查询集合，团队共享、定时刷新 | 一次性排障草稿，用完即弃（历史可回查，满意可 Add to dashboard） |
+| 查询组织 | 固定面板 + 变量模板 | 自由写 PromQL；Split view 左右两栏各自查询 |
+| 适用 | 日常巡检、汇报、已知问题的持续观察 | 未知问题定位、假设对比、从指标下钻 |
+
+Explore 里三个高价值入口（一条排障动作链就串在这）：
+
+1. **Split view 对照**：右上角 Split，左右两栏分别选数据源/查询——"改动前 vs 改动后""两个 namespace 的同一查询"一眼对比，不用在两个浏览器标签间来回切换
+2. **exemplar 下钻 trace**：histogram 指标的数据点旁若有 exemplar 小点，点击直接跳到对应 trace（Tempo/Jaeger 数据源）——"P99 尖刺 → 点该时刻的数据点 → 看慢请求的完整调用链"。前提是 Prometheus 启用 exemplar-storage 特性且数据源配好 traceId 映射，练习栈默认未开；完整链路见 [11-otel/05-otel-demo-astronomy-shop.md](../11-otel/05-otel-demo-astronomy-shop.md)
+3. **Metrics → Logs 关联**：Explore 里查到异常序列后，点查询面板的 "Metrics → Logs"（需 Loki 数据源，且两侧 label 命名一致），用同一组 namespace/pod label 直接翻对应日志——Loki 与 LogQL 详见 [12-logging/03-loki-stack.md](../12-logging/03-loki-stack.md)
+
+## 7. 告警放哪层：Grafana Alerting vs Prometheus+Alertmanager
+
+两套都能做"指标越阈值 → 发通知"，但评估位置与能力边界不同（PCA 的告警语义考点全在右侧那套）：
+
+| 维度 | Grafana Alerting（unified，Grafana 9+ 默认） | Prometheus 规则 + Alertmanager |
+| --- | --- | --- |
+| 评估位置 | Grafana 后端进程定时向数据源发查询 | Prometheus server 本地周期评估（05 文件 for 状态机） |
+| 数据源范围 | 任意 Grafana 数据源（Prometheus/Loki/云监控/数据库），可跨源组合 | 只能用该 Prometheus 自己的 TSDB |
+| 表达能力 | 各源查询语言 + reduce/数学运算 | PromQL 全集（含子查询）+ for 持续性语义 |
+| 路由/抑制/静默 | Contact points + Notification policies；无 inhibit 的对应物 | 路由树、group_wait/interval/repeat、inhibit、silence 全套 |
+| HA 与去重 | 多副本 Grafana 的告警一致性需要额外机制 | Alertmanager 集群 gossip；双 Prometheus 告警天然去重（02 文件 6 节） |
+| 告警历史 | 内置 history 视图 | /alerts 只显当前态，历史靠通知记录或外部事件库 |
+
+何时选谁：
+
+- **默认 Prometheus+Alertmanager**：纯指标告警、需要分组/抑制/静默语义、栈本来就是 kube-prometheus-stack——05 章的全部考点（for、group_wait、inhibit）都在这一侧
+- **选 Grafana Alerting**：告警条件要混用非 Prometheus 数据源（如"Loki 同窗口出现 ERROR 关键字"或云厂商指标没有本地规则引擎）、小团队不想多运维一个 Alertmanager
+- **两套并存时的纪律**：同一条件只在一层配置，否则一次故障两个通道各通知一遍，值班的人收到双份噪声
+
 ## 实战演练：十五分钟建一个三面板 dashboard
 
 环境：kubeadm 集群 + kube-prometheus-stack。先完成 1 节的登录（admin/密码）。
@@ -225,6 +292,8 @@ apply 后稍等片刻 dashboard 出现在 Dashboards 里；改 ConfigMap 即滚�
 
 预期结果：切换 `job` 到任意值时 instance 下拉随之过滤；Stat 在缩掉一个有 exporter 的 deployment 时变红；Query inspector 里 recording rule 面板的执行时间通常比原始表达式低一个数量级。
 
+面板背后的 PromQL 手感继续刷 [labs/promql-exercises](labs/promql-exercises.md)：把 Explore 当草稿纸练，写得顺手的查询顺手 Add to dashboard。
+
 ## 常见坑
 
 | 症状 | 原因 | 解法 |
@@ -236,6 +305,9 @@ apply 后稍等片刻 dashboard 出现在 Dashboards 里；改 ConfigMap 即滚�
 | 缩放时间范围后 rate 出现断点 | 固定窗口太短或窗口 < 4×抓取间隔 | 用 `$__rate_interval` 或加大窗口 |
 | stat 面板显示一堆碎块 | 把多序列指标塞给 stat | stat 只放聚合后的单值；多序列用 time series/bar gauge |
 | dashboard 分享后别人看不到我的变量值 | 变量是 dashboard 级、每个会话独立 | 用 dashboard 链接（含变量 query 参数）分享当前状态 |
+| Explore 里查得到，做成面板就没数据 | 面板多了变量过滤（$job/$instance），条件比 Explore 裸查询严 | 用 Query inspector 对比两边的实际请求；多值确认用 =~ |
+| datasources ConfigMap 死活不生效 | 标签写错（必须是 grafana_datasource: "1"）或不在 sidecar 监听的 namespace | `kubectl get cm -l grafana_datasource=1` 核对；看 Grafana sidecar 容器日志 |
+| exemplar 点不出来 | Prometheus 未开 exemplar-storage 或数据源未配 traceId 映射 | 两侧都配好才出现；练习栈默认未开，见 11-otel 模块 |
 
 ## 自测
 
@@ -267,6 +339,12 @@ dashboard 是多面板 × 定时刷新 × 多用户并发的乘积：12 面板 3
 <details><summary>答案</summary>
 
 它们的 mixin 体系把所有昂贵表达式都预生成成 recording rules（命名就是 level:metric:operations 惯例），dashboard 只做轻量点查。这是"重计算一次、轻消费多次"的标准架构，也是官方对社区的最佳实践示范。
+</details>
+
+6. 团队要一条"Prometheus 5xx 错误率 >1% 且 Loki 同窗口出现 ERROR 日志"的组合告警，该在哪层实现？纯指标的"CPU > 90% 持续 5 分钟"又为什么默认另一层？
+<details><summary>答案</summary>
+
+组合条件跨 Prometheus 与 Loki 两个数据源，Prometheus 的规则引擎查不到 Loki 的数据——只能用 Grafana Alerting（评估层在 Grafana，可向多个数据源取数再组合）。纯指标场景默认 Prometheus+Alertmanager：本地评估不依赖 Grafana 存活（Grafana 挂了告警跟着挂是它做评估层的结构性风险），且有 for 持续性、分组/抑制/静默全套路由语义——这也是 PCA 考点所在。
 </details>
 
 ## 延伸阅读

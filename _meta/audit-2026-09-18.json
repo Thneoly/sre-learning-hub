@@ -1,0 +1,457 @@
+[
+ {
+  "label": "",
+  "result": {
+   "crossRefIssues": [
+    "断链共 8 处（140 个跨模块 ../NN- 链接全查，非抽样），全部集中在 13-middleware/rabbitmq/，成因一致：该子目录章节在仓库第 2 层深度，链接只写了一个 ../，应为 ../../。修复后目标文件均实际存在。",
+    "13-middleware/rabbitmq/01-amqp-model.md:115,122 -> ../14-data-streaming/kafka/01-log-model-and-architecture.md（应为 ../../14-data-streaming/...，目标文件存在）",
+    "13-middleware/rabbitmq/01-amqp-model.md:115,125 -> ../14-data-streaming/kafka/02-replication-and-reliability.md（应为 ../../，目标存在）",
+    "13-middleware/rabbitmq/02-ha-and-clustering.md:69,75,141 -> ../19-distributed/03-consensus-and-replication.md（应为 ../../，目标存在）",
+    "13-middleware/rabbitmq/02-ha-and-clustering.md:119 -> ../14-data-streaming/kafka/02-replication-and-reliability.md（应为 ../../，目标存在）",
+    "[quiz 回归·确认] portal/quiz-data.js:2539 rabbitmq 库 10 题 answer 分布 [0,7,3,0]：索引 0 和 3 恒 0、70% 集中索引 1 —— 上次审计修复未覆盖或已回归；public/quiz-data.js 为同 md5 副本（abe9a39b...），修复后需同步复制。",
+    "[quiz 回归·确认] portal/quiz-data.js:3859 lifecycles 库 8 题分布 [0,7,1,0]：87.5% 集中索引 1，索引 0/3 恒 0 —— 全站 21 库中最严重偏斜。",
+    "[quiz 临界] cicd 库 28 题分布 [13,5,5,5]=46.4% 未过 50% 阈值，但 q20-q27 连续 8 题（Harbor/SonarQube 块）answer 全为 0，存在可猜题模式，建议顺手打乱。其余 18 库 maxShare 25%-40% 健康。",
+    "[PLAN 未登记] _meta/PLAN.md（自称『验证以此为准』）缺：tools/juejin/ 整目录（column-map.json + out/ 下 20 篇文章 md + 5 png）、public/（quiz.html + quiz-data.js）、scripts/verify-scenarios.js。模块内 289 个 .md 与 PLAN 条目逐一对账无缺漏；scripts/faults 12 脚本+FIXES.md、setup 5 文件均与登记一致。",
+    "[清洁项] 占位符扫描（TODO/待补充/FIXME/此处省略）：源文件仅 3 处命中且全为 06-ci-cd/01-git-deep-dive.md:230-244 的 pre-commit 钩子教学示例（故意演示 XXX-FIXME 拦截），其余命中均为 docs/.vitepress 构建产物，无真实占位。SCENARIOS.md：详见/另见引用 247 条、去重 93 个路径全部存在于磁盘，抽 12 个 #anchor 小节名全部在目标文件命中。根因提示：rabbitmq 断链系该模块为全站唯一『模块/中间件/章节』三层结构，建议在 _meta/STYLE.md 增加相对链接深度规约。"
+   ],
+   "missingTopics": [],
+   "thinChapters": [
+    {
+     "lines": 169,
+     "path": "09-cks/00-exam-overview.md",
+     "reason": "全站唯一 <200 行的教程章之一。结构完整（学习目标+6 节+常见坑）但比同类 05-cka/00-exam-overview.md（260 行）薄 35%，缺题型示例与分值/域权重数据",
+     "suggestion": "补 CKS 官方大纲 6 域的题量权重表和 2-3 道带解题思路的样题；注：labs/*/task.md（48-65 行）为 task+check+solution 三件套设计，不算薄弱"
+    },
+    {
+     "lines": 174,
+     "path": "10-pca/00-exam-overview.md",
+     "reason": "第二个 <200 行的教程章。考试形式/大纲映射齐备，但相比 05-cka 版缺考前清单细节与计分规则",
+     "suggestion": "对齐 05-cka/00 的深度：补 PCA 与 CKA/CKS 的报考策略对比、练习环境（killercoda 等）清单"
+    },
+    {
+     "lines": 244,
+     "path": "05-cka/01-curriculum-gap-analysis.md",
+     "reason": "差距分析章为清单式内容，244 行属预期偏短，无缺陷但可补自查方法",
+     "suggestion": "补一份可打勾的自测 checklist 或指向 question-bank 的逐域自评表"
+    },
+    {
+     "lines": 254,
+     "path": "19-distributed/04-distributed-transactions.md",
+     "reason": "2PC/3PC/TCC/Saga 是本模块核心章，篇幅低于模块均值，与 09-paxos-deep-dive 等深讲章相比明显薄",
+     "suggestion": "补一节故障驱动的选型决策树（一致性要求 x 吞吐 x 实现成本）+ 与 13-middleware rabbitmq 消息事务的呼应"
+    },
+    {
+     "lines": 255,
+     "path": "19-distributed/10-crdt-and-convergence.md",
+     "reason": "CRDT 章涵盖协同编辑/Redis CRDT/Gossip 数据层，主题密度高但篇幅在本模块倒数第二",
+     "suggestion": "补 1-2 个可动手观测的收敛演示（如 Redis CRDT 或 edge case 图解）"
+    },
+    {
+     "lines": 259,
+     "path": "19-distributed/02-consistency-models.md",
+     "reason": "一致性模型为模块地基章，与 06-gossip 并列最短梯队，图示/谱系展开空间大",
+     "suggestion": "补一致性谱系图与各模型在 etcd/Kafka/Redis 中的实例映射表"
+    },
+    {
+     "lines": 259,
+     "path": "19-distributed/06-gossip-membership-fencing.md",
+     "reason": "成员关系与 fencing 主题重（SWIM/故障检测/租约），259 行承载偏紧",
+     "suggestion": "补 fencing token 失效场景的故障复盘式案例"
+    },
+    {
+     "lines": 260,
+     "path": "05-cka/00-exam-overview.md",
+     "reason": "CKA 考试总览章，信息完整但为 05-cka 模块最短正文章（模块 48 文件 8637 行，均值 180+ 但正文均值更高）",
+     "suggestion": "可补近期考生经验要点或考试环境（tmux/终端）实操提示"
+    },
+    {
+     "lines": 260,
+     "path": "05-cka/06-node-maintenance-troubleshooting.md",
+     "reason": "被 SCENARIOS.md 高频引用（3 条索引指向它），作为排障入口章信息密度要求高，260 行偏紧",
+     "suggestion": "维持，或把『五层定位法』扩成带决策树图的一页速查"
+    },
+    {
+     "lines": 260,
+     "path": "11-otel/00-otel-overview.md",
+     "reason": "OTel 总览章与模块内 01-05 章相比篇幅最短，作为入口章尚可",
+     "suggestion": "补 OTel 与传统 APM（SkyWalking/Zabbix agent）的迁移对照"
+    },
+    {
+     "lines": 260,
+     "path": "17-aiops-llm/01-aiops-landscape.md",
+     "reason": "AIOps 全景章为模块最短正文章（模块仅 6 文件 1650 行，整体即薄模块之一）",
+     "suggestion": "补落地成熟度分层（规则->统计->LLM）的自评表与行业案例"
+    },
+    {
+     "lines": 263,
+     "path": "19-distributed/05-sharding-and-rebalancing.md",
+     "reason": "分片/再平衡与 18-bigdata、13-middleware 的 MongoDB/Redis 分片实践强相关，263 行理论为主",
+     "suggestion": "补与 mongodb/02-replicaset-and-sharding.md 的交叉引用与一致性哈希实算例子"
+    },
+    {
+     "lines": 272,
+     "path": "18-bigdata/00-bigdata-overview.md",
+     "reason": "大数据模块入口章，272 行覆盖 HDFS->OLAP 全景偏紧凑，但属总览定位",
+     "suggestion": "维持；可选补一张选型流程图（批/流/OLAP->组件）"
+    },
+    {
+     "lines": 277,
+     "path": "10-pca/06-grafana-dashboards.md",
+     "reason": "Grafana 面板章为 PCA 模块最短正文章（模块 9 文件 4226 行，均值 470）",
+     "suggestion": "补 dashboard JSON 组织、变量模板与 recording rule 联动的实操段落"
+    },
+    {
+     "lines": 278,
+     "path": "06-ci-cd/03-jenkins-and-github-actions.md",
+     "reason": "Jenkins + GitHub Actions 两个工具合挤一章（278 行），明显薄于同模块 02-gitlab-ci.md（305 行单工具章），Jenkins 侧疑似被压缩",
+     "suggestion": "拆分或补 Jenkins 侧：Jenkinsfile 语法/agent 与 K8s/凭据管理/与 GitLab CI 差异表"
+    }
+   ]
+  }
+ },
+ {
+  "label": "",
+  "result": {
+   "thinChapters": [
+    {
+     "lines": 299,
+     "path": "D:/SRE/chat/learning-hub/02-programming/06-celery-task-queue.md",
+     "reason": "全 4 模块中最短章（模块均值约 455 行）。结构完整（目标/实操/常见坑/5 题自测/延伸阅读齐全），但对比同模块 04-python-ops-toolkit（530 行，四个完整可运行工具代码）与 05-go-for-sre（610 行，完整 worker pool + Informer 代码），本章关键工程实践只停留在文字：第 6.2 节的 task_id 去重幂等模式（(task_name, task_id) 去重键 + 覆盖最长重投延迟的窗口）只有论述没有代码骨架；result backend 卫生（result_expires、task_ignore_result 的取舍）也只有一句话。这是全章最重要的运维落地点，却是唯一没有可抄代码的章节。",
+     "suggestion": "在第 6.2 节后补一段约 40-60 行的可运行代码骨架：带 task_id 去重装饰器（或 Redis SET NX EX 消费侧检查）+ autoretry_for/time_limit 的完整任务定义，并附 result_expires/result_ignore_result 的生产配置块。可从 labs/03-celery-tasks 的 solution 中抽取，保持与 lab 互补。"
+    },
+    {
+     "lines": 369,
+     "path": "D:/SRE/chat/learning-hub/03-docker/01-container-fundamentals.md",
+     "reason": "篇幅在模块内不算短，但相对 labs/06-resource-limits 的考点期望，正文资源限制覆盖过窄：全章只用 --memory 256m --cpus 1 做演示并读 memory.max/cpu.max，而 lab06 验收要求理解 HostConfig.NanoCpus/Memory 换算、nr_throttled 增长、OOMKill(137) 链路；--memory-swap、--memory-reservation、--cpu-shares、pids-limit、docker update 在线调参在模块任何章节均无覆盖。另有一处结构缺陷：小节编号乱序——§2.7（宿主机视角）→ §2.8（嵌套容器）→ 又出现一个 §2.7（动手 lsns/nsenter/unshare，位于 136 行），§2.7 重复且排在 §2.8 之后。",
+     "suggestion": "将 §3.2 扩为『容器资源限制全景』小节：补 --cpus 与 --cpu-period/--cpu-quota 的换算关系、--memory-swap/-reservation 语义、pids-limit（fork 炸弹防线）、docker update 与 OOMKill→Exited(137) 判读（正好衔接 §2.4 PID 1 与 04 章 K8s OOMKilled）。同时把 136 行的『§2.7 动手』重编号为 §2.9（或移到 §2.8 之前），消除重复编号。其余 6 章与两模块最短章（01-linux/04、01-linux/06、02-programming/02、03-docker/07、04-k8s/01、04-k8s/14，全文审读）结构完整、深度与各自模块持平，无需扩充。"
+    }
+   ],
+   "crossRefIssues": [
+    "02-programming/05-go-for-sre.md 第 3 行与第 531 行：两处承诺『06 模块的 CRD/Operator 开发（controller-runtime、kubebuilder）』为本章续篇，但 06-ci-cd 实际是 DevOps/Git/GitLab CI/Jenkins/SonarQube/Harbor，且整个 learning-hub（README 20 个模块、ROADMAP 周计划）没有任何模块或章节覆盖 controller-runtime/kubebuilder——悬空前向引用，读者学完 Go 无处可去",
+    "03-docker/07-runtime-ecosystem.md 第 201-209 行与第 332 行：§5 衔接节使用旧模块编号——『直接平移到 02 模块』『02-02』『02-03』『02-01』『(02-10)』，页脚『下一模块：[02 Kubernetes 基础](../04-k8s-fundamentals/01-why-kubernetes.md)』。链接本身可解析（目标文件存在），但 K8s 基础现编号为 04，标签仍写 02；读者按『02-10』去 02-programming 找 CNI 章节必然落空。应统一改为『04-xx』",
+    "04-k8s-fundamentals/11-resources-and-qos.md 第 211 行：『API 驱逐（kubectl drain 走 eviction API，尊重 PDB，见第 8 章）』——但 08-scheduling.md 全章没有 PDB 正文（无 YAML、无 minAvailable/maxUnavailable、无 drain×PDB 交互，仅在 274 行抢占流程中一句带过），模块内断链，与 missingTopics 中的 PDB 缺失互为表里",
+    "（已验证无问题的跨模块引用，供对照）02-programming/06-celery-task-queue.md → ../13-middleware/redis/01、02 与 ../19-distributed/04-distributed-transactions.md §5/§6：目标与章节号均存在且内容对应；→ ../04-k8s-fundamentals/04-workload-controllers.md §5：确为 HPA 节。04-k8s/13 → 05-cka/04-etcd-backup-restore.md、04-k8s/14 → 10-pca/00-06 与 scripts/setup/install-prom-stack.sh、03-docker/07 → 09-cks/labs/05-runtimeclass：全部存在"
+   ],
+   "missingTopics": [
+    {
+     "module": "01-linux",
+     "topic": "Linux 用户与权限体系（uid/gid、sudoers、SUID/SGID、文件 capabilities、umask、PAM 概览）",
+     "where": "01-linux 新增一章，或作为 02-filesystem-and-io 的扩展节（SUID 位就存在 inode mode 里，衔接自然）",
+     "why": "全模块 grep 无任何覆盖（仅脚本里出现 chmod +x）。下游全部踩在这块地基上：03-docker/06 讲容器 capabilities 裁剪却没有 Linux capabilities 前置、04-k8s/12 的 RBAC 与 CKS 的 runAsNonRoot、01 章 pam_limits（第 405 行提到 PAM 但未展开）都假设读者懂 uid/gid 与提权机制。这是四个模块交叉处最明显的底层空洞。"
+    },
+    {
+     "module": "01-linux",
+     "topic": "主机侧 DNS 解析链（/etc/hosts、nsswitch.conf、resolv.conf、systemd-resolved stub 127.0.0.53、dig 排障）",
+     "where": "01-linux/05-network-stack-internals.md 增设一节（建议放 §4 tcpdump 之前），作为用户态排障入口",
+     "why": "ch05 止步于内核网络栈 L2-L4，而『服务不通』的排障第一跳几乎总是解析器：nsswitch 顺序、systemd-resolved 的 127.0.0.53 陷阱、宿主机与容器内 resolv.conf 的关系。04-k8s/05 直接讲 CoreDNS 与 ndots:5，读者缺主机侧前置链路，跨模块断层。"
+    },
+    {
+     "module": "01-linux",
+     "topic": "时间同步（chrony 配置、时钟漂移、时区、步跳 vs 斜率校正）",
+     "where": "01-linux/01-boot-and-systemd.md 增设一节（chrony 就是 systemd 管理的服务，与 timer 一节并列）",
+     "why": "19-distributed/01 讲时钟理论与 NTP 语义，K8s 证书验证（13 章证书有效期）、etcd 选举、MySQL 主从都依赖时间，但整个 hub 没有任何一处讲主机上怎么装/配/验 chrony（chronyd/chronyc sources/tracking 全库 grep 零命中）。理论有、实操无。"
+    },
+    {
+     "module": "02-programming",
+     "topic": "CRD/Operator 开发（controller-runtime、kubebuilder 骨架）",
+     "where": "02-programming 新增第 07 章（Go 章的续篇，读完即可上手）；若嫌重，至少在 04-k8s-fundamentals 补一页『K8s 扩展模型』概念章并修正 05 章的引用",
+     "why": "05-go-for-sre.md 第 3 行与第 531 行两次明示这是该章的进阶出口（『06 模块的 CRD/Operator 开发……本章的 Informer 认知正是读懂它的前置条件』），但目标不存在（见跨模块断链）。02-programming 的 Go 学习线在此断裂；ROADMAP 第 11-13 周也无对应安排。"
+    },
+    {
+     "module": "02-programming",
+     "topic": "SSH 深入与隧道（密钥/known_hosts/StrictHostKeyChecking、ssh-agent、ProxyJump 跳板、本地/远程端口转发）",
+     "where": "02-programming/02-shell-ops-patterns.md 扩展一节（批量 ssh 的自然延伸）",
+     "why": "02 章 1.1 用『~/.ssh/config 已配好免密』一笔带过，03 章用 paramiko，但密钥怎么管、为什么 CI 里要 StrictHostKeyChecking=accept-new、kubectl 访问内网 apiserver 常用的 ssh -L 隧道与 ProxyJump 全库无人讲——这是 K8s 上手前后最常卡住新人的日常操作。"
+    },
+    {
+     "module": "03-docker",
+     "topic": "容器日志体系（docker logs 原理、json-file 驱动、--log-opt max-size/max-file 轮转、『磁盘被日志打爆』处置）",
+     "where": "03-docker/04-storage-volumes.md 或 01 章增设一节；与 daemon.json 日志段一起讲",
+     "why": "全模块正文中『docker logs』与日志驱动 grep 零命中。04-k8s/14 讲 kubelet 的 containerLogMaxSize 轮转（默认 10Mi×5），12-logging 讲采集，但它们共同的前置——容器日志驱动模型、daemon.json 的 log-opts、磁盘被 /var/lib/docker/containers 下日志打满这一经典事故——在 Docker 层无人覆盖，链条缺最底一环。"
+    },
+    {
+     "module": "03-docker",
+     "topic": "容器资源限制参数全景（--memory-swap/-reservation、--cpu-shares、pids-limit、--oom-kill-disable、docker update）",
+     "where": "03-docker/01-container-fundamentals.md §3 扩充（与 thinChapters 中该章建议合并处理）",
+     "why": "labs/06-resource-limits 已存在并考核 --cpus/--memory 与 cgroup 文件，但 swap 语义（不设 --memory-swap 时容器可 swap 到 2 倍）、pids-limit 防 fork 炸弹、docker update 不重启调参在模块任何章节都没讲，lab 只覆盖了最简单的两维。"
+    },
+    {
+     "module": "04-k8s-fundamentals",
+     "topic": "PodDisruptionBudget 与自愿中断（PDB YAML、minAvailable/maxUnavailable、drain×PDB 交互、节点维护流程）",
+     "where": "04-k8s-fundamentals/08-scheduling.md 增设一节（ch11 已把读者指到第 8 章）",
+     "why": "11-resources-and-qos.md 第 211 行明确写着『kubectl drain 走 eviction API，尊重 PDB，见第 8 章』，但 08-scheduling 全章没有 PDB 正文——无 YAML、无 drain 被 PDB 卡住的排障（与 13 章升级流程的 drain 直接相关）。这既是缺失主题也是模块内断链；CKA 节点维护与生产 drain 是高频操作。"
+    },
+    {
+     "module": "04-k8s-fundamentals",
+     "topic": "K8s 扩展模型概念章（CRD、自定义控制器/Operator 模式、聚合 API 与 API 聚合层）",
+     "where": "04-k8s-fundamentals 新增第 15 章收口（或在 02 章末加节）；与 02-programming 的 Operator 开发篇互为概念/实操两层",
+     "why": "14 章里 Operator 多次以『某 Operator 加的 finalizer』『另一个控制器』身份出现（01 章 §7 自测 5、09 章），06 章 Gateway API 就是 CRD 体系的应用，但没有任何一章系统讲『K8s 如何被扩展、CRD+控制器如何协作』。学完 14 章的读者面对 Prometheus Operator/Cert-Manager 这类生态标配仍是黑盒；PCA/CKS 模块也反复引用 Operator 概念。"
+    }
+   ]
+  }
+ },
+ {
+  "label": "",
+  "result": {
+   "crossRefIssues": [
+    "失效模块标识：13-middleware/nginx 三章（01/02/03）头部写『模块：07-中间件/nginx』——中间件已编号为 13，且现仓库 07 是 cd-gitops，编号冲突会误导导航；同一模块内头部写法三种并存（nginx『07-中间件/nginx』、redis/rabbitmq『13-middleware/xxx』、mongodb/mysql/postgresql『中间件-XXX』无编号），建议全部统一为 13-middleware/<component>。",
+    "软断链（目标知识不存在）：13-middleware/postgresql/02-replication-and-ha.md CDC 节把『消费位点在 Kafka/Connect 侧』与 Debezium→Kafka 链路当作已懂前提，但 14-data-streaming 全模块没有任何 Kafka Connect/Debezium 内容，读者跳转过去找不到承接章节——需在 kafka 模块补 Connect 小节（见 missingTopics）或将该处引用改为指向外部官方文档。",
+    "已核实无失效硬链接：rabbitmq/02 与 postgresql lab 引用的 19-distributed/03 §2（Quorum/NWR）与 §4（Raft 全流程）、18-bigdata/00#2『三条典型数据链路』、18-bigdata/05 第 31 行『buffer pool 大扫描』引文、18-bigdata/06-zookeeper、18-bigdata/07-lakehouse、02-programming/04-python-ops-toolkit、14-data-streaming/kafka/01 与 02、13-middleware/mongodb/02、13-middleware/redis/labs/01 全部存在且锚点/引文匹配。",
+    "非问题记录：14-data-streaming 最短两章 kafka/01（302 行）、kafka/02（326 行）已全文审读，章节结构完整（正文+实战演练+常见坑+5 题自测）、学习目标全部有对应深度的正文承载，判定不需要扩充，故未列入 thinChapters。"
+   ],
+   "missingTopics": [
+    {
+     "module": "13-middleware/mysql",
+     "topic": "分区表（PARTITION BY、分区裁剪、按分区 DROP 归档）",
+     "where": "03-tuning-troubleshooting.md 新增一节（或并入 01 索引与页结构讨论）",
+     "why": "三章共 1089 行对『分区表|PARTITION BY』零命中（已 grep 核实）。大表按分区 DROP 做归档/过期清理是 SRE 最高频的分区用法（对比大批量 DELETE），且『分区表 vs 分库分表』是 MySQL 面试必考题；缺失使容量与清理话题只有『磁盘满』处置表而无根治手段。"
+    },
+    {
+     "module": "13-middleware/postgresql",
+     "topic": "声明式分区与 pg_partman（按时间滚动分区、DETACH PARTITION 替代 DELETE）",
+     "where": "03-tuning-troubleshooting.md（vacuum/膨胀话题旁）",
+     "why": "grep『分区表|partition by|pg_partman』零命中。PG 侧分区是替代 VACUUM 大删除、控制表膨胀的标准做法，03 章讲了膨胀与 pg_repack 却没讲预防性分区；与 MySQL 分区表可对照补齐，成本约一节。"
+    },
+    {
+     "module": "13-middleware/mongodb",
+     "topic": "Change Streams 与聚合管道（MongoDB 的 CDC 出口）",
+     "where": "01 加聚合管道读写路径小节；03 加 change streams 运维视角",
+     "why": "grep『change stream|aggregation』零命中。postgresql/02 明确把 PG 逻辑解码接进 18-bigdata 同步链路，而六件套中 MongoDB 是唯一没有任何 CDC 出口叙述的组件——02 章已讲透 oplog，change streams 正是 oplog 的订阅接口，顺势补齐即可打通同一条跨模块链路。"
+    },
+    {
+     "module": "13-middleware/redis",
+     "topic": "Redis 分布式锁实操（SET NX PX、Lua 原子释放、看门狗续期、Redlock 争议）",
+     "where": "03-caching-patterns-troubleshooting.md 新增一节",
+     "why": "redis 模块仅在第 85 行一句『除非把读写都上分布式锁串行化』带过；19-distributed/06 讲的是 fencing token/zombie writer 的锁风险理论（其 lab 在那边），但 Redis 侧的锁原语用法两边都没落。这是 Redis SRE/面试 Top 3 话题；补 Redis 侧实现并与 19-distributed/06 互链，内容互补不重复。"
+    },
+    {
+     "module": "13-middleware/nginx",
+     "topic": "反代缓存 proxy_cache（proxy_cache_path/valid/key、X-Cache-Status、缓存失效与排障）",
+     "where": "02-proxy-lb-and-core-config.md 新增一节",
+     "why": "缓存是 nginx 反代三大职能（LB/缓存/TLS 终止）之一，当前仅 hash 策略一行提到『缓存命中场景』（grep 核实无 proxy_cache 内容）。缺它则『源站被打挂时缓存能否扛』『为什么请求都回源』一类排障没有知识落点。"
+    },
+    {
+     "module": "13-middleware/rabbitmq",
+     "topic": "Stream 队列（RabbitMQ 3.9+ 对 Kafka 型非破坏性读的回应）",
+     "where": "02-ha-and-clustering.md 队列类型对比处扩一节；03 加其 offset/lag 监控",
+     "why": "全部三章只有 01 章对比表里一句『stream 队列类型除外』。stream 是 4.x 主推的队列类型（非破坏性读、offset 追踪、at-least-once），01 章拿它对标 Kafka 回放却没有展开，读者无法判断何时选 stream vs 上 Kafka；补一小节即可闭合对比表留下的悬空概念。"
+    },
+    {
+     "module": "14-data-streaming/kafka",
+     "topic": "Kafka Connect 与 Debezium（source/sink connector、offset 管理与堆积排障）",
+     "where": "03-operations-and-performance.md 新增一节（或第 4 章）",
+     "why": "kafka 模块对『Kafka Connect』零提及，而 13-middleware/postgresql/02 的 CDC 节直接引用『消费位点在 Kafka/Connect 侧』与 Debezium→Kafka 链路——这是跨模块软断链的知识缺口（详见 crossRefIssues），Connect worker 的 offset topic 堆积也是真实线上高频故障。"
+    },
+    {
+     "module": "14-data-streaming/kafka",
+     "topic": "Schema Registry 与消息 schema 演进（Avro/JSON Schema、兼容性策略）",
+     "why": "grep『schema registry|avro』零命中。多消费端契约管理与 COMPATIBILITY 策略是生产流管道必备课，且 18-bigdata/07 湖仓表格式已讲表侧 schema evolution，消息侧（Kafka 进湖前的第一道契约）缺失导致链路叙述不完整。",
+     "where": "03-operations-and-performance.md 或与 Connect 合并成新章"
+    },
+    {
+     "module": "14-data-streaming/flink",
+     "topic": "Flink 运维与状态管理（第 3 章：算子 UID 与 savepoint 兼容、rescale/重启拓扑、JM/TM 内存模型、checkpoint 失败排查、Flink CDC 入湖）",
+     "where": "新增 03-operations-and-state.md",
+     "why": "README 目前只规划 2 章，但本仓库其余所有组件（六件套各 3 章 + kafka 3 章）都有独立运维/排障章，Flink 是两个模块 8 个组件中唯一没有运维章的。02 章覆盖了重启策略与反压定位，但『改了拓扑/并行度后 savepoint 为什么恢复失败』（uid 未固定）、内存段调优、以及衔接 18-bigdata/07 Paimon 入湖 lab 的 Flink CDC 入口在本模块完全缺席。"
+    }
+   ],
+   "thinChapters": [
+    {
+     "lines": 293,
+     "path": "D:/SRE/chat/learning-hub/13-middleware/mongodb/02-replicaset-and-sharding.md",
+     "reason": "一章承载副本集+分片两个大主题，副本集半章（选举/oplog/writeConcern/回滚）深度达标且有 15 分钟实操，但分片半章仅约 40 行：只有架构图、分片键判据表和两个病理（jumbo/热点），balancer 管理、addShard→enableSharding→shardCollection 上线步骤、迁槽/reshardCollection 均无命令级内容；且配套 lab（01-replicaset-deploy）只做副本集，分片在全模块零动手。对比同为双主题章的 mysql/02（336 行）、redis/02（383 行）均有可复现演示，此处是六件套里理论与实践落差最大的一节。",
+     "suggestion": "第 5 节扩 60~80 行：补分片上线三步命令演示（docker 单机 mongos + config server + 2 shard 最小拓扑，或至少命令清单 + 预期输出）、sh.status()/balancer 开关与停搬窗口、jumbo chunk 的 refineCollectionShardKey 实际命令、zone sharding（多租户地域置放）一小段；同时在 lab 01 追加『把副本集升级为单分片集群』的选做步骤，或新增 lab 02。"
+    },
+    {
+     "lines": 279,
+     "path": "D:/SRE/chat/learning-hub/13-middleware/rabbitmq/01-amqp-model.md",
+     "reason": "全模块最短章（同组件 02/03 章为 334/380 行）。正文密度尚可、五个学习目标均有对应章节，属『达标但偏薄』：实战演练只验证了路由规则与 requeue/redelivered，而学习目标 3 的核心（publisher confirm、mandatory、prefetch 的背压语义）没有任何动手环节；mandatory 与 confirm 的区别只在理论层面讲过，读者建立不了肌肉记忆。",
+     "suggestion": "低优先级扩充而非重写：演练追加一小节，用 rabbitmq-perf-test（官方镜像自带）带 --qos_prefetch 演示 unacked 打满即停推的背压曲线，并顺带说明 HTTP API 的 routed 字段能/不能代表 confirm 语义；若不扩正文，则在 02 章 lab 中补一个 confirm+quorum 落盘时延的观测步骤，使目标 3 闭环。"
+    }
+   ]
+  }
+ },
+ {
+  "label": "",
+  "result": {
+   "crossRefIssues": [
+    "17 模块系统性旧编号遗留：该模块四章头部（01:3、02:3、03:3、04:3）均写\"模块：AIOps/LLM 运维（15）\"，应为 17（15-sre-methodology 已占用 15 号）",
+    "17-aiops-llm/01-aiops-landscape.md:40 — \"metrics 靠 Prometheus（08 模块）、trace 靠 OTel（09 模块）、日志靠 Loki（10 模块）\"指向全错：实际 08=iac、09=cks，正确目标是 10-pca、11-otel、12-logging",
+    "17-aiops-llm/01-aiops-landscape.md:216 — 常见坑\"先补可观测覆盖（08/09/10 模块）\"应为 10/11/12 模块",
+    "17-aiops-llm/01-aiops-landscape.md:119 — JD 表\"K8s 生态与可观测体系 → 04/05/08/09/10\"应为 04/05/10/11/12",
+    "17-aiops-llm/01-aiops-landscape.md:125、144 — \"第 1-14 模块的功底\"\"01~14 模块把你从 M0 送到 M1~M2\"：本模块是 17，其前置模块应为 01~16（15、16 亦在其前）",
+    "17-aiops-llm/03-knowledge-base-and-rag.md:77 — \"无指责文化（13 模块 04 章）\"断链：blameless 复盘在 15-sre-methodology/04；13-middleware 是 nginx/mysql/redis 等组件目录，无对应章节",
+    "17-aiops-llm/04-agent-runbook-automation.md:235 — \"会议纪要与时间线整理（13 模块 03 章）\"断链：时间线/沟通桥在 15-sre-methodology/03；13-middleware 按组件分子目录，不存在统一的\"03 章\"",
+    "17-aiops-llm/04-agent-runbook-automation.md:245 — \"提交 GitOps PR（Argo CD，06 模块）\"断链：Argo CD 在 07-cd-gitops/00-argocd-gitops.md；06-ci-cd 是 Git/GitLab CI/Jenkins/GHA",
+    "17-aiops-llm/04-agent-runbook-automation.md:84 — \"PromQL 查询（08 模块的能力）\"：PromQL 在 10-pca/03-promql-guide.md，08 是 IaC",
+    "17-aiops-llm/labs/01-llm-troubleshoot-drill/task.md:3 — \"前置：15 模块第 02 章\"：上下文（四要素模板、T1 提问法）指向本模块 17/02，按字面会误引导到 15-sre-methodology/02（SLI/SLO 章）",
+    "17-aiops-llm/labs/01-llm-troubleshoot-drill/task.md:29 — \"格式参照 15 模块第 03 章第 3 节\"：front-matter 规范实际定义在 17/03 第 3 节；15-sre-methodology/03 第 3 节是\"事件指挥角色分工\"",
+    "同一文件新旧编号混用：17/01:115 的\"10-pca、05-cka、15-sre\"引用正确，而同文件 40/119/216 行引用错误，可判定为模块重编号（可观测三模块 08/09/10→10/11/12、本模块→17）后未同步更新",
+    "模块 15 与 16 未发现断链：15/02、15/03 引用的 10-pca/03-promql-guide.md 与 10-pca/05-alerting-alertmanager.md 存在；16/02 引用的 13-middleware/MySQL 章存在（13-middleware/mysql/01~03）；三个模块 labs 引用的 scripts/setup/install-prom-stack.sh、scripts/faults/break-*.sh、FIXES.md 均在仓库中存在"
+   ],
+   "missingTopics": [
+    {
+     "module": "15-sre-methodology",
+     "topic": "容量规划与性能压测（capacity planning / load testing）",
+     "where": "15 新增 06 章（或 02 章 SLO 之后加\"容量型 SLI\"一节），并与 21-perf-testing 互链；本章 03 节稳态假设与 05 章护栏表可直接复用压测产物",
+     "why": "SRE Book 核心实践；02 章 SLO 与 05 章混沌都在\"稳态\"语境下讨论，但\"如何提前发现容量天花板\"（压测找拐点、按增长趋势外推、Proactive Scaling）在 15 内零覆盖。仓库正在新建 21-perf-testing/02-capacity-planning（任务进行中），15 模块需要导学章或交叉引用，否则错误预算讲\"过载烧预算\"却没讲怎么防止过载"
+    },
+    {
+     "module": "15-sre-methodology",
+     "topic": "发布工程与变更管理（灰度/金丝雀/冻结窗口/变更评审）",
+     "where": "15 新增 06-release-engineering（或并入 04 章行动项一节展开\"变更类根因的系统性对策\"）",
+     "why": "03 章自己引用\"业界普遍把过半故障归因于变更\"，但整个模块对变更只有 02 章\"预算烧穿→冻结发布\"一句话；渐进式交付在 07-cd-gitops/03 偏工具侧，SRE 方法论侧（变更风险定价、发布速度 vs 可靠性谈判、rollback 演练）缺章，是 SRE 面试高频题"
+    },
+    {
+     "module": "15-sre-methodology",
+     "topic": "灾备与业务连续性（RTO/RPO、备份恢复演练、多机房/多 Region 容灾设计）",
+     "where": "15 新增 07-DR（恢复演练可作为 labs/03），与 16-cloud 的多 Region 一节互链",
+     "why": "混沌工程只注入故障不验证\"真恢复\"；etcd 备份在 05-cka、MySQL 备份在 13-middleware/mysql/02，但\"业务级容灾设计 + 定期恢复演练（restore drill）\"在全学习中心没有落点；高级 SRE 岗位必备能力，也是 15/16 两模块的共同空白"
+    },
+    {
+     "module": "16-cloud",
+     "topic": "弹性伸缩与自动扩缩容（ASG/ESS、HPA/cluster-autoscaler/Karpenter、定时伸缩）",
+     "where": "16 新增 04 章（或 02 章扩为第 8 节）；实战可用集群内 HPA + cluster-autoscaler 演示容量-成本联动",
+     "why": "上云后 SRE 最高频的日常（大促扩容、夜间缩容）；目前只在 01 章 3.2/3.3 计费决策树和 03 章 4.3 采购组合里顺带出现，没有系统章节讲伸缩策略、预热指标、缩容保护（PDB/terminationGracePeriod 与 Spot 回收的配合已提但散落）"
+    },
+    {
+     "module": "16-cloud",
+     "topic": "云上容灾与备份（RTO/RPO、跨 Region 异步容灾、快照/跨账号备份、恢复演练）",
+     "where": "16 新增 05 章（或把 01 章 2.2 扩成专节并接恢复演练）",
+     "why": "01 章只有\"多 Region 很贵\"一段话带过；共享责任模型在数据层的落点（RDS/PVC/OSS 的备份策略谁配、怎么验证可恢复）对 SRE 是必修——与 15 模块的 DR 缺口是同一个洞的两半"
+    },
+    {
+     "module": "16-cloud",
+     "topic": "云监控接入既有可观测体系（Cloud Monitor/CloudWatch 指标接 Prometheus/远程写、云产品事件订阅、配额告警）",
+     "where": "16 新增 06 章（或 02 章 §9），从 02 章已建的费用告警自然延伸",
+     "why": "02 章只配了费用告警；PCA 模块教的 Prometheus 不含云产品指标，上云后监控\"两套皮\"是真实痛点，需要一章讲云厂商监控导出/remote write/事件 webhook 打通到 Grafana；配额（Quota）耗尽是云上特有故障模式，也无覆盖"
+    },
+    {
+     "module": "17-aiops-llm",
+     "topic": "传统 AIOps 技术实操（时序异常检测 3σ/EWMA、告警聚类压缩、根因排序）",
+     "where": "17 新增 05 章（或把 01 章 §1 的 L3 行扩成小节并配一个最小实操），建议用集群已有的 Prometheus 历史数据做练习材料",
+     "why": "模块名是 aiops-llm，但 L3（传统 AIOps）只占 01 章表格一行，无任何动手内容；JD 拆解表里\"告警治理、根因定位\"的技能一半属于传统 AIOps（可解释、确定性的那一半），完全跳过会让学员只能讲 LLM 故事"
+    },
+    {
+     "module": "17-aiops-llm",
+     "topic": "私有化 LLM 端点部署（Ollama/vLLM 部署、显存估算、模型选型、OpenAI 兼容 API）",
+     "where": "17 新增 06 章，逻辑上放在 03 与 04 之间（作为 04 的前置），补齐\"内网优先本地部署\"建议的可执行路径",
+     "why": "04 章代码默认 LLM_BASE_URL=http://127.0.0.1:8000/v1（vLLM 端点）、模型 qwen2.5-7b，01/03 章两处常见坑都说\"内网环境优先本地部署模型\"，但全模块没教怎么把模型跑起来；运维场景恰恰是数据最敏感、最需要私有化的场景，lab 也隐含要求一个可用端点——这是承诺与交付的缺口"
+    },
+    {
+     "module": "17-aiops-llm",
+     "topic": "Prompt 评测与幻觉度量（评测集构建、MTTA/首轮命中率、用靶场做 prompt 回归测试）",
+     "where": "17 新增 07 章（或并入 02 章 §5 模板库之后），可复用 12 个 break 脚本作为固定评测集",
+     "why": "01 章 JD 表承诺\"用靶场回归测试 prompt 效果（本模块 02 章 + labs）\"，但 02 章只有 T6 反向考核模板、lab 只做单次排障，没有系统化评测方法（怎么建评测集、定义与统计命中率、检测 prompt 回归）——模块内部承诺与交付断链"
+    },
+    {
+     "module": "17-aiops-llm",
+     "topic": "Prompt 注入与 Agent 安全（间接注入、告警文本藏指令、工具输出污染、输出过滤）",
+     "where": "并入 04 章护栏一节（三层扩为四层）或随新增安全小节",
+     "why": "04 章三层护栏（RBAC/白名单/审计）管的是权限面，但 prompt 注入是 LLM 特有攻击面：Agent 消费的事件/日志文本里可被植入指令绕过\"只做只读诊断\"；这是 CKS 安全思维在 LLM 时代的自然延伸，符合本模块与 09-cks 的联动定位"
+    }
+   ],
+   "thinChapters": [
+    {
+     "lines": 260,
+     "path": "D:/SRE/chat/learning-hub/17-aiops-llm/01-aiops-landscape.md",
+     "reason": "全模块最短（同模块其他章 322/337/423 行）。作为模块标题里\"AIOps\"一半的唯一承载章，传统 AIOps（L3：异常检测、告警聚类压缩、根因排序）只占 §1 表格中的一行、零实操、零工具名，与\"全景\"标题不符；LLM 部分则与其他章深度相当。对比 02-04 章每章都有完整动手环节，本章的实战只有一次事件聚合，量级偏轻。",
+     "suggestion": "不必全面扩写：把 §1 表格中 L3 一行扩为小节（一页：异常检测的朴素基线 3σ/EWMA、Alertmanager grouping/inhibition 作为确定性降噪对照、以及\"为什么传统 AIOps 在运维落地难\"），或拆出独立一章 05-anomaly-detection 配一个用 Prometheus 历史 CSV 跑 3σ 检测的 20 分钟实操；其余部分保持现状即可（1.5h 定位合理）。"
+    }
+   ]
+  }
+ },
+ {
+  "label": "",
+  "result": {
+   "thinChapters": [
+    {
+     "path": "10-pca/06-grafana-dashboards.md",
+     "lines": 277,
+     "reason": "10-pca 内容章中最短且结构最轻（277 行、9 个代码块，同模块其他内容章为 338~413 行、14~16 个代码块）。PCA 考纲『告警与可视化』14% 域的可视化半壁全压在这唯一一章（05 章用 338 行讲告警）。缺口具体：正文从未讲 Grafana Explore，但本章实战演练和 11-otel/05 的排障流程都直接让读者『去 Explore 查询』；没有数据源 provisioning as code（只讲 dashboard as code）；没有『Grafana 告警 vs Prometheus Alertmanager 告警』的辨析——这是该域最典型的概念辨析考点，与模块 00 章『每个概念配一句话区分』的备考方法不符。其余 7 篇最短章（09-cks/00、09-cks/06、10-pca/00、11-otel/00、11-otel/05、12-logging/01、12-logging/04）经全文阅读判断均不需要扩充：结构完整（概念+实操+坑表+自测），篇幅与各自定位（概览章/2 小时权重章）成比例。",
+     "suggestion": "扩充三处：①新增『Explore：交互式排障入口』小节（与 dashboard 的分工：探索 vs 呈现，exemplar/日志关联的入口都在这）；②5.3 节补数据源 provisioning（ Grafana datasources ConfigMap + sidecar，与 dashboard 同机制）；③新增辨析表『Grafana Alerting vs Prometheus+Alertmanager』（评估位置、数据源范围、何时选谁），延续模块的考试辨析风格。预计扩到 340~380 行即可与其他章持平。"
+    }
+   ],
+   "crossRefIssues": [
+    "11-otel 全部 6 章头部标注『模块：OpenTelemetry（06）』——模块编号过期：仓库中 06 是 06-ci-cd，OpenTelemetry 是第 11 模块（README 的 20 模块表与 ROADMAP 均为 11-otel，且 11-otel/00~05 的目录名也是 11）。按编号『06』去查找 OTel 模块会落空，应统一改为（11）或删去编号。",
+    "11-otel/04-k8s-deployment-and-operator.md:513 写『按 PCA 的老路子：ServiceMonitor 让 Prometheus 来拉』，但 10-pca 全模块从未讲解 ServiceMonitor/PodMonitor CRD（仅 10-pca/02:315 实战演练里顺带删过一个 ServiceMonitor、10-pca/06:16 括号提到 PodMonitor）。被跨模块引用的前置知识在目标模块中不存在——要么在 10-pca/02 补 Operator CRD 小节，要么在 11-otel/04 就地展开 ServiceMonitor 的 selector/匹配机制。",
+    "09-cks/00-exam-overview.md 的考纲映射表过度承诺：『Ingress TLS、保护节点 metadata、校验平台二进制（Cluster Setup 10%）』被映射到 01、03 章，但 Ingress TLS 与平台二进制校验在两章正文中完全不存在（node metadata 仅 01:316 一句话带过）；『静态分析（Supply Chain 20%）』映射到 04 章，而 04 章第 1 节明确写『CKS 考的是后三段』直接跳过。映射表指向不存在的章节内容，读者按表复习会产生虚假覆盖感。",
+    "09-cks（10 个 labs）、10-pca（2 个题集 labs/promql-exercises.md、alertmanager-exercises.md）、11-otel（3 个 labs）的章节正文中没有任何指向各自 labs/ 目录的链接（grep 'labs/' 零命中）；对照 12-logging 在 03:341 与 04:328 均有 lab 链接。lab 与章节互相孤立，从章节阅读路径无法发现配套实验，只能靠 ROADMAP/README 间接找到。建议每章『实战演练』末尾补一行 lab 链接。"
+   ],
+   "missingTopics": [
+    {
+     "module": "09-cks",
+     "topic": "Ingress TLS / 集群入口证书终止",
+     "where": "09-cks/01-cluster-hardening.md 新增『入口流量与 TLS』一节（ingress-nginx + TLS Secret + 默认自签证书/泛域名证书实践）",
+     "why": "00 章考纲映射表明确把『Ingress TLS』列为 Cluster Setup(10%) 核心考点并指向 01、03 章，但两章正文对 Ingress/TLS 零覆盖（grep 全模块仅 00 章表格出现一次）——大纲承诺与正文脱节，考试遇到即丢分。"
+    },
+    {
+     "module": "09-cks",
+     "topic": "平台二进制校验（verify platform binaries）",
+     "where": "09-cks/01-cluster-hardening.md『最小化节点攻击面』一节内补一小段：下载 kubectl/kubeadm 后用官方 checksum 文件 sha256sum -c 校验",
+     "why": "Cluster Setup 域的官方考纲原文即含 verify platform binaries（对照官方 sha512/sha256 校验 kubectl 等二进制），00 章映射表也列出，但正文无任何内容（grep sha512/校验二进制零命中）。"
+    },
+    {
+     "module": "09-cks",
+     "topic": "静态分析工具（kubesec/kubescape 等 manifest 扫描）",
+     "where": "09-cks/04-supply-chain-security.md 增补一节：用 kubesec 扫描 Deployment YAML，并给出与 trivy（镜像层漏洞）的分工对比表",
+     "why": "Supply Chain(20%) 官方考纲含 static analysis，且 04 章第 1 节的威胁模型图里明确画出『静态分析』一格，正文却写『CKS 考的是后三段』直接跳过——章节内部承诺与正文断链，且 trivy 只扫镜像不扫 manifest 安全配置。"
+    },
+    {
+     "module": "09-cks",
+     "topic": "Pod 间流量加密 / mTLS 与 NetworkPolicy 的能力边界",
+     "where": "09-cks/03-microservice-vulnerabilities.md NetworkPolicy 分层一节后补『L3/L4 之上：mTLS 一瞥』小节（概念级即可，不需要完整 mesh 实操）",
+     "why": "03 章的 NetworkPolicy 分层只做 L3/L4 隔离，未提同 namespace 内/跨节点明文流量风险与 mTLS（service mesh 概念级）对照——grep mesh/istio/linkerd/mtls 全模块零命中；这是 CKS 老版考纲条目、常见教材内容与面试追问，缺失会在对比题里失分。"
+    },
+    {
+     "module": "10-pca",
+     "topic": "blackbox exporter 与探测类采集",
+     "where": "10-pca/04-instrumentation-exporters.md 补『第四类：blackbox exporter』小节（module 配置、probe_success/probe_duration_seconds 指标、与内部采集器的分工）",
+     "why": "Instrumentation & Exporters(20%) 域考 exporter 体系，blackbox 仅在 02:95,98 的 kubernetes_sd 表括号里出现两次；04 章『三大采集器』只讲 node_exporter/kube-state-metrics/cAdvisor，黑盒探测（HTTP/TCP/DNS probe、module 配置、probe_* 指标）完全没有正文。"
+    },
+    {
+     "module": "10-pca",
+     "topic": "Prometheus Operator 与 ServiceMonitor/PodMonitor CRD",
+     "where": "10-pca/02-prometheus-architecture.md 服务发现之后补『Operator CRD：ServiceMonitor/PodMonitor 如何变成 scrape config』小节",
+     "why": "练习环境全程使用 kube-prometheus-stack（prom-stack），但没有任何章节解释 Operator 的 CRD 拉取模型；更关键的是 11-otel/04:513 直接写『按 PCA 的老路子：ServiceMonitor』——跨模块引用的前置知识在本模块实际不存在（仅 02:315、06:16 顺带提及）。"
+    },
+    {
+     "module": "11-otel",
+     "topic": "OTLP/Collector 链路安全加固（TLS/mTLS、认证 extension、NetworkPolicy）",
+     "where": "11-otel/04-k8s-deployment-and-operator.md 补『Securing the pipeline』小节，或在 03 章 extensions/processors 处展开",
+     "why": "04 章把 Collector 部署为全集群可达的 OTLP 入口（4317/4318），但模块内对传输加密与认证零覆盖（grep mtls/bearer/authenticat 零命中）——生产落地必修，且与 09-cks 的加固思维天然交叉，缺这一环使『生产首选方案』只讲了功能没讲安全。"
+    },
+    {
+     "module": "11-otel",
+     "topic": "Collector 自监控与容量调优（self-metrics、telemetry 配置、sending_queue/memory_limiter 预算）",
+     "where": "11-otel/03-collector.md 补『Collector 的自我观测』一节（otelcol_* 指标接入自身 Prometheus、队列/内存参数容量规划）",
+     "why": "03 章仅在架构图提到 pprof extension 一处；『监控采集层自身』是 SRE 视角的关键盲区——05 章自测第 4 题甚至考『export 失败计数上涨、sending_queue 满丢弃』，但这个知识点在模块里无处可学。"
+    },
+    {
+     "module": "11-otel",
+     "topic": "Profiling（第四信号）与 eBPF 零代码注入的现状前瞻",
+     "where": "11-otel/00-otel-overview.md『三大信号成熟度』一节末尾补一段前瞻（不展开实操）",
+     "why": "模块自定位『行业事实标准』并逐信号讲成熟度，但截至 2026 年 continuous profiling 已是 OTel 官方组件级信号（opentelemetry-profiler）、eBPF 零代码注入也在推进——00 章对两大趋势只字未提，读者做技术选型时缺这块地图（次要，一小节即可）。"
+    },
+    {
+     "module": "12-logging",
+     "topic": "ELK 集群安全与快照备份恢复（X-Pack TLS/认证、snapshot lifecycle）",
+     "where": "12-logging/02-elk-stack.md 第 8 节之后补『安全与快照』一节",
+     "why": "02 章自我定位『SRE 日志岗面试高频』，深入讲了分片/脑裂/ILM，但集群安全（节点间 TLS、认证、角色权限）与快照备份/恢复流程零覆盖（grep 仅 ILM 的 searchable snapshot 一句）——DR（RPO/RPO 对账）是日志岗必答题，且 20-lifecycles 模块的 RTO/RPO 对照叙事需要这里铺垫。"
+    },
+    {
+     "module": "12-logging",
+     "topic": "日志告警实战（Loki ruler / Grafana 统一告警跑 LogQL 规则）",
+     "where": "12-logging/03-loki-stack.md LogQL 一节后补『用日志产生告警』小节，labs/01-loki-pipeline 加一道 ruler 练习题",
+     "why": "03 章组件表列出 ruler 并在 138 行给了半行规则示例，但没有规则文件放哪、怎么评估、怎么对接 Alertmanager 的实操；01 章的三支柱叙事里日志腿的告警闭环（错误日志速率突增→告警）缺最后一环。"
+    },
+    {
+     "module": "12-logging",
+     "topic": "Fluent Bit 配置实操",
+     "where": "12-logging/04-k8s-logging.md 采集模式一节补一段 Fluent Bit DaemonSet 最小可用配置，或并入 labs/01-loki-pipeline 作为可选采集端",
+     "why": "01 章选型表把 Fluent Bit 列为『K8s 节点 DaemonSet 事实标准之一』，但全模块没有一段可抄的 Fluent Bit 配置（正文示例全是 promtail/OTel filelog）——选型表推荐了它，正文却不教它（次要）。"
+    }
+   ]
+  }
+ }
+]

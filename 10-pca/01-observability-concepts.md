@@ -233,6 +233,8 @@ kubectl -n monitoring port-forward svc/prom-stack-kube-prom-prometheus 9090:9090
 
 预期结果：三步都有数字返回；第 3 步你会直观看到一个几节点的小集群也有几万条时序，从而理解为什么"基数"在所有设计讨论里排第一。
 
+本章概念的查询落地（SLI 比值、基数诊断等）继续刷 [labs/promql-exercises](labs/promql-exercises.md)。
+
 ## 常见坑
 
 | 症状 | 原因 | 解法 |

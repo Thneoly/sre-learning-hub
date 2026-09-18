@@ -5,7 +5,7 @@
 ## 学习目标
 
 - 能说出 CKS 的报名前置条件、考试形式、题型与及格标准
-- 能列出官方大纲六个域及权重，并把它们映射到本模块的 7 篇文件
+- 能列出官方大纲六个域及权重，折算成题量预算并映射到本模块 7 篇文件的对应小节
 - 能准确描述考试允许查阅的资料范围，避免因违规判零分
 - 能针对"题面长、多子任务"的特点建立一套审题与做题流程
 
@@ -43,14 +43,29 @@ CKS（Certified Kubernetes Security Specialist）是 CNCF/Linux Foundation 的 K
 
 以下权重来自官方 Domains & Competencies（以官网与 github.com/cncf/curriculum 的最新版为准）：
 
-| 域 | 权重 | 核心考点 | 对应文件 |
+| 域 | 权重 | 核心考点 → 正文落点 |
+| --- | --- | --- |
+| Cluster Setup | 10% | CIS 基准/kube-bench → 01 §1；Ingress TLS → 01 §6；校验平台二进制（sha256sum）→ 01 §5；NetworkPolicy 限制集群访问 → 03 §5；保护节点 metadata → 01 §5 |
+| Cluster Hardening | 15% | RBAC 最小化 → 03 §3；ServiceAccount 谨慎使用 → 03 §4；收紧认证授权（apiserver/kubelet）→ 01 §2、§4；升级避免漏洞 → `05-cka/03-kubeadm-install-upgrade.md`（升级流程复用 CKA 模块） |
+| System Hardening | 15% | 最小化主机攻击面 → 01 §5；AppArmor → 02 §3；seccomp → 02 §2；gVisor/Kata 沙箱 → 02 §4；内核加固参数 → 02 §5；最小权限 IAM 属云平台侧话题，本模块不展开 |
+| Minimize Microservice Vulnerabilities | 20% | Pod Security Standards → 03 §2；管理 Secrets（静态加密/轮换）→ 06 全篇；沙箱隔离 → 02 §4；Pod 间加密（mTLS 概念）→ 03 §6；NetworkPolicy 分层 → 03 §5 |
+| Supply Chain Security | 20% | 最小化基础镜像 → 04 §6；供应链视角/SBOM → 04 §1；镜像扫描（trivy）→ 04 §2；digest 固定 → 04 §3；cosign 签名校验 → 04 §4；允许仓库/准入链 → 04 §5；静态分析（kubesec）→ 04 §7 |
+| Monitoring, Logging and Runtime Security | 20% | audit log → 05 §1；Falco 行为检测 → 05 §2；攻击链调查/容器逃逸 → 05 §3；容器不可变性 → 05 §4 |
+
+### 3.1 权重折算成题量
+
+按 15~20 题的中位（约 17 题）折算，复习预算这样分配（估算值，不是官方承诺）：
+
+| 域 | 权重 | 约合题量 | 高频题型 |
 | --- | --- | --- | --- |
-| Cluster Setup | 10% | NetworkPolicy 限制集群访问、CIS/kube-bench、Ingress TLS、保护节点 metadata、校验平台二进制 | 01、03 |
-| Cluster Hardening | 15% | RBAC 最小化、ServiceAccount 谨慎使用、限制 API 访问、升级避免漏洞 | 01、03 |
-| System Hardening | 15% | 最小化主机攻击面、最小权限 IAM、内核加固工具（AppArmor、seccomp、gVisor/Kata） | 02 |
-| Minimize Microservice Vulnerabilities | 20% | Pod Security Standards、管理 Secrets、隔离（多租户/沙箱容器）、Pod 间加密 | 02、03、06 |
-| Supply Chain Security | 20% | 最小化基础镜像、理解供应链（SBOM/CI-CD/仓库）、允许仓库与签名校验、静态分析 | 04 |
-| Monitoring, Logging and Runtime Security | 20% | 行为分析检测恶意活动、攻击链调查、容器不可变性、audit log | 05 |
+| Minimize Microservice Vulnerabilities | 20% | ~3.5 题 | PSA label、关 SA token 自动挂载、NetworkPolicy 白名单 |
+| Supply Chain Security | 20% | ~3.5 题 | trivy 扫描并阻断、digest 固定、ImagePolicyWebhook 配置链 |
+| Monitoring, Logging and Runtime Security | 20% | ~3.5 题 | audit policy 编写挂载、Falco 规则命中、日志取证 |
+| Cluster Hardening | 15% | ~2.5 题 | RBAC 收敛、apiserver/kubelet 安全 flag |
+| System Hardening | 15% | ~2.5 题 | AppArmor profile 加载、seccomp、RuntimeClass |
+| Cluster Setup | 10% | ~1.5 题 | Ingress TLS Secret、kube-bench 定位 FAIL、sha256 校验 |
+
+结构性结论：三个 20% 域合计 60%，恰好对应本模块 03/04/05 三篇——它们应拿走你六成的动手练习时间；01/02 是所有题的"节点操作地基"；06 篇成题概率高（加密流程长、步骤可判分），不可漏。
 
 这套权重出自 2024 年的大纲修订（此前 Cluster Setup 15%、Monitoring 15%）。不少备考资料仍按旧权重讲述，或把 Cluster Setup 并进其他域、报成"五域且监控占 30%"——那都不是当前官方口径，报名页与 cncf/curriculum 仓库为准。
 
@@ -58,10 +73,10 @@ CKS（Certified Kubernetes Security Specialist）是 CNCF/Linux Foundation 的 K
 
 ```
 00-exam-overview            你在这里
-01-cluster-hardening        CIS/kube-bench + apiserver/scheduler/kubelet 加固 + 最小化节点
+01-cluster-hardening        CIS/kube-bench + 控制面组件加固 + 最小化节点 + Ingress TLS
 02-system-hardening         seccomp / AppArmor / gVisor 与 Kata / 内核参数
-03-microservice-vulnerabilities  PSA / RBAC 收权 / SA token / NetworkPolicy 分层
-04-supply-chain-security    trivy / digest 固定 / cosign / 准入链 / 最小镜像
+03-microservice-vulnerabilities  PSA / RBAC 收权 / SA token / NetworkPolicy 分层 / mTLS 概念
+04-supply-chain-security    trivy / digest 固定 / cosign / 准入链 / 最小镜像 / 静态分析
 05-monitoring-auditing-runtime   audit policy / audit log / Falco / 容器逃逸
 06-secret-encryption        etcd 静态加密 / 密钥轮换 / 验证与排坑
 ```
@@ -103,7 +118,70 @@ CKS 的题干普遍 10~20 行，一题里常塞 4~6 个子任务，且**子任�
 - **善用题目自带的文件**。很多题在节点上放好了 yaml/二进制（如 falco 的 deb 包、sysctl 配置文件），先找到它们再用
 - **分数是按子任务算的**。一题做不完，把能拿的子任务先拿满
 
-## 6. 与 CKA 备考的衔接
+## 6. 样题三道：把审题策略走一遍
+
+样题为本模块自编，题型与颗粒度对齐 Killer.sh/真题（多子任务、末句可验收），解法只依赖本模块正文。建议每题限时 8 分钟自己先做，再展开解题思路对照。
+
+### 样题 1（微服务漏洞域）
+
+```text
+Context: cluster1。namespace frontend 里的 Deployment web-app（镜像 nginx:1.27）：
+1. 新建 ServiceAccount frontend-sa，且使用它的 Pod 不自动挂载 API 凭证
+2. web-app 改用 frontend-sa 并完成滚动
+3. 仅允许 namespace frontend 内部访问 web-app Pod 的 80 端口，
+   其余 ingress 一律拒绝（含其他 namespace 与集群外）
+```
+
+<details><summary>解题思路</summary>
+
+子任务有依赖，顺序 SA → Deployment → NetworkPolicy。
+
+1. `kubectl create sa frontend-sa -n frontend`，再 `kubectl patch sa frontend-sa -n frontend -p '{"automountServiceAccountToken": false}'`
+2. `kubectl set serviceaccount deployment/web-app frontend-sa -n frontend && kubectl rollout status deployment/web-app -n frontend`
+3. NetworkPolicy 两条合一：default-deny（`podSelector: {}`、`policyTypes: [Ingress]`）＋ allow-same-ns-80（`from: podSelector: {}`、port 80）
+4. 验证：别的 namespace 里 `nc -zv -w3 web-app.frontend.svc.cluster.local 80` 应超时，同 namespace 应通
+5. 易错点：本题"仅同 namespace"用 from 里的 podSelector 即可；把 namespaceSelector 与 podSelector 并列成两个条目会变成"或"，范围放大
+</details>
+
+### 样题 2（供应链域）
+
+```text
+Context: cluster1。评估镜像 nginx:1.19 与 nginx:1.27：
+1. 用节点上已安装的 trivy 分别扫描，只统计 CRITICAL
+2. 将存在 CRITICAL 漏洞的镜像名写入 ConfigMap blocked-images（namespace default）
+3. 将无 CRITICAL 漏洞的镜像以 digest 固定方式部署为 Deployment clean-web
+   （namespace default，1 副本，容器名 web）
+```
+
+<details><summary>解题思路</summary>
+
+1. `trivy image --severity CRITICAL nginx:1.19` 与 `... nginx:1.27`；老版本必然带 CRITICAL，新 tag 基本干净
+2. `kubectl create configmap blocked-images --from-literal=image=nginx:1.19`
+3. 取 digest（`docker buildx imagetools inspect nginx:1.27` 或 trivy 输出中的 digest），Deployment 写 `image: nginx@sha256:<完整哈希>`
+4. 验证：`kubectl get deployment clean-web -o jsonpath='{.spec.template.spec.containers[0].image}'` 为 digest 形式且 Pod Running
+5. 易错点：digest 必须完整复制（sha256: 加 64 位十六进制），抄断一位就是 ImagePullBackOff；tag 与 digest 之间是 `@` 不是 `:`
+</details>
+
+### 样题 3（监控与审计域）
+
+```text
+Context: cluster1。为 apiserver 配置审计：
+1. Secret 的读写以 Metadata 级别记录
+2. 已知健康的 GET /healthz*、/version* 不记录，其余请求以 Minimal 记录
+3. policy 放 /etc/kubernetes/audit-policy.yaml，日志落 /var/log/kubernetes/audit.log，
+   单文件 100MB、最多保留 5 个
+4. 生效后确认能看到自己 create secret 的记录
+```
+
+<details><summary>解题思路</summary>
+
+1. 写 policy：规则一 resources `["secrets"]`、全部读写 verbs、level Metadata；规则二 nonResourceURLs `["/healthz*","/version*"]`、level None；规则三兜底 `- level: Minimal`（无 resources/verbs 限定的 catch-all 放最后）
+2. 备份后编辑 /etc/kubernetes/manifests/kube-apiserver.yaml：追加 `--audit-policy-file=/etc/kubernetes/audit-policy.yaml`、`--audit-log-path=/var/log/kubernetes/audit.log`、`--audit-log-maxsize=100`、`--audit-log-maxbackup=5`，并给 static Pod 挂载 hostPath（文件与日志目录）
+3. 等 apiserver 重建（`crictl ps` 观察），`kubectl create secret generic probe --from-literal=k=v` 后 `grep '"resource":"secrets"' /var/log/kubernetes/audit.log | tail -1`，其 level 应为 Metadata
+4. 易错点：日志目录不存在时 apiserver 起不来（先 mkdir）；忘了挂载 policy 文件会直接启动失败——这正是要先备份 manifest 的原因
+</details>
+
+## 7. 与 CKA 备考的衔接
 
 如果你刚过 CKA（参见 `05-cka/00-exam-overview.md`），CKS 新增的能力面主要是四块：
 

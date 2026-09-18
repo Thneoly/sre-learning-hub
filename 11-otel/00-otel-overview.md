@@ -1,6 +1,6 @@
 # 00 · OpenTelemetry 概览：可观测性的行业事实标准
 
-> 模块：OpenTelemetry（06）｜ 建议时长：1.5 小时 ｜ 关联认证：—（无直接考点，PCA 可观测理念的进阶延伸）
+> 模块：OpenTelemetry（11）｜ 建议时长：1.5 小时 ｜ 关联认证：—（无直接考点，PCA 可观测理念的进阶延伸）
 
 ## 学习目标
 
@@ -81,6 +81,20 @@ OTel 是一组子项目的集合，先建立全景：
 - Collector 发行版：https://github.com/open-telemetry/opentelemetry-collector-releases
 - Collector contrib 组件：https://github.com/open-telemetry/opentelemetry-collector-contrib
 - Operator：https://github.com/open-telemetry/opentelemetry-operator
+
+三大信号之后是什么（前瞻，选型与面试谈趋势用得上，状态细节以规范状态页为准）：
+
+- **continuous profiling 已升格为 OTel 的组件级信号**：
+  - 规范层面 profiling 与 traces/metrics/logs 并列，达到 component（组件）状态——规范已定义完整，允许各实现以实验性姿态跟进；
+  - profile 数据以 pprof 编码随 OTLP 传输（HTTP 路径 `/v1/profiles`），Grafana Pyroscope、Parca、Datadog Continuous Profiler 等后端已可对接，采集端走 eBPF 与语言 SDK 两条路；
+  - 定位：traces 告诉你"哪条链路慢"，profiling 回答"慢的这段时间 CPU/内存烧在哪一行"。互补而非替代；生产成熟度仍远逊三大信号，落地按实验性对待。
+  - 试点节奏：先在预发环境给 1~2 个服务开连续采样，看"CPU 热点随发布位移"这类 traces 给不出的视角，再决定是否扩大。
+- **eBPF 零代码注入是第二条降侵入路线**：
+  - 不进业务进程、不改代码、不依赖语言运行时，用内核探针在系统调用/网络层直接还原 HTTP、TCP 的请求语义；
+  - 第 4 章 5.3 表里 Go 的自动注入（`inject-go`）走的就是 eBPF 路线；Grafana Beyla 等把它做成独立 agent，社区与厂商都在往这里投入；
+  - 优势是覆盖广（连"塞不进 SDK 的黑盒/第三方进程"都能采），代价是内核版本门槛、探针自身排障难、语义深度不如 SDK（拿到的是网络视角而非业务函数视角）。
+- 对接入计划的影响：把上面的成熟度表在心里扩成四行（traces/metrics/logs/profiling）再排期；SDK 与 eBPF 两条注入路线按"语义深度 vs 覆盖广度"取舍——生态里两者是合流而非互斥（Operator/Alloy 同时支持）。
+- 一句话展望：三大信号解决"看得见"，profiling 与 eBPF 在解决"看得深"与"看得全"——可观测性的边界仍在外扩，但都沿 OTLP 这同一条管道走。
 
 ## 4. OTLP：一条线协议统一所有信号
 
@@ -202,6 +216,8 @@ docker rm -f jaeger
 ```
 
 这一步走通后，你已经验证了本模块最重要的两件事：OTLP 默认端口工作正常、Jaeger 原生吃 OTLP。第 3 章会把 Collector 插到这条链路中间。
+
+动手的下一步：[labs/01-collector-first-pipeline](labs/01-collector-first-pipeline/task.md) 把这条链路搬进练习集群——在应用与 Jaeger 之间插进 Collector（第 3 章的主角），数据落文件可查。
 
 ## 常见坑
 

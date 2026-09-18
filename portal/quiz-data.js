@@ -1932,12 +1932,12 @@ window.QUIZ_DATA = {
     {
       "q": "CI 需要向 Harbor 私有项目 push/pull 镜像，凭据方案选机器人账户（Robot Account）而非个人账号或共享 ci 用户，核心理由是？",
       "options": [
-                "机器人账户是项目级凭据，权限按动作最小化勾选、可设过期时间、可随时吊销——泄漏影响面＝权限面，且审计里机器与人不混淆",
                 "机器人账户是系统级全局账户，创建一次对所有项目生效，最省事",
                 "机器人账户权限天然大于个人账号，CI 不用再配任何权限",
+                "机器人账户是项目级凭据，权限按动作最小化勾选、可设过期时间、可随时吊销——泄漏影响面＝权限面，且审计里机器与人不混淆",
                 "个人账号更安全，因为人有安全意识，机器没有"
       ],
-      "answer": 0,
+      "answer": 2,
       "explain": "「09 · Harbor」3.2 节的对比表：个人账号人离职一禁全线 CI 爆炸、审计全是人名；共享 ci 用户权限全项目粒度太粗、轮换靠自觉；机器人账户项目级、可过期（如 90 天）、可吊销、secret 在 UI 随时可查。配套原则：每个项目一套机器人、一台 CI 一套；docker login 用户名要填完整的 robot$项目+名。"
     },
     {
@@ -1954,12 +1954,12 @@ window.QUIZ_DATA = {
     {
       "q": "Harbor 项目策略里的 Prevent vulnerable images from running（阻止拉取有漏洞镜像）开关，生效机制与代价是？",
       "options": [
-                "在 pull 请求的 token 签发环节直接拒绝扫描结果超阈值的镜像；好处是所有客户端一视同仁，代价是可用性押在扫描结果上——CI 必须先扫后推，且无修复版本的 CRITICAL 会把自己锁死，开启前要配好忽略策略",
                 "它会自动删除有漏洞的镜像并释放磁盘空间",
                 "它在集群 apiserver 的 admission 阶段拦截 Pod 创建，与 Harbor 本身无关",
-                "开启后带漏洞的镜像连 push 都会被拒绝，根本进不了仓库"
+                "开启后带漏洞的镜像连 push 都会被拒绝，根本进不了仓库",
+                "在 pull 请求的 token 签发环节直接拒绝扫描结果超阈值的镜像；好处是所有客户端一视同仁，代价是可用性押在扫描结果上——CI 必须先扫后推，且无修复版本的 CRITICAL 会把自己锁死，开启前要配好忽略策略"
       ],
-      "answer": 0,
+      "answer": 3,
       "explain": "「09 · Harbor」第 4 节：这是仓库侧闸门，token 环节拒绝 pull，覆盖所有以它为仓库的客户端（含没配准入的集群、裸 docker 主机）；代价一是先推后扫的镜像在扫描完成前会被拉断（CI 编排要“推 → 扫描完成 → 再部署”），二是无修复版的 CRITICAL 会锁死自己（类比 trivy 的 --ignore-unfixed）。它与集群准入（Kyverno/policy-controller）互补不互替：仓库挡“经我这条路径的”，admission 挡“这个集群的一切创建路径”。"
     },
     {
@@ -1976,23 +1976,23 @@ window.QUIZ_DATA = {
     {
       "q": "关于 SonarQube 重复率 duplicated_lines_density 的检测算法与分母，正确的说法是？",
       "options": [
-                "连续 ≥10 行 token 序列相同才判为重复块（跨文件也比对）；分母 lines 统计物理行（含注释行）——改名/换空格骗不过 token 比对，但往重复块里堆注释行确实能稀释比率",
                 "任意两行代码相同就计入重复，所以重复率通常极高",
+                "连续 ≥10 行 token 序列相同才判为重复块（跨文件也比对）；分母 lines 统计物理行（含注释行）——改名/换空格骗不过 token 比对，但往重复块里堆注释行确实能稀释比率",
                 "分母用的是剔除注释与空行的 ncloc，加注释无法影响重复率",
                 "重复检测只在单个文件内部进行，跨文件复制粘贴检测不到"
       ],
-      "answer": 0,
+      "answer": 1,
       "explain": "「10 · SonarQube」3.4 节：10 行阈值是检测粒度（避免惯用三行样板的噪音）；token 比对剔除空白与命名差异，但注释行计入 lines 分母，这正是该指标可被操纵的一面——code review 看到“重复块里塞满注释行”要警惕，真正解法只有抽公共函数。Sonar way 要求新代码重复率 <3%，存量可以慢慢还。"
     },
     {
       "q": "CI 里 sonar-scanner 不加与加上 sonar.qualitygate.wait=true 的本质区别是？",
       "options": [
-                "不加时 scanner 上传完报告立刻 exit 0（发射后不管），门禁结果只在 UI 上，pipeline 全绿；加上后 scanner 轮询等待服务端门禁状态，FAILED 映射为非零退出码，job 红、下游 stage 不跑",
                 "该参数让扫描跑得更慢但更仔细，结果不受影响",
                 "不加它时分析结果不会上传到 SonarQube 服务端",
+                "不加时 scanner 上传完报告立刻 exit 0（发射后不管），门禁结果只在 UI 上，pipeline 全绿；加上后 scanner 轮询等待服务端门禁状态，FAILED 映射为非零退出码，job 红、下游 stage 不跑",
                 "加上它以后门禁就不再依赖 Quality Gate 的条件配置"
       ],
-      "answer": 0,
+      "answer": 2,
       "explain": "「10 · SonarQube」4.2 节：这是“质量门禁”从报表升格为闸门的那一个参数——同一份门禁数据，没有它 MR 合并不受任何影响。配套 sonar.qualitygate.timeout（默认 300 秒）控制等待上限，服务端慢时调大而不是去掉；还要确认 job 未设 allow_failure: true，否则红了也不挡合并。"
     },
     {
@@ -2541,11 +2541,11 @@ window.QUIZ_DATA = {
       "q": "AMQP 0-9-1 模型里，生产者发布的消息先到哪一层？由什么决定进哪条队列？",
       "options": [
         "直接投给目标队列，routing key 就是队列名",
-        "投给交换机（Exchange）；消息进哪条（甚至哪几条）队列由交换机类型 + binding 规则决定，路由不到任何队列 = 静默丢弃",
+        "先进死信队列，由 DLX 路由后再转业务队列",
         "由 broker 按 key 哈希进分区，消费者从分区拉取",
-        "先进死信队列，由 DLX 路由后再转业务队列"
+        "投给交换机（Exchange）；消息进哪条（甚至哪几条）队列由交换机类型 + binding 规则决定，路由不到任何队列 = 静默丢弃"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "AMQP 最核心的设计决定：生产者永远不把消息投给队列，只投给交换机——换路由规则不用改生产者代码。路由不到任何队列时 broker 不报错、不留痕，是『消息莫名丢了』的头号根因（防护：mandatory + basic.return，或 alternate exchange）。默认交换机（名字为空的 direct、binding key 自动等于队列名）是唯一看起来像直投的例外。"
     },
     {
@@ -2584,12 +2584,12 @@ window.QUIZ_DATA = {
     {
       "q": "关于 publisher confirm 与 mandatory 标志的关系，正确的是？",
       "options": [
-        "二者等价，开一个就够，另一个多余",
         "两者正交：confirm 回答『broker 是否收到（并按消息属性落盘）』，mandatory 回答『是否路由到了至少一条队列』——只开 confirm 时，路由失败的消息照样无声消失（broker 确实收到了，照样回 confirm）",
+        "二者等价，开一个就够，另一个多余",
         "mandatory 是 confirm 的同步版本，语义更可靠，应优先使用",
         "两者都必须配合 AMQP 事务（tx.select/commit）才生效"
       ],
-      "answer": 1,
+      "answer": 0,
       "explain": "confirm 是异步回执（durable 队列等落盘、quorum 队列等多数派落盘），mandatory 只管路由、失败经 basic.return 退回——生产端闭环 = 两者都开。AMQP 事务同步阻塞、吞吐差，confirm 就是为替代它而生的，新代码不要再碰。"
     },
     {
@@ -2607,11 +2607,11 @@ window.QUIZ_DATA = {
       "q": "RabbitMQ 是推（push）模型，prefetch（basic.qos）的作用是？",
       "options": [
         "限制生产者每秒能发布的消息数",
-        "限制单个消费者 unacked 消息的上限，打满即暂停推送——这是推模型的显式背压；不设（默认无限）时 broker 把整个队列推给先连上的消费者，快消费者囤死、慢消费者压爆",
+        "必须等于消费者实例数，否则消息会丢失",
         "限制单条消息的最大字节数",
-        "必须等于消费者实例数，否则消息会丢失"
+        "限制单个消费者 unacked 消息的上限，打满即暂停推送——这是推模型的显式背压；不设（默认无限）时 broker 把整个队列推给先连上的消费者，快消费者囤死、慢消费者压爆"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "经验值 10~100 起步、处理越慢设越小。另一个隐形杀手是 consumer_timeout（3.8.15+ 默认 30 分钟）：unacked 持有超过它，broker 直接关闭信道（PRECONDITION_FAILED）并全部重投——长任务要么拆分要么显式调参。另记：purge_queue 只清 ready，动不了 unacked，持有者断开后还会重投回队列。"
     },
     {
@@ -2628,12 +2628,12 @@ window.QUIZ_DATA = {
     {
       "q": "rabbitmq_prometheus 指标有了，却画不出按队列的曲线、也写不了按队列的告警，最可能是因为？",
       "options": [
-        "Prometheus 版本太老，不识别 rabbitmq_ 前缀",
         "默认 /metrics 端点的队列指标是聚合值、没有 queue 标签（控制时间序列基数）——要拿到带 queue 标签的序列必须抓 /metrics/per-object；K8s 里 PodMonitor 还要逐 Pod 抓 headless Service 背后的 15692，漏一个节点就有盲区",
+        "Prometheus 版本太老，不识别 rabbitmq_ 前缀",
         "没有启用 rabbitmq_management 插件",
         "队列名里含有中文，标签无法解析"
       ],
-      "answer": 1,
+      "answer": 0,
       "explain": "『指标有了但画不出图』的两个抓取细节：per-object 端点与逐 Pod 抓取。指标名还随版本增减（3.13 实测磁盘指标是 rabbitmq_disk_space_available_bytes，没有 rabbitmq_disk_free_bytes 这个名），落地前先 curl /metrics 核对实际输出。连接泄漏告警则用 connections_opened/closed 的 increase 差值。"
     },
     {
@@ -3861,11 +3861,11 @@ window.QUIZ_DATA = {
       "q": "新 Pod 一直 Pending，`kubectl describe pod` 的 Events 只有 `FailedScheduling ... Insufficient cpu`，节点 Ready、组件正常。谁负责把它推出 Pending？",
       "options": [
         "节点上的 kubelet——重启 kubelet 就能恢复",
-        "kube-scheduler 会持续重试绑定，但资源不释放就永远出不去（不是终态死局，却没人推就走不动）——改资源 requests、清掉占用大户或加节点才有出路",
+        "删掉 Pod 重建即可，新 Pod 会调度到别的节点",
         "HPA 会自动给这个 Pod 扩副本解决",
-        "删掉 Pod 重建即可，新 Pod 会调度到别的节点"
+        "kube-scheduler 会持续重试绑定，但资源不释放就永远出不去（不是终态死局，却没人推就走不动）——改资源 requests、清掉占用大户或加节点才有出路"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "Pending 的推进者是 kube-scheduler：Insufficient cpu、污点不容忍、亲和无解、PVC 未绑定都停在 FailedScheduling，第一现场就是 describe 的 Events。对照记忆：CrashLoopBackOff / ImagePullBackOff 是 kubelet 的自愈环（会自己重试），要做的只是趁退避间隙取证（logs --previous、Events）；Succeeded/Failed 才是全图唯一没有出箭头的终态。"
     },
     {
@@ -3882,12 +3882,12 @@ window.QUIZ_DATA = {
     {
       "q": "删除 PVC 后，PV 长期停在 Released（reclaimPolicy=Retain）。想让它重新被使用，正确做法是？",
       "options": [
-        "等 5 分钟，控制器会自动把它改回 Available",
         "这是设计出的死胡同：管理员清掉 PV 的 claimRef，它才会回 Available、可被新 PVC 绑定（此前对象与数据都保留）",
+        "等 5 分钟，控制器会自动把它改回 Available",
         "把 reclaimPolicy 改成 Delete，PV 就回 Available",
         "重启 kube-controller-manager"
       ],
-      "answer": 1,
+      "answer": 0,
       "explain": "Retain 的语义就是等人工回收：PV 与数据都保留，清 claimRef 是唯一的出箭头（画在人身上，没有控制器帮你复用）。对照 Delete 分岔：provisioner 直接删后端卷和 PV 对象，单行道不可逆——生产删 PVC 前可先在线把策略改成 Retain 兜底。PVC Pending 侧的两大主因则是 storageClassName 不匹配（\"\" 与省略语义不同）和 WFFC 要等第一个 Pod。"
     },
     {
@@ -3916,11 +3916,11 @@ window.QUIZ_DATA = {
       "q": "Kafka 大量 `NotEnoughReplicasException` 写入失败，正确的处置顺序是？",
       "options": [
         "立即把 min.insync.replicas 调小到 1，先恢复写入再说",
-        "先救 ISR：修 broker/磁盘/网络，让掉队副本在 replica.lag.time.max.ms 内追齐 Leader LEO 重新入 ISR；别用调小 min.insync 的方式拿一致性换可用性",
         "打开 unclean.leader.election.enable，让 OSR 副本直接上位",
+        "先救 ISR：修 broker/磁盘/网络，让掉队副本在 replica.lag.time.max.ms 内追齐 Leader LEO 重新入 ISR；别用调小 min.insync 的方式拿一致性换可用性",
         "重启整个 Kafka 集群"
       ],
-      "answer": 1,
+      "answer": 2,
       "explain": "副本在 replica.lag.time.max.ms（默认 30s）内没追齐 Leader LEO 就被踢出 ISR；ISR 收缩到 min.insync.replicas 以下时 acks=all 的写入被拒——先救副本再谈别的。unclean 开关本质是 RPO 开关（false = 拒服务保数据）。消费组侧的平行状态机是 rebalance：成员进出、session 与 max.poll.interval 超时都会触发全组暂停消费。"
     },
     {
@@ -3938,11 +3938,11 @@ window.QUIZ_DATA = {
       "q": "一条消息被消费者 `basic.reject` 且 requeue=false，但源队列没配 DLX。这条消息的下场是？",
       "options": [
         "回到队头等待下次投递",
-        "直接丢弃——没配 DLX 的死信无处可去；就算配了 DLX，死信也按原 routing key 重新发布，DLX 上无匹配 binding 同样静默丢弃",
+        "冻结在队列里等人工 ack",
         "自动转入名为 amq.dead 的内置死信队列",
-        "冻结在队列里等人工 ack"
+        "直接丢弃——没配 DLX 的死信无处可去；就算配了 DLX，死信也按原 routing key 重新发布，DLX 上无匹配 binding 同样静默丢弃"
       ],
-      "answer": 1,
+      "answer": 3,
       "explain": "死信四触发：reject/nack 且 requeue=false、TTL 过期、超 max-length 时 drop-head 丢掉的队头、quorum 投递超 x-delivery-limit。可靠性是三道闸的组合：confirm 保发布段、持久化保 broker 段、ack 保消费段——少开任何一道，RPO 就漏在那一节。requeue=true 没有『重试几次』概念，毒消息会无限循环，正确姿势是 x-delivery-limit + DLX 兜底 + 业务幂等。"
     }
   ]

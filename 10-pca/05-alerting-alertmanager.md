@@ -278,6 +278,8 @@ kubectl -n monitoring scale deployment/prom-stack-grafana --replicas=1
 
 预期全程：Pending 出现于故障后 ≤1 个评估周期，Firing 在其后 1m，静音立即生效，恢复后 resolved 一次。
 
+告警链路的配置辨析题（路由树、for 语义、静默与抑制）继续刷 [labs/alertmanager-exercises](labs/alertmanager-exercises.md)。
+
 ## 常见坑
 
 | 症状 | 原因 | 解法 |

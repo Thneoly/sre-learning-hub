@@ -1,6 +1,6 @@
 # 03 · Collector：架构、部署模式与经典配方
 
-> 模块：OpenTelemetry（06）｜ 建议时长：2.5 小时 ｜ 前置：00~02 章 ｜ 关联认证：—（无直接考点，PCA 进阶）
+> 模块：OpenTelemetry（11）｜ 建议时长：2.5 小时 ｜ 前置：00~02 章 ｜ 关联认证：—（无直接考点，PCA 进阶）
 
 ## 学习目标
 
@@ -202,6 +202,64 @@ exporters:
 ```
 
 理解成"应用 → Collector"和"Collector → 后端"是两段独立的缓冲：SDK 侧有自己的批量队列，Collector 侧靠 sending_queue。queue 满了依然会丢——容量按"后端最长可预期故障时长 × 吞吐"估算。
+
+## 5. Collector 的自我观测：otelcol_* 指标与容量预算
+
+第 2 节末尾提过一句"Collector 默认在 8888 端口暴露自己的内部指标"，这里把它当正经事展开：**采集层自己瞎了，全集群的可观测性一起瞎**——第 5 章自测里"日志 exporter 对着不存在的后端重试、export 失败计数上涨"，读的就是这套指标。
+
+### 5.1 数据流的每一跳都有计数器
+
+Collector 按自己的语义约定暴露内部指标（前缀 `otelcol_`），三种信号各有一组（下表以 spans 为例；metrics 是 metric_points、logs 是 log_records。指标名随版本演进，以自己 `/metrics` 端点的实际输出为准）：
+
+```
+              accepted                        accepted                     sent
+  应用 ──► receiver ────────► processors ─────────────► exporter queue ────────► 后端
+             │                    │                        │
+          refused            refused + dropped         send_failed
+        (入口拒收,          (memory_limiter 熔断、      (重试用尽后丢弃)
+         SDK 会重试)          管道内丢弃)              queue_size →→→ queue_capacity
+```
+
+| 指标（示例名） | 回答的运维问题 |
+|---|---|
+| `otelcol_receiver_accepted_spans` | 每个 receiver 实际吃进多少——容量规划的输入 |
+| `otelcol_receiver_refused_spans` | 入口拒收量，非 0 说明 Collector 过载（SDK 会重试） |
+| `otelcol_processor_refused_spans` | memory_limiter 熔断了吗（非 0 = 软上限被打穿，正在拒收） |
+| `otelcol_processor_dropped_spans` | 进了管道却被丢的量 |
+| `otelcol_exporter_queue_size` / `otelcol_exporter_queue_capacity` | 发送队列水位，涨向 capacity 就是"后端跟不上"的最早信号 |
+| `otelcol_exporter_send_failed_spans` | 重试后仍失败的量（出口方向的丢失） |
+| `otelcol_process_memory_rss` / `otelcol_process_uptime` | 进程存活与内存水位（对照容器 limit 与 limit_mib） |
+
+三类"丢法"必须分清：**refused** 是入口拒绝，数据还在 SDK 的队列里、会重试；**dropped / send_failed** 是管道内或出口的丢弃，数据永久没了。排查"后端少数据"，先看这三者谁在涨，再决定是扩 Collector 还是修后端。
+
+### 5.2 接进 Prometheus
+
+最直接的姿势：把 8888 当普通 target 让 Prometheus 拉（与拉业务指标 8889 一视同仁）：
+
+```yaml
+# [任意节点] prometheus.yml 抓取段（K8s 里等价物是 ServiceMonitor，见第 4 章实战演练）
+scrape_configs:
+  - job_name: otelcol
+    static_configs:
+      - targets: ['otelcol:8888']
+```
+
+一个反直觉的告诫：**别用"Collector 自己抓自己再转发"做主路径**（prometheus receiver 抓 8888 → 同一个 Collector 的 metrics pipeline 出口）——后端故障时这条路跟着一起死，自我观测必须落在被观测对象之外。临时看一眼用 `curl http://<collector>:8888/metrics` 即可。自身遥测的开关在 `service.telemetry.metrics`（新版用 readers 配置暴露面，字段以官方 self-observability 文档为准）。
+
+### 5.3 容量预算：两个上限怎么定
+
+memory_limiter 的 `limit_mib` 与 exporter 的 `queue_size` 不是拍脑袋数字，各有一条预算公式：
+
+| 预算对象 | 公式 | 示例 |
+|---|---|---|
+| `limit_mib`（+spike） | 容器 memory limit × 0.75 左右，spike 吸收突发 | 容器 768Mi → limit_mib 512 + spike 128（留约 15~20% 余量） |
+| `queue_size` | 峰值吞吐(条/秒) × 后端最长可预期故障时长(秒) ÷ send_batch_size | 2000 spans/s × 120s ÷ 1024 ≈ 235 批 → 取 512 留余量 |
+
+三条纪律：
+
+1. 预算的锚点是**实测吞吐**：先用 5.1 的 accepted 指标观察数天（看按小时分位的峰值，不看均值），别用"感觉"；
+2. sending_queue 默认在内存，**Collector 重启即清零**——连重启都不许丢的场景，把 exporter 的 `sending_queue.storage` 指到 file_storage extension，让队列落盘；
+3. 给熔断动作配告警：`refused` 非 0、`queue_size / queue_capacity > 0.8` 都是"正在丢或即将丢数据"，接法与 PCA 学过的告警链路完全一致。
 
 ## 实战演练：三条经典配方（Docker VM）
 
@@ -417,6 +475,8 @@ curl -sG "http://localhost:3100/loki/api/v1/query_range" \
 docker rm -f otelcol jaeger prom-rw loki
 docker network rm otelnet
 ```
+
+本章配方的 K8s 动手版：[labs/01-collector-first-pipeline](labs/01-collector-first-pipeline/task.md)（Collector 进练习集群，OTLP 进、debug/file 出，带判分脚本；没有集群时的 Docker 单机替代方案见 lab 说明）。
 
 ## 常见坑
 

@@ -61,6 +61,8 @@ const MODULES = [
   { dir: '18-bigdata', title: '18 · 大数据体系', pillar: 'platform' },
   { dir: '19-distributed', title: '19 · 分布式理论', pillar: 'platform' },
   { dir: '20-lifecycles', title: '20 · 生命周期图鉴', pillar: 'platform' },
+  { dir: '21-perf-testing', title: '21 · 性能压测与容量', pillar: 'observability' },
+  { dir: '22-incident-stories', title: '22 · 故障复盘故事集', pillar: 'observability' },
 ]
 
 // ---------- 工具 ----------

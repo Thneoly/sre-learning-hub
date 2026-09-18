@@ -9,6 +9,7 @@
 - 能讲清镜像队列为什么被废弃、仲裁队列用什么思路（Raft 多数派）接替它，并按容错需求算出副本数
 - 能用 `rabbitmq-queues quorum_status` 观测仲裁队列的 Raft 状态，说出三种网络分区策略各自的行为
 - 能对比 Shovel 与 Federation 的定位，并说明它们为什么不能替代同机房 quorum 集群
+- 能说清 Stream 队列的非破坏性读与 offset 追踪，并给出"用 stream 还是上 Kafka"的选型分界
 
 版本约定：以 **RabbitMQ 3.13**（docker 镜像 `rabbitmq:3-management`）为准；**镜像队列在 4.0 已整体移除**，仲裁队列的默认值在 3.x/4.x 也有差异，涉及处单独标注，拿不准的以官方文档为准。
 
@@ -66,13 +67,13 @@ classic 队列(单节点数据) ──► 经典镜像队列 CMQ(3.x) ──► 
 - 分区场景下"谁是 master"与"哪些副本真正同步过"难以推理，官方文档用整章描述其失败模式，仍无法保证一致。
 - 与确认机制耦合出诡异的边界 case（confirm 已回但 mirror 未落盘）。
 
-**仲裁队列（quorum queue，3.8+）**换了个思路：不再发明自己的复制协议，直接把队列实现成一条 **Raft 复制日志**——每个队列是一组 Raft 成员（默认 3 个，跨节点分布），写入多数派落盘才算成功。共识理论在 [19-distributed/03-consensus-and-replication.md](../19-distributed/03-consensus-and-replication.md) §4 有完整推导（选举、日志匹配、提交规则），RabbitMQ 只是 Raft 的又一个工业实现，运维语义全部可以平移：多数派写 = 失少数派不丢已确认数据；leader 挂 = 剩余成员秒级选出新 leader；失多数派 = 宁可拒绝写。
+**仲裁队列（quorum queue，3.8+）**换了个思路：不再发明自己的复制协议，直接把队列实现成一条 **Raft 复制日志**——每个队列是一组 Raft 成员（默认 3 个，跨节点分布），写入多数派落盘才算成功。共识理论在 [19-distributed/03-consensus-and-replication.md](../../19-distributed/03-consensus-and-replication.md) §4 有完整推导（选举、日志匹配、提交规则），RabbitMQ 只是 Raft 的又一个工业实现，运维语义全部可以平移：多数派写 = 失少数派不丢已确认数据；leader 挂 = 剩余成员秒级选出新 leader；失多数派 = 宁可拒绝写。
 
 ## 3. 仲裁队列详解
 
 ### 3.1 quorum 定位与副本数
 
-`quorum = N/2 + 1`（多数派）。副本数（Raft 成员数）决定容错能力，直接套 [19-distributed/03](../19-distributed/03-consensus-and-replication.md) §2 的公式：
+`quorum = N/2 + 1`（多数派）。副本数（Raft 成员数）决定容错能力，直接套 [19-distributed/03](../../19-distributed/03-consensus-and-replication.md) §2 的公式：
 
 | 初始成员数 | quorum | 容忍故障节点 | 可用性 |
 |---|---|---|---|
@@ -116,7 +117,47 @@ rabbitmq-queues shrink rabbit@rmq1
 | 重启后 | 全量同步 mirror | Raft 日志回放，从盘上恢复 |
 | 4.0 命运 | 整体移除 | 默认推荐 |
 
-与第 1 章 §3 串起来：生产端 confirm + 仲裁队列 + 持久化消息，是 RabbitMQ 能给出的最强"不丢"组合——confirm 回执等的就是多数派落盘。代价是每次写的 fsync 延迟与跨节点 RTT，吞吐上限明显低于 classic 队列：可靠性换性能，没有免费午餐（和 Kafka `acks=all` + `min.insync.replicas` 的取舍同构，见 [14-data-streaming/kafka/02-replication-and-reliability.md](../14-data-streaming/kafka/02-replication-and-reliability.md) §5）。
+与第 1 章 §3 串起来：生产端 confirm + 仲裁队列 + 持久化消息，是 RabbitMQ 能给出的最强"不丢"组合——confirm 回执等的就是多数派落盘。代价是每次写的 fsync 延迟与跨节点 RTT，吞吐上限明显低于 classic 队列：可靠性换性能，没有免费午餐（和 Kafka `acks=all` + `min.insync.replicas` 的取舍同构，见 [14-data-streaming/kafka/02-replication-and-reliability.md](../../14-data-streaming/kafka/02-replication-and-reliability.md) §5）。
+
+### 3.4 Stream 队列：非破坏性读的第三种类型
+
+classic 与 quorum 都是"消费即删除"：消息 ack 后出队，队列变短。**3.9 引入的 stream 队列**换成 log 语义——[14-data-streaming/kafka/01-log-model-and-architecture.md](../../14-data-streaming/kafka/01-log-model-and-architecture.md) 那套模型在 RabbitMQ 里的实现：消息追加进一条有界的 log，消费只是"把 offset 往前挪"，**读不破坏数据**：
+
+```
+classic/quorum:  msg1 msg2 msg3 ──消费+ack──► 队列里前三条没了,想重读?没门
+stream:          [msg1 msg2 msg3 msg4 ...]   保留到 x-max-age / x-max-length-bytes
+                 消费者A offset=3 ──► 从 msg4 开始
+                 消费者B offset=0 ──► 从 msg1 开始(回溯/重放)
+                 同一条消息谁读都不删,各维护各的 offset
+```
+
+- **非破坏性读**：多个应用共读一条 log（订单事件被订单、积分、风控三组各消费一遍，不用三队列三份存储）；新消费者可从 `first`/`last`/`timestamp`/指定 offset 起读，排障时把 offset 拨回去重放。
+- **offset 追踪在客户端**：消费位点由 stream 客户端存储并周期性提交（自动 commit interval 或手动 store），broker 不替你记账。重连时从上次提交的位点续读——提交前断线就会重读一段，所以语义是 **at-least-once**，消费端幂等照做。
+- 留存必须显式设界：`x-max-age`（如 `7d`）与 `x-max-length-bytes` 建议同时配置，否则默认无限增长。
+- 协议不同：消费必须走 `rabbitmq_stream` 插件的 stream 协议（TCP 5552）与专门的 stream 客户端（Java/Go/Rust 等），AMQP 0-9-1 客户端收不到消息；发布侧可继续用 AMQP 0-9-1。运维观测不变：`list_queues` 的 type 列显示 `stream`（§3.2）。
+- 副本模型与 quorum 同宗：Raft 多数派复制，多数派落盘才算写成功，§3.1 的容错公式照用。
+- 观测口径变化：stream 的 `messages` 是留存条数而非积压——消费滞后要看客户端 offset 距队尾多远，别拿队列深度告警直接套用。
+
+```bash
+# [任意节点] 声明 stream 队列(§3.2 同款管理 API;x-queue-type=stream,留存双保险)
+curl -s -u sre:sre12345 -X PUT http://localhost:15672/api/queues/%2F/events.stream \
+  -H "content-type: application/json" \
+  -d '{"auto_delete":false,"durable":true,"arguments":{"x-queue-type":"stream","x-max-age":"7d","x-max-length-bytes":5000000000}}'
+docker exec rmq1 rabbitmqctl list_queues name type
+# 预期: events.stream  stream
+```
+
+**stream 还是上 Kafka？**
+
+| 维度 | RabbitMQ stream | Kafka |
+|---|---|---|
+| 心智模型 | log、offset、重放 | 同左 |
+| 吞吐 | 中等（单 stream 顺序追加） | 单分区顺序写 + 零拷贝，高一个数量级 |
+| 并行度 | super stream（3.11+，一条 stream 分区化） | 多 partition 原生 |
+| 已有集群 | 复用现有 RMQ 运维栈 | 新养一套（KRaft、容量规划、消费者组治理） |
+| 生态 | 消息中间件生态 | Connect / Streams / 长留存流水生态 |
+
+分界一句话：**已有 RabbitMQ、要"replay + 大扇出 + 有界留存"且量级中等 → stream 顺手就加；吞吐到百万级 msg/s、要长留存与流生态 → Kafka**。两者的语义对比（消费模型、背压、offset）在 [14-data-streaming/kafka/01](../../14-data-streaming/kafka/01-log-model-and-architecture.md) §4-5 有逐项表，选型前对着读一遍。
 
 ## 4. 网络分区：pause_minority 与朋友
 
@@ -138,7 +179,7 @@ rabbitmq-queues shrink rabbit@rmq1
 | `pause_minority` | **少数派自我暂停**（拒绝一切客户端操作），多数派继续 | 3+ 奇数节点集群的官方推荐 |
 | `pause_if_all_down` | 与配置的可信节点列表全部失联才暂停 | 多网卡/多可用区等 pause_minority 误判的场景 |
 
-- `pause_minority` 的本质是**把分布式共识里的"少数派闭嘴"上移到整节点级别**（理论见 [19-distributed/03](../19-distributed/03-consensus-and-replication.md) §2 的 quorum 数学）。它要求集群是 3 个以上奇数节点：2+2 的四节点双分区两侧都是少数派，会全部暂停、整体不可用——这就是"不要偶数节点"的运维后果。
+- `pause_minority` 的本质是**把分布式共识里的"少数派闭嘴"上移到整节点级别**（理论见 [19-distributed/03](../../19-distributed/03-consensus-and-replication.md) §2 的 quorum 数学）。它要求集群是 3 个以上奇数节点：2+2 的四节点双分区两侧都是少数派，会全部暂停、整体不可用——这就是"不要偶数节点"的运维后果。
 - 仲裁队列自身在分区里已经安全：少数派侧的 Raft 成员选不出 leader、写入失败，多数派侧正常服务。`pause_minority` 仍被推荐，是为了少数派侧的 classic 队列、元数据写入不要在分区期间制造需要人工修复的分裂。
 - 愈合后：被暂停的节点重启或分区恢复时自动重新入队同步。`rabbitmqctl cluster_status` 的 `Partitions` 段非空 = 出过分区，日志里搜 `partition` 能看到处理过程。
 
@@ -291,6 +332,8 @@ docker exec rmq1 rabbitmqctl cluster_status | grep -A4 'Running Nodes'
 | 分区愈合后元数据错乱、要人工修 | 用了默认 ignore 分区策略 | pause_minority + 奇数节点；复盘看 cluster_status 的 Partitions |
 | 4.0 升级后老队列消失 | 镜像队列在 4.0 整体移除 | 升级前把 CMQ 迁到 quorum（官方有迁移指引） |
 | 四节点集群对等分区分区后全停 | pause_minority 下两侧都是少数派 | 节点数保持奇数；跨机房用 3+3 两套集群 + 复制插件 |
+| 用 AMQP 0-9-1 客户端订阅 stream 队列，一直收不到消息 | stream 的消费只能走 stream 协议（5552）专用客户端 | 换 stream 客户端；发布侧才可留 0-9-1 |
+| stream 队列磁盘越吃越多 | 留存没设界，默认无限增长 | x-max-age 与 x-max-length-bytes 同时配置 |
 
 ## 自测
 
@@ -331,4 +374,5 @@ A 检测到自己属少数派后暂停，A 侧客户端所有 AMQP 操作直接�
 - 官方网络分区处理（pause_minority 等）：https://www.rabbitmq.com/partitions
 - 官方经典镜像队列废弃说明与迁移指引：https://www.rabbitmq.com/ha
 - Shovel 与 Federation 官方文档：https://www.rabbitmq.com/shovel 、https://www.rabbitmq.com/federation
+- Stream 队列官方文档（非破坏性读、offset 追踪、super stream）：https://www.rabbitmq.com/streams
 - Cluster Operator 官方仓库与文档：https://github.com/rabbitmq/cluster-operator

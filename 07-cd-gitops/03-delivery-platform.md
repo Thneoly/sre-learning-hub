@@ -9,6 +9,8 @@
 - 能对着全链路总图说出每段的职责、工具与对应章节，解释"代码 → 镜像 → Git 晋升 → 集群 → 告警"的数据流
 - 能设计多环境模型（overlays + 命名空间 vs 独立集群），给出配置分层与漂移控制的完整防线
 - 能权衡 PR-based 晋升与 ArgoCD Image Updater 自动跟新，写出两者的组合策略
+- 能为运行时 Secret 在 Sealed-Secrets / SOPS+age / External Secrets 间选型，守住"密钥不进 Git 明文"的 GitOps 纪律
+- 能对比滚动/蓝绿/金丝雀三种发布策略，说明 Argo Rollouts 在 GitOps 链里的位置与代价
 - 能编写 PR 触发的 GitLab 流水线（MR 走质量门禁，merge 走构建+签名+扫描+晋升），并落地通知分级与 Grafana 面板聚合，识别四类交付平台反模式
 
 ## 1. 全链路总图（本模块毕业图）
@@ -71,9 +73,38 @@
 | 业务 manifest | base + overlays（07 章） | 晋升 MR | selfHeal + 定期 `argocd app diff` 巡检 |
 | 应用配置 | configMap/secretGenerator（07 章第 4 节） | overlay 提交 | hash 后缀自动触发滚动，配置漂移无处藏 |
 | 镜像版本 | overlays 的 `images.newTag`（07 章 3.3 节） | CI 自动（test）或 MR（prod） | 本章 §3 |
-| 密钥 | CI Variables 四件套（02 章 5 节）+ Harbor robot（09 章） | 变量面板，不进 Git | masked/protected + 定期轮换 |
+| 密钥 | CI Variables 四件套（02 章 5 节）+ Harbor robot（09 章）；集群 Secret 的 Git 化见 §2.3 | 变量面板不进 Git；集群 Secret 走密文/引用进 Git | masked/protected + 定期轮换 + 封装私钥备份 |
 
 三条纪律（都源自 04 章前提）：只通过改 Git 改集群；巡检发现差异先 `argocd app diff` 看真差异（默认值差异配 `ignoreDifferences`）；应急手改后必须回写 Git。
+
+### 2.3 密钥进 Git：Sealed-Secrets / SOPS+age / External Secrets
+
+上表密钥行解决的是"CI 用的密钥"；GitOps 还有一道必答题：**应用运行时的 Secret（数据库口令、API key）怎么跟着 deploy-repo 走？** 明文提交等于把钥匙写进 Git 历史（历史不可改、谁 clone 谁都有）；完全不进 Git 又违背单一真相。三种主流解法，共同本质是"Git 里只有密文或引用，集群侧有一个负责还原的执行者"：
+
+| 方案 | Git 里存什么 | 谁还原成真 Secret | 特点与代价 |
+|---|---|---|---|
+| **Sealed-Secrets** | SealedSecret CR（用集群公钥加密的密文） | sealed-secrets-controller 解密并创建同名 Secret | 单集群最简单；密文默认绑定名字+namespace（strict scope）；**封装私钥必须备份**——丢私钥 = 全部 SealedSecret 失效，换集群要先迁私钥 |
+| **SOPS + age** | 加密后的 Secret YAML（只加密 data/stringData 字段，其余字段仍可读） | ArgoCD 侧的渲染集成（KSOPS/自定义插件），或 CI 解密后提交 | 密文外字段可读、diff 友好，多环境可同文件；ArgoCD 原生不认，渲染链是额外运维点 |
+| **External Secrets Operator** | ExternalSecret CR（只有"去哪取"的引用） | ESO 常驻集群，从 Vault/云 KMS/密码管理器同步成 Secret | 真值从未进 Git，轮换由源系统管；多一套要运维的组件与网络依赖，ArgoCD 还要配 `ignoreDifferences` 不去 diff 生成的 Secret |
+
+Sealed-Secrets 的最小闭环（练习集群可直接做）：
+
+```bash
+# [master] 1) 装 controller（kubeseal 客户端从同一 release 页下载；版本以官方发布页为准）
+kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.27.3/controller.yaml
+
+# [本地任意机器] 2) 明文 Secret 只在本地内存里存在：dry-run 生成，立刻用集群公钥封装
+kubectl -n demo-prod create secret generic demo-db \
+  --from-literal=password='S3cr3t' --dry-run=client -o yaml > demo-db.yaml
+kubeseal --format=yaml < demo-db.yaml > manifests/overlays/prod/demo-db-sealed.yaml
+rm demo-db.yaml                    # 明文即刻删除，绝不进 Git
+
+# [master] 3) 提交后 controller 自动解出同名 Secret；灾备：把封装私钥备份进密码管理系统
+kubectl -n demo-prod get secret demo-db
+kubectl -n kube-system get secret -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml > sealing-key-backup.yaml
+```
+
+要点：`kubeseal` 用 **controller 在集群里生成的公钥**加密，密文只有该集群私钥能解——所以跨环境/换集群要重封或迁私钥；`--scope cluster-wide` 可放宽名字绑定，代价是密文可被重放到同集群任意名字，默认 strict 最稳。选型速记：**单集群练习/中小团队 → Sealed-Secrets；已有 Vault/多云 → ESO；要"密文里保留可读结构"→ SOPS**（后两者的安装细节以各自官方文档为准）。无论选哪种，明文只应出现在"生成现场"（本地终端、CI 内存、外部保管箱），Git 历史里永远查不到。
 
 ## 3. 晋升策略：PR-based vs 自动跟新
 
@@ -94,6 +125,83 @@
 - **prod**：只认人工 MR，且把 `newTag` 换成 **digest**（`digest: sha256:...`，原理见 09-cks/04 第 3 节），评审时确认"跑的就是扫描过的那个"
 - **tag 规范**：CI 产出用 commit SHA（不可变、唯一），语义化版本留给 release；任何环境禁止 `latest`
 - 给 dev/test 上 Image Updater：只授权写 `overlays/dev`（prod 绝不进其 write-back 范围），tag 过滤用精确前缀；该项目近年处于维护状态（官方讨论过归档/交接，以仓库公告为准），自动跟新的收益以"工具可长期运维"为前提
+
+### 3.1 发布策略：滚动、蓝绿与金丝雀（Argo Rollouts）
+
+晋升 MR 决定"新版本进哪个环境"；进了环境之后**怎么把流量铺上去**是另一个维度。目前链路用的是 Deployment 滚动更新（maxSurge/maxUnavailable 逐批替换 + readiness 探针挡住起不来的版本），完整谱系是：
+
+```
+滚动（Deployment）   新旧 Pod 逐批替换，流量随副本比例隐式切换
+蓝绿（Blue/Green）   两套全量环境并存，网关一次性切 100%，旧环境待命随时切回
+金丝雀（Canary）     10% → 观察 → 50% → 观察 → 100%，坏版本在只影响少数流量时被拦下
+```
+
+| 维度 | 滚动 | 蓝绿 | 金丝雀 |
+|---|---|---|---|
+| 流量控制精度 | 无（跟副本数走） | 0/100 一跳 | 按权重渐进 |
+| 回滚速度 | `rollout undo`，分钟级 | 切回旧环境，秒级 | 权重归零，秒级 |
+| 资源代价 | 峰值多 maxSurge 个副本 | 双倍环境常驻 | 多一个金丝雀副本组 |
+| 额外依赖 | 无 | Service/Ingress 换 backend | 流量切分能力（Ingress 权重/mesh/Rollouts） |
+| 适用 | 常规无状态发布 | 需瞬时切换或整体预演 | 高风险变更 + 有指标判据 |
+
+k8s 原生只给了滚动：蓝绿可以拿"两个 Service + 改 Ingress backend"手搓，金丝雀在 ingress-nginx 上可用 `nginx.ingress.kubernetes.io/canary: "true"` 加 `canary-weight` 注解做同域分流——但步骤编排（权重、暂停、指标判定、自动回滚）全要自己写。**Argo Rollouts** 把这套编排放进一个 CR（与 ArgoCD 同生态，GitOps 语义不变：Git 改的仍然是镜像 tag）：
+
+```yaml
+# [文件 rollout-demo-api.yaml] Rollout 是 Deployment 的替换品，podTemplate 字段同构
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: demo-api
+  namespace: demo-prod
+spec:
+  replicas: 3
+  strategy:
+    canary:
+      canaryService: demo-api-canary     # 两个 Service 指向同一组 label 的不同版本
+      stableService: demo-api-stable
+      trafficRouting:
+        nginx:                            # ingress-nginx 按权重分流（另需一条 canary Ingress）
+          stableIngress: demo-api
+      steps:
+      - setWeight: 10                     # 10% 流量进新版本
+      - pause: {duration: 5m}             # 观察 5 分钟；写 pause: {} 则等人工点继续
+      - setWeight: 50
+      - pause: {duration: 5m}
+  selector:
+    matchLabels: {app: demo-api}
+  template:
+    metadata:
+      labels: {app: demo-api}
+    spec:
+      containers:
+      - name: api
+        image: 192.168.56.10/demo/demo-api:abc1234
+        ports: [{containerPort: 8080}]
+```
+
+再配一个 AnalysisTemplate，让"观察"由 Prometheus 指标自动裁决——它比 readiness 探针强一档：readiness 只看"起没起来"，分析看的是"跑得好不好"，坏版本自动 abort：
+
+```yaml
+# [文件 analysis-success-rate.yaml] 错误率超 5% 两次即判失败，金丝雀自动回滚
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+spec:
+  metrics:
+  - name: error-rate
+    interval: 1m
+    successCondition: result[0] < 0.05
+    failureLimit: 2
+    provider:
+      prometheus:
+        address: http://prom-kube-prometheus-stack-prometheus.monitoring.svc:9090
+        query: |
+          sum(rate(http_requests_total{app="demo-api",code=~"5.."}[5m]))
+          / sum(rate(http_requests_total{app="demo-api"}[5m]))
+```
+
+与本章链路的衔接：prod 的 workload 从 Deployment 换成 Rollout（`kubectl argo rollouts` 插件或 UI 看进度），晋升 MR 改的还是那个镜像 tag——**merge 即金丝雀，git revert 即回滚**，GitOps 心智零切换；蓝绿则是 `strategy.blueGreen`（active/preview Service 自动切），不必手搓。一个必记的坑：没配 `trafficRouting` 时 `setWeight` 只是**按副本数近似**（10% 权重 = 先起 10% 副本），小副本数下"旧版本扛 90% 流量"的假设会失真——生产金丝雀要配真流量切分。
 
 ## 4. PR 触发流水线：完整 rules 示例
 
@@ -410,6 +518,8 @@ server = "https://192.168.56.10"
 | Image Updater 与人工提交互相覆盖 | 自动跟新覆盖评审结论，"谁放的行"说不清 | 自动跟新只授权 dev/test 目录，prod 只认 MR（§3） |
 | 镜像引用浮动 tag（latest） | 不可复现、回滚失效、扫的不是跑的 | CI 用 SHA tag，prod 钉 digest（09-cks/04 第 3 节） |
 | CI/CD/观测各自为政、无统一入口 | 出事时在五个页面间跳，MTTR 被导航吃掉 | Grafana 数据源清单 + 卡片带直达链接（§6/§7） |
+| Secret 明文进了 deploy-repo | 把"单一真相"误读成"什么都进 Git" | 立即轮换该口令（Git 历史已泄，清历史只是补救），改走 §2.3 三方案之一 |
+| 金丝雀只切了副本没切流量 | Rollouts 未配 trafficRouting，setWeight 退化为副本比例 | 配 nginx/ALB/mesh 路由做真权重切分，或用 ingress-nginx canary 注解手动分流 |
 
 ## 自测
 
@@ -444,6 +554,8 @@ namespace 只提供名字与管理边界（RBAC 作用域、对象名不冲突�
 - ArgoCD Image Updater（项目状态以仓库公告为准）与 ArgoCD 指标暴露：<https://argocd-image-updater.readthedocs.io/en/stable/> 、<https://argo-cd.readthedocs.io/en/stable/operator-manual/metrics/>
 - cosign 与 Trivy：<https://docs.sigstore.dev/> 、<https://trivy.dev/latest/docs/>
 - Kyverno 镜像验签：<https://kyverno.io/docs/writing-policies/verify-images/>
+- Sealed-Secrets：<https://sealed-secrets.net/>；External Secrets Operator：<https://external-secrets.io/>；SOPS：<https://github.com/getsops/sops>
+- Argo Rollouts（策略/流量切分/分析）：<https://argo-rollouts.readthedocs.io/>
 - Alertmanager webhook_config 字段：<https://prometheus.io/docs/alerting/latest/configuration/#webhook_config>
 - 飞书开放平台·自定义机器人（消息形态/签名/频率限制，以文档为准）：<https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot>
 - Jenkins Prometheus 插件与 Grafana JSON API 插件：<https://plugins.jenkins.io/prometheus/> 、<https://grafana.com/grafana/plugins/marcusolsson-json-datasource/>

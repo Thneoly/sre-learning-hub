@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SRE 学习中心 · 20 模块学习平台</title>
+<title>SRE 学习中心 · 22 模块学习平台</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -563,12 +563,13 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     },
     {
       id: 'aiops', nav: 'AIOps/LLM', name: 'AIOps 与 LLM 辅助运维', dir: '17-aiops-llm',
-      desc: 'AIOps 全景与 LLM 的真实位置、LLM 辅助排障方法论、运维知识库与 RAG、Agent 与 Runbook 自动化。',
+      desc: 'AIOps 全景与 LLM 的真实位置、LLM 辅助排障方法论、运维知识库与 RAG、Agent 与 Runbook 自动化、私有化 LLM 端点部署。',
       chapters: [
         { f: '01-aiops-landscape.md', t: '01 · AIOps 全景与 LLM 的真实位置' },
         { f: '02-llm-assisted-troubleshooting.md', t: '02 · LLM 辅助排障方法论' },
         { f: '03-knowledge-base-and-rag.md', t: '03 · 运维知识库与 RAG' },
-        { f: '04-agent-runbook-automation.md', t: '04 · Agent 与 Runbook 自动化' }
+        { f: '04-agent-runbook-automation.md', t: '04 · Agent 与 Runbook 自动化' },
+        { f: '05-private-llm-deployment.md', t: '05 · 私有化 LLM 端点部署：Ollama、vLLM 与 OpenAI 兼容 API' }
       ],
       labs: [
         { p: 'labs/01-llm-troubleshoot-drill', t: 'Lab 01 · LLM 辅助排障实战演练' }
@@ -625,6 +626,23 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       chapters: [
         { f: '01-k8s-resource-lifecycles.md', t: '01 · K8s 资源生命周期图鉴：八张状态图一张网' },
         { f: '02-data-component-lifecycles.md', t: '02 · 数据组件生命周期图鉴：8 条状态机' }
+      ],
+      labs: []
+    },
+    {
+      id: 'perf', nav: '性能压测', name: '性能压测与容量', dir: '21-perf-testing',
+      desc: 'k6/wrk/JMeter 压测方法与实战演练、从压测拐点到扩容决策的容量规划（外推/N-1 验证/中间件基线表）——SRE 的容量管理实证。',
+      chapters: [
+        { f: '01-load-testing-tools.md', t: '01 · 性能压测工具与方法：k6、wrk 与 JMeter' },
+        { f: '02-capacity-planning.md', t: '02 · 容量规划：从压测拐点到扩容决策' }
+      ],
+      labs: []
+    },
+    {
+      id: 'stories', nav: '故障故事', name: '故障复盘故事集', dir: '22-incident-stories',
+      desc: '四个学费昂贵的经典故障复盘故事 + 章末靶场演练路径——面试里"讲一次你排查过的故障"的现成弹药（套 15-sre/04 复盘模板）。',
+      chapters: [
+        { f: '01-classic-incidents.md', t: '01 · 经典故障复盘故事集：四次学费昂贵的课' }
       ],
       labs: []
     }
@@ -878,7 +896,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     { h: '#/scenarios', t: '场景速查', src: 'SCENARIOS.md' },
     { h: '#/timer', t: '考试计时器' }
   ];
-  /* 学习阶段分组：侧栏按阶段组织 20 个模块；未列入分组的模块自动归入「其他」，避免漏项。 */
+  /* 学习阶段分组：侧栏按阶段组织 22 个模块；未列入分组的模块自动归入「其他」，避免漏项。 */
   var STAGES = [
     { cap: '地基', ids: ['linux', 'programming'] },
     { cap: '容器', ids: ['docker'] },
@@ -890,6 +908,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     { cap: '方法论+理论', ids: ['sre', 'distributed'] },
     { cap: '云', ids: ['cloud'] },
     { cap: '差异化', ids: ['aiops'] },
+    { cap: '性能+复盘', ids: ['perf', 'stories'] },
     { cap: '参考', ids: ['lifecycles'] }
   ];
   function stageOf(id) {
@@ -920,7 +939,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     {
       name: '可观测与 SRE 域', role: '岗位画像：SRE / 稳定性方向',
       one: '优化系统可用性：指标/日志/追踪 + SLO/错误预算/混沌',
-      ids: ['pca', 'otel', 'logging', 'sre'],
+      ids: ['pca', 'otel', 'logging', 'sre', 'perf', 'stories'],
       extra: null
     },
     {
@@ -941,7 +960,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     return { done: done, total: total };
   }
   function buildSidebar() {
-    var h = '<div class="brand"><div class="t1">SRE 学习中心</div><div class="t2">20 个模块 · Linux 到生命周期图鉴</div></div>';
+    var h = '<div class="brand"><div class="t1">SRE 学习中心</div><div class="t2">22 个模块 · Linux 到故障复盘故事集</div></div>';
     h += '<div class="nav-group"><div class="nav-cap">导航</div>';
     h += '<button class="nav-item" data-nav="#/overview">总览</button></div>';
     var staged = {};
@@ -1022,7 +1041,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       totalCh += MODULES[a].chapters.length;
       totalLab += MODULES[a].labs.length;
     }
-    var h = '<h1 class="pg">总览</h1><div class="sub">20 个模块按学习阶段推进：地基打底，容器与编排铺面，工程化与安全加深，可观测、数据组件（中间件、数据流、大数据）、方法论+理论（SRE 与分布式）、云与 AIOps 补全，生命周期图鉴穿插参考；CKA / CKS / PCA 三证逐个击破。逐项勾选自动保存进度。</div>';
+    var h = '<h1 class="pg">总览</h1><div class="sub">22 个模块按学习阶段推进：地基打底，容器与编排铺面，工程化与安全加深，可观测、数据组件（中间件、数据流、大数据）、方法论+理论（SRE 与分布式）、云与 AIOps 补全，生命周期图鉴穿插参考；CKA / CKS / PCA 三证逐个击破。逐项勾选自动保存进度。</div>';
 
     if (!hasContent()) {
       h += '<div class="hintbox"><b>内置阅读器尚未就绪：</b>未检测到同目录 content.js。运行 portal/build-content.ps1 生成（在 portal 目录执行 ';
@@ -1035,7 +1054,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     h += '<div class="pnum" style="margin-top:6px">共 ' + totalCh + ' 章教程 · ' + totalLab + ' 个 lab · 进度存于 localStorage（键 hub-progress）</div></div>';
 
     h += '<h2 class="sec">能力支柱视图</h2><div class="card">';
-    h += '<div class="list-note" style="padding:0 0 4px">同一套 20 个模块的另一种看法：编号 = 学习顺序，支柱 = 能力画像（与根目录 README.md 的「能力支柱视图」表一致；20-lifecycles 为横向参考，不占支柱）。支柱完成度 = 支柱内各模块章节 + lab 勾选的汇总。</div>';
+    h += '<div class="list-note" style="padding:0 0 4px">同一套 22 个模块的另一种看法：编号 = 学习顺序，支柱 = 能力画像（与根目录 README.md 的「能力支柱视图」表一致；20-lifecycles 为横向参考，不占支柱）。支柱完成度 = 支柱内各模块章节 + lab 勾选的汇总。</div>';
     for (var p0 = 0; p0 < PILLARS.length; p0++) {
       var pl = PILLARS[p0];
       h += '<div class="pillar-row">';
@@ -1168,7 +1187,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       body += '<div class="card"><h3>生成 content.js</h3>';
       body += '<p>在 <code>portal</code> 目录执行（Windows PowerShell 5.1 即可）：</p>';
       body += codeBlock('powershell · [本地Windows]', 'cd <learning-hub>/portal\npowershell -ExecutionPolicy Bypass -File ./build-content.ps1');
-      body += '<p>脚本会递归收集 learning-hub 根目录下全部 20 个模块目录（01-linux 至 20-lifecycles）的所有 .md（含 labs 的 task.md 与 solution.md，以及 13-middleware / 14-data-streaming 的子目录），并打包根目录的 SCENARIOS.md / README.md / ROADMAP.md，生成同目录 content.js（键为相对 learning-hub 根的正斜杠路径）。生成后回到本页刷新即可。</p></div>';
+      body += '<p>脚本会递归收集 learning-hub 根目录下全部 22 个模块目录（01-linux 至 22-incident-stories）的所有 .md（含 labs 的 task.md 与 solution.md，以及 13-middleware / 14-data-streaming 的子目录），并打包根目录的 SCENARIOS.md / README.md / ROADMAP.md，生成同目录 content.js（键为相对 learning-hub 根的正斜杠路径）。生成后回到本页刷新即可。</p></div>';
     }
     document.getElementById('page').innerHTML = h + '<div class="card reader-card">' + body + '</div>';
   }

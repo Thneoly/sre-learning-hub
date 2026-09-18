@@ -72,7 +72,7 @@ ClickHouse 每张表要显式选引擎，90% 的表落在 MergeTree 家族。共
 - **每列每粒度的 min/max 统计**让非主键列也能跳过整个 granule（ WHERE ts > X 而 ts 恰好是排序键后缀时收益最大）。
 - **跳数索引（data skipping index）**：对**不在排序键里**的列，手工补 `minmax` / `set` / `bloom_filter`（`ngrambf_v1`/`tokenbf_v1` 用于字符串 LIKE/等值）二级索引，粒度按 `GRANULARITY N` 个数据粒度取块。它同样是"跳过不相关粒度"，不是定位行。
 
-运维推论：点查明细请走 MySQL/Redis 这类系统（11 模块），ClickHouse 的主键设计面向"前缀过滤 + 大扫描收敛"。另外跳数索引只对**建索引之后写入**的数据生效，存量数据要 `MATERIALIZE INDEX`（整 part 重写，代价同级 mutation，具体语法以官方文档为准）。
+运维推论：点查明细请走 MySQL/Redis 这类系统（13 模块），ClickHouse 的主键设计面向"前缀过滤 + 大扫描收敛"。另外跳数索引只对**建索引之后写入**的数据生效，存量数据要 `MATERIALIZE INDEX`（整 part 重写，代价同级 mutation，具体语法以官方文档为准）。
 
 ## 4. 分片与副本：ReplicatedMergeTree 与 ZK/Keeper
 
@@ -121,7 +121,7 @@ ClickHouse 没有"一张表自动分布在所有节点"的形态。标准做法�
 写入路径的运维要点：
 
 - **默认异步**：INSERT 先落在发起节点的本地缓冲目录，后台线程再发往各分片——发起节点在"落盘缓冲与送达之间"崩溃，这批数据可能丢。要求不丢的链路设 `insert_distributed_sync=1`（同步等各分片确认），或接受 at-least-once 由上游重放。
-- **重放幂等**：上游（Flink checkpoint 恢复，12 模块的 exactly-once 框架）重发同一 block，副本表按 block 哈希去重——效果与 Doris 的 label 幂等（05 章第 5 节）同构，只是幂等键从显式 label 换成隐式数据哈希，窗口有限。业务级幂等仍要靠 ReplacingMergeTree(version) 兜底。
+- **重放幂等**：上游（Flink checkpoint 恢复，14 模块的 exactly-once 框架）重发同一 block，副本表按 block 哈希去重——效果与 Doris 的 label 幂等（05 章第 5 节）同构，只是幂等键从显式 label 换成隐式数据哈希，窗口有限。业务级幂等仍要靠 ReplacingMergeTree(version) 兜底。
 - **扩容是手工活**：新增分片后，历史数据不会自动搬迁（Distributed 只影响新写入的路由），要么重灌、要么按 19-distributed/05-sharding-and-rebalancing.md 第 4 节的再平衡窗口方法论手工迁移；可用 `weight` 调新旈权重渐进导流。这是对比 Doris "BE 加入即自动均衡 tablet"最疼的运维差异。
 
 ## 6. 后台 merge 与 parts："too many parts" 的因果链
@@ -134,7 +134,7 @@ parts 是 MergeTree 的物理单元：每次 INSERT 至少产生一个 part，�
    → 超过软阈值：写入被故意 delay（parts_to_delay_insert）
    → 超过硬阈值：INSERT 直接报错 "Too many parts (N). Merges are processing
      significantly slower than inserts."（parts_to_throw_insert，默认 300，以文档为准）
-   → 上游 Flink sink 反压 → checkpoint 超时 → Kafka 消费 lag（12 模块的排障链原样适用）
+   → 上游 Flink sink 反压 → checkpoint 超时 → Kafka 消费 lag（14 模块的排障链原样适用）
 ```
 
 这与 Doris 的 "too many versions"（05 章第 6.2 节）是同一个病在不同引擎的名字：**微批太碎，版本/部件数超过后台合并能力**。治理同源：攒批（单次 INSERT 至少万行或 MB 级，官方调优文档建议每表每秒不超过约一次 INSERT，具体数值以文档为准）；小写入方太多时开 `async_insert`（服务端替你攒批）；merge 跟不上时评估 `background_pool_size` 与磁盘 IO，而不是一味重试。预防性指标：`MaxPartCountForPartition`（system.asynchronous_metrics）持续上涨即预警，社区常用告警线在几百到一千，按官方调优文档定。
@@ -279,7 +279,7 @@ EXPLAIN indexes = 1 SELECT count() FROM demo.events2 WHERE user_id = 300;
 | 加了节点数据不均衡 | 新分片只接新写入，历史数据不自动迁移 | 规划期留足分片；迁移按 19-distributed/05 第 4 节窗口方法论手工做，`weight` 渐进导流 |
 | 给存量大表补 MV 后数据少了 | MV 只处理建表后的写入，`POPULATE` 有并发竞态 | 先建 MV 再写入是正道；存量用"新 MV + 手动回填 + 双写切换" |
 | UPDATE/DELETE 一条提交后几小时没生效 | mutation 是整 part 重写的异步队列任务 | 看 `system.mutations` 进度；大表变更当批处理作业排窗口 |
-| 把高并发点查接到 CH 上，p99 惨不忍睹 | 稀疏索引定位的是 8192 行粒度，不是行 | 点查明细走 MySQL/Redis（11 模块）；CH 只服务分析型扫描 |
+| 把高并发点查接到 CH 上，p99 惨不忍睹 | 稀疏索引定位的是 8192 行粒度，不是行 | 点查明细走 MySQL/Redis（13 模块）；CH 只服务分析型扫描 |
 | skip 索引建了没用 | 只对建索引之后写入的数据生效 | 存量数据 `MATERIALIZE INDEX`（重写 parts，择窗口执行） |
 
 ## 自测
@@ -305,7 +305,7 @@ MySQL：聚簇索引按主键组织，根节点常驻内存，2 次页 IO 精确
 4. Flink 作业恢复后重发了一批刚写过的数据，ClickHouse 和 Doris 各靠什么机制避免重复？两个机制的"窗口"分别指什么？
 <details><summary>答案</summary>
 
-Doris：label 幂等（05 章第 5 节）——导入显式带 label，重复 label 在保留期内（默认约 3 天）被拒，At-Most-Once 防重，正确姿势是恢复后用新 label 重发、靠 Unique 模型 REPLACE 收敛数据。ClickHouse：副本表的 block 哈希去重——完全相同的 block（相同行、相同顺序）在 replicated_dedup_window 记录的近 N 个块内被丢弃，无需业务显式声明；窗口指只记最近 N 个块哈希（默认千级，以文档为准），窗口外或 block 内容有微小差异（重放时行序变化）就不去重。工程结论：两者都只覆盖"快速重发同批数据"，跨窗口/变序的业务级幂等都要靠键模型（Unique/Replacing+version）兜底——这是 12 模块"端到端 exactly-once 三前提"里 sink 侧的两种实现形态。
+Doris：label 幂等（05 章第 5 节）——导入显式带 label，重复 label 在保留期内（默认约 3 天）被拒，At-Most-Once 防重，正确姿势是恢复后用新 label 重发、靠 Unique 模型 REPLACE 收敛数据。ClickHouse：副本表的 block 哈希去重——完全相同的 block（相同行、相同顺序）在 replicated_dedup_window 记录的近 N 个块内被丢弃，无需业务显式声明；窗口指只记最近 N 个块哈希（默认千级，以文档为准），窗口外或 block 内容有微小差异（重放时行序变化）就不去重。工程结论：两者都只覆盖"快速重发同批数据"，跨窗口/变序的业务级幂等都要靠键模型（Unique/Replacing+version）兜底——这是 14 模块"端到端 exactly-once 三前提"里 sink 侧的两种实现形态。
 </details>
 
 5. ZooKeeper/Keeper 集群整体宕机 10 分钟：副本表的写入、查询、后台 merge 分别发生什么？已有数据会丢吗？恢复后呢？

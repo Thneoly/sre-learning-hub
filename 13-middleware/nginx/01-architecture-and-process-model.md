@@ -1,6 +1,6 @@
 # 01 · Nginx 架构与进程模型
 
-> 模块：07-中间件/nginx ｜ 建议时长：2 小时 ｜ 关联认证：—（CKA/CKS 无直接考点，但它是 ingress-nginx、各类 API 网关排障的地基）
+> 模块：13-middleware/nginx ｜ 建议时长：2 小时 ｜ 关联认证：—（CKA/CKS 无直接考点，但它是 ingress-nginx、各类 API 网关排障的地基）
 
 ## 学习目标
 

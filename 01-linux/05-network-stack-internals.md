@@ -232,9 +232,69 @@ ss -lnt                                            # 监听队列视角(下述)
 
 `ss -lnt` 的两列队列是服务端健康的快照：`Recv-Q` = 当前等待 accept 的完成握手连接数，`Send-Q` = 应用 listen(backlog) 与 `somaxconn` 取小后的上限。`Recv-Q` 长期贴着 `Send-Q` = 应用消费不过来（accept 循环慢或线程池打满），该查应用而不是内核。`ss -i` 对 TIME_WAIT 显示 `timer:(timewait,52sec,0)`（剩余 52 秒）；对活跃连接的 `rtt`/`cwnd`/`retrans` 是比 ping 更真实的链路质量证据。
 
-## 4. tcpdump 实战：抓一次三次握手
+## 4. 主机侧 DNS 解析链：从 getaddrinfo() 到上游
 
-### 4.1 命令与输出
+前几节讲的是"包怎么走"，但应用发出的第一个包往往不是为了连 IP，而是为了问"这个域名是什么地址"。主机侧把名字解析拆成一条链，任何一环断裂都是同一种症状：**ping IP 通，curl 域名不通**。
+
+```text
+# [解析链] 应用视角自上而下；排障时自下而上逐环验证
+ 应用调 getaddrinfo("kubernetes.default", ...)
+        |
+        |  NSS(/etc/nsswitch.conf): hosts: files dns myhostname  <-- 顺序在这里定死
+        |
+        +-- files --> /etc/hosts          命中即返回，永远不再往下问
+        |
+        +-- dns  --> resolver(/etc/resolv.conf)
+                          nameserver 127.0.0.53   <-- systemd-resolved stub
+                              |
+                        systemd-resolved（按接口/VPN/DoT 配置的真实上游）
+                              |
+                        内核 UDP/TCP 53 收发（下一节 tcpdump 抓的就是这段）
+```
+
+### 4.1 每一环的文件与语义
+
+```bash
+# [任意节点]
+grep '^hosts:' /etc/nsswitch.conf          # 解析顺序：files 优先于 dns
+grep -v '^#' /etc/resolv.conf              # nameserver(最多3个)/search/timeout/attempts
+getent hosts github.com                    # 走完整 NSS 链——最接近应用真实行为
+dig +short github.com                      # 走 resolv.conf(stub)，绕过 /etc/hosts
+dig @1.1.1.1 +short github.com             # 连本机链都绕过，直测外部上游
+resolvectl status | head -20               # systemd-resolved 视角：每接口上游 + 全局
+```
+
+三条命令的差异是排障的分叉点：`getent` 通而 `dig` 不通 = /etc/hosts 里有旧记录或 NSS 顺序异常；`dig` 通而应用不通 = 应用读的不是这份 resolv.conf（容器/chroot，见 4.4）；`dig` 不通而 `dig @1.1.1.1` 通 = 本机 stub 或它的上游配置坏了。
+
+### 4.2 systemd-resolved 的 127.0.0.53 陷阱
+
+Ubuntu 的 /etc/resolv.conf 通常是指向 /run/systemd/resolve/stub-resolv.conf 的软链，内容只有 `nameserver 127.0.0.53`。三个经典陷阱：
+
+- **抓包抓不到**：应用→127.0.0.53 的查询走 loopback，`tcpdump -i eth0 port 53` 只能看到 resolved 与上游的对话；抓 stub 本身要 `-i lo port 53`（下一节的 `-i any` 则两种都看得到）。
+- **软链被替换**：手工往 /etc/resolv.conf 写静态文件后，`resolvectl` 里改什么都"不生效"——文件不再是 stub 软链，resolved 被整体绕过。`ls -l /etc/resolv.conf` 先确认指向。
+- **跨 netns 不可达**：127.0.0.53 只在本网络命名空间的 lo 上有意义，nsenter 进容器后 dig 127.0.0.53 必然失败，不是 DNS 坏了。
+
+### 4.3 排障路径与 dig +trace
+
+```bash
+# [任意节点] 自下而上四步
+dig @1.1.1.1 kubernetes.io                       # ① 外部上游本身通不通
+dig kubernetes.io                                # ② 本机 stub/转发链通不通
+getent hosts kubernetes.io                       # ③ NSS/hosts 这层对不对
+curl -v --max-time 3 http://kubernetes.io 2>&1 | head -5   # ④ 应用视角
+dig +trace kubernetes.io                         # 从根逐级迭代，区分"无答案"与"转发丢"
+dig +search nginx                                # 按 search 列表扩后缀再查(ndots 行为)
+```
+
+`+trace` 适合验证权威侧链路（根 → TLD → 权威服务器）；answer 里的 TTL 是缓存秒数——"改了记录还是旧结果"先看 TTL 再怀疑 CoreDNS。
+
+### 4.4 宿主机与容器：resolv.conf 的继承与分叉
+
+容器有自己的 netns，也有自己的 /etc/resolv.conf，但内容来源不同。Docker 默认抄宿主机 resolv.conf 并**过滤回环地址**（127.0.0.53 在容器 netns 里不可达），过滤完为空则回退 8.8.8.8——"容器里解析行为和宿主机不一样"的第一嫌疑人，`--dns/--add-host` 可显式覆盖。K8s 则完全另起一套：kubelet 给每个 Pod 生成 resolv.conf，nameserver 指向 kube-dns 的 ClusterIP，`search` 是 namespace 后缀列表，外加 `options ndots:5`——域名点数不足 5 时**先**逐个拼接 search 后缀去问 CoreDNS，`github.com`（1 个点）最多要先经历 3 次 NXDOMAIN 才轮到绝对名查询。CoreDNS 如何接住这些查询、cluster.local 下两种 A 记录的规则在 [04-k8s/05 章 §6](../04-k8s-fundamentals/05-service-and-dns.md) 展开；ndots/search 机制正是 Pod 解析慢的常见根因，也是 05-cka 的 DNS 排障 lab（`labs/17-dns-debugging`）的理论地基。
+
+## 5. tcpdump 实战：抓一次三次握手
+
+### 5.1 命令与输出
 
 ```bash
 # [master] 终端 1: 抓与 apiserver 的握手
@@ -267,7 +327,7 @@ curl -k --max-time 3 https://10.96.0.1/version 2>/dev/null; true
 
 排障模式速记：只见 `[S]` 不见 `[S.]` = 服务端没回（后端挂/防火墙丢）；`[S.]` 回了但无第三次 = 回程不通（双向路径不对称的经典症状）；连接刚建立就 `[R]` = 对端拒绝（端口没人听是 RST，不是"超时"）；大量 `TCP Retransmission` 标注 = 丢包链路。过滤表达式常用款：`'tcp[tcpflags] & tcp-syn != 0'`（所有 SYN）、`'tcp[tcpflags] & (tcp-syn|tcp-ack) = tcp-syn'`（纯 SYN，即新建连接监控）、`'port 53'`。复杂分析加 `-w file.pcap` 落盘，scp 回 Windows 用 Wireshark 看流跟踪与 IO Graph。
 
-## 5. 与 K8s 网络的衔接（预告）
+## 6. 与 K8s 网络的衔接（预告）
 
 Pod 不是虚拟机，它的网络是内核对象拼出来的：
 

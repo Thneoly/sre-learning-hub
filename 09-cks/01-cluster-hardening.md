@@ -8,7 +8,8 @@
 - 能解释 kube-apiserver 每个安全相关 flag 的作用并正确修改 static Pod manifest
 - 能把 kube-scheduler 与 kube-controller-manager 的监听收到 127.0.0.1
 - 能加固 kubelet：关 anonymous、启用 Webhook 授权、关只读端口、protectKernelDefaults
-- 能从端口和服务两个维度最小化节点攻击面
+- 能从端口、服务、软件三个维度最小化节点攻击面，并用 sha256sum 校验平台二进制下载
+- 能为 Ingress 配置 TLS：自签泛域名证书、tls Secret、控制器默认证书与验证
 
 ## 1. CIS Benchmark 与 kube-bench
 
@@ -315,6 +316,111 @@ sudo systemctl disable --now snapd 2>/dev/null || true
 
 **软件面**——不装 GUI、编译器、调试工具上生产节点；用 `apt purge` 移除明确不用的包。kubeadm 默认给 control-plane 打了 `node-role.kubernetes.io/control-plane:NoSchedule` taint，别为了"省机器"去掉它，业务 Pod 不该和 etcd 混部。云环境还要注意节点 metadata endpoint（169.254.169.254）不要暴露给 Pod（NetworkPolicy 限制或云厂商的 IMDSv2）。
 
+**下载校验**——往节点上装 kubectl/kubeadm 这类平台二进制时，先校验再使用（考纲 "verify platform binaries"）。官方在提供二进制的同一路径下附带 `.sha256` 校验文件，`sha256sum -c` 比对通过再安装：
+
+```bash
+# [任意节点] 以 kubectl v1.31.0 为例（版本按需替换；dl.k8s.io 同目录还有 kubeadm/kubelet 的二进制与 .sha256）
+curl -LO "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
+curl -LO "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl.sha256"
+
+# .sha256 文件里是官方哈希，拼上文件名喂给 sha256sum -c
+echo "$(cat kubectl.sha256)  kubectl" | sha256sum -c
+# 预期: kubectl: OK；被篡改或传输损坏时输出 FAILED 且退出码非 0
+
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+```
+
+两条纪律：二进制与 `.sha256` 必须来自同一次官方下载（防中间人把两者一起换掉）；checksum 只证明"与官方发布一致、下载完好"，不证明上游无漏洞——旧版本 CVE 靠升级解决（`05-cka/03-kubeadm-install-upgrade.md`），依赖漏洞靠扫描（04 篇 trivy）。
+
+## 6. 入口流量与 TLS：Ingress 与证书管理
+
+前面各节管"组件之间"的通道，考纲 Cluster Setup 还明列 "Configure Ingress TLS"——外界进集群的第一跳。TLS 在 Ingress 控制器终止，解密流量经集群内网到后端 Pod：
+
+```
+客户端 ──HTTPS:443──> ingress-nginx controller ──HTTP:80──> Service ──> Pod
+                      │ 证书来自 Ingress 引用的 tls Secret（kubernetes.io/tls）
+```
+
+### 6.1 安装 ingress-nginx 并签证书
+
+```bash
+# [master] baremetal 清单以 NodePort 暴露（版本号以官方 installation 文档为准）
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/baremetal/deploy.yaml
+kubectl wait -n ingress-nginx --for=condition=ready pod \
+  -l app.kubernetes.io/component=controller --timeout=300s
+
+# 练习环境自签泛域名证书（生产换成 CA 签发，后续步骤一致；SAN 必须覆盖通配名）
+openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+  -keyout tls.key -out tls.crt \
+  -subj "/CN=*.cks.lab" \
+  -addext "subjectAltName=DNS:*.cks.lab,DNS:cks.lab"
+
+# Ingress 只能引用同 namespace 的 Secret（这里 default），字段名固定 tls.crt/tls.key
+kubectl create secret tls cks-wildcard --cert=tls.crt --key=tls.key
+```
+
+### 6.2 Ingress 挂证书并验证
+
+```yaml
+# [master] ingress-demo.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-web
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"  # http 自动 301 到 https
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [web.cks.lab]
+      secretName: cks-wildcard
+  rules:
+    - host: web.cks.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: demo-web
+                port:
+                  number: 80
+```
+
+```bash
+# [master] 起后端、应用、取 NodePort 验证
+kubectl create deployment demo-web --image=nginx:1.27 && \
+  kubectl expose deployment demo-web --port=80 && kubectl apply -f ingress-demo.yaml
+NP=$(kubectl -n ingress-nginx get svc ingress-nginx-controller \
+  -o jsonpath='{.spec.ports[?(@.name=="https")].nodePort}')
+
+# 出示的应是我们签的证书，而不是控制器内置假证书
+openssl s_client -connect 127.0.0.1:$NP -servername web.cks.lab </dev/null 2>/dev/null \
+  | openssl x509 -noout -subject
+# 预期: subject=CN = *.cks.lab；curl -sk --resolve web.cks.lab:$NP:127.0.0.1 https://web.cks.lab:$NP 应返回 200
+```
+
+### 6.3 默认证书：未声明 tls 的 host 也走 https
+
+Host 不匹配任何 tls 段时，控制器返回内置假证书（CN=Kubernetes Ingress Controller Fake Certificate）。把泛域名证书设为控制器级默认证书可兜住所有 host。注意默认证书从**控制器所在 namespace** 读取，而 Ingress 只能引用**自己 namespace** 的 Secret——同一张证书要放两份：
+
+```bash
+# [master] ingress-nginx namespace 再放一份同证书的 Secret
+kubectl create secret tls cks-wildcard -n ingress-nginx --cert=tls.crt --key=tls.key
+
+# kubectl -n ingress-nginx edit deployment ingress-nginx-controller
+#   在 spec.template.spec.containers[0].args 末尾追加：
+#     - --default-ssl-certificate=ingress-nginx/cks-wildcard
+kubectl -n ingress-nginx rollout status deployment ingress-nginx-controller
+
+# 验证：未在任何 Ingress 声明的 host 也拿到泛域名证书
+openssl s_client -connect 127.0.0.1:$NP -servername other.cks.lab </dev/null 2>/dev/null \
+  | openssl x509 -noout -subject
+# 预期: subject=CN = *.cks.lab（设默认证书前这里是 Fake Certificate）
+```
+
+证书来源取舍：自签适合练习与纯内网（客户端 `-k` 或分发信任）；泛域名证书让多服务共用一张、加服务不换证书，但泄露影响全域，私钥要严管；对外域名用公网 CA（cert-manager 自动签发轮换）。apiserver 自身 TLS 版本与套件的收紧见第 2 节。
+
 ## 实战演练：一次完整的体检—修复—复测
 
 环境：Ubuntu 22.04 上的 kubeadm 单 master 集群（Calico）。
@@ -352,6 +458,8 @@ kubectl logs job/kube-bench | grep -c FAIL
 
 回滚预案：任一组件起不来时，`cp /root/bak-*.yaml` 恢复对应文件即可，kubelet 会自动重建 static Pod。
 
+配套练习：[labs/06-audit-policy](labs/06-audit-policy/task.md) 与 [labs/09-imagepolicy-webhook](labs/09-imagepolicy-webhook/task.md)——两者同样要改 kube-apiserver 的 static Pod manifest，正好演练本章的"备份—修改—等重建—验证"节奏。
+
 ## 常见坑
 
 | 症状 | 原因 | 解法 |
@@ -362,6 +470,8 @@ kubectl logs job/kube-bench | grep -c FAIL
 | kube-bench Job 一直 Pending | 单 master 集群有 control-plane taint，Job 没有 toleration | 加 `node-role.kubernetes.io/control-plane:NoSchedule` 的 toleration |
 | 关掉 anonymous 后某监控 agent 失联 | 它匿名访问 10250 拿指标 | 给 agent 配合法证书或改走 apiserver 的 metrics-server 路径 |
 | `ss` 里仍看到 10255 | kubelet 未重启或配置文件不是 kubelet 实际读取的那份 | `systemctl restart kubelet`；确认 `/var/lib/kubelet/config.yaml` 是 `--config` 指向的文件 |
+| curl 任意域名都拿到假证书（Kubernetes Ingress Controller Fake Certificate） | 请求的 Host 未命中任何 Ingress 的 tls 段，落到控制器内置证书 | 给 Ingress 配 spec.tls，或设 `--default-ssl-certificate`（Secret 必须在控制器所在 namespace） |
+| `sha256sum -c` 输出 FAILED | 下载损坏，或二进制与 .sha256 不是同一次下载 | 重新从 dl.k8s.io 成对下载再校验；仍 FAILED 的文件绝不安装 |
 
 ## 自测
 
@@ -407,3 +517,5 @@ scheduler 与 controller-manager 只需被本机 kubelet 的 liveness probe 和�
 - kube-apiserver 参数参考：<https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/>
 - Kubelet 认证/授权：<https://kubernetes.io/docs/reference/access-authn-authz/kubelet-authn-authz/>
 - PKI 证书与要求：<https://kubernetes.io/docs/setup/best-practices/certificates/>
+- Ingress 与 TLS：<https://kubernetes.io/docs/concepts/services-networking/ingress/#tls>
+- ingress-nginx 官方安装文档：<https://kubernetes.github.io/ingress-nginx/deploy/>

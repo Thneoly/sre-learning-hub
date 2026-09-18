@@ -1,6 +1,6 @@
 # 03 · PostgreSQL 调优与排障手册：EXPLAIN、vacuum、备份与监控
 
-> 模块：中间件-PostgreSQL ｜ 建议时长：3 小时 ｜ 关联认证：PCA-指标（监控节直接复用 PromQL 与自定义 exporter 查询能力）；对照参照 13-middleware/mysql/03
+> 模块：13-middleware/postgresql ｜ 建议时长：3 小时 ｜ 关联认证：PCA-指标（监控节直接复用 PromQL 与自定义 exporter 查询能力）；对照参照 13-middleware/mysql/03
 
 ## 学习目标
 

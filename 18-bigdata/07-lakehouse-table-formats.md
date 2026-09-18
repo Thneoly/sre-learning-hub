@@ -329,9 +329,9 @@ SELECT count(*) AS metadata_cnt FROM lake.db.events.metadata_log_entries; -- met
 | file_cnt / avg_bytes | 小文件程度 | 平均 < 64MB 且文件数周环比上涨 → 触发 `rewrite_data_files` |
 | manifest_cnt | 计划成本 | 超阈值触发 `rewrite_manifests` |
 | metadata_cnt | metadata.json 堆积 | 检查 `write.metadata.delete-after-commit.enabled` 是否生效 |
-| Flink checkpoint 时长 | 湖 commit 是否拖累提交 | 超阈值联动查 catalog 与对象存储（12 模块的 checkpoint 监控直接复用） |
+| Flink checkpoint 时长 | 湖 commit 是否拖累提交 | 超阈值联动查 catalog 与对象存储（14 模块的 checkpoint 监控直接复用） |
 
-巡检结果推 Pushgateway 变成 gauge（标签 `table=...`），接进 08 模块已建的告警体系——难点不在指标，在"没有进程可挂 exporter"这个前提要先想通。
+巡检结果推 Pushgateway 变成 gauge（标签 `table=...`），接进 10 模块已建的告警体系——难点不在指标，在"没有进程可挂 exporter"这个前提要先想通。
 
 ### 6.3 schema 演进兼容规则
 
@@ -365,7 +365,7 @@ SRE 要点：**catalog 是湖表的 NameNode**——挂了写全阻塞，读看�
 
 ## 7. 与 14-data-streaming 的衔接：exactly-once 落到湖写入路径
 
-12 模块的三前提框架（`14-data-streaming/flink/02-deployment-and-exactly-once.md` 第 5 节"端到端 exactly-once：三个前提缺一不可"）：source 可重放 + 状态在 checkpoint + sink 两阶段提交。湖表 sink 的"两阶段"形态：
+14 模块的三前提框架（`14-data-streaming/flink/02-deployment-and-exactly-once.md` 第 5 节"端到端 exactly-once：三个前提缺一不可"）：source 可重放 + 状态在 checkpoint + sink 两阶段提交。湖表 sink 的"两阶段"形态：
 
 ```
 checkpoint N 触发 ──► 写阶段：数据文件已落存储，但未提交（对读者不可见）
@@ -379,7 +379,7 @@ notifyCheckpointComplete(N)
 
 恢复语义与 Doris Stream Load 2PC（05 章第 5 节）同构：checkpoint N 未完成就崩溃 → source 重放 → 重写文件 → 重新提交。幂等键从 Doris 的 label 变成**文件不可变 + 指针原子交换**：重复落盘的 data file 没被任何 snapshot 引用，成为孤儿，由 `remove_orphan_files`（Iceberg）或 Paimon 的过期机制清掉。
 
-两个运维落点：**checkpoint 超时的第一嫌疑人常常是湖 commit**（对象存储慢、catalog 锁竞争），用 12 模块的反压定位法追到本节、再到 6.4 的 catalog；以及**别关 checkpoint**——三个格式的 sink exactly-once 全绑在 checkpoint 上，为省开销关掉或拉到过长，换来的是重复数据。
+两个运维落点：**checkpoint 超时的第一嫌疑人常常是湖 commit**（对象存储慢、catalog 锁竞争），用 14 模块的反压定位法追到本节、再到 6.4 的 catalog；以及**别关 checkpoint**——三个格式的 sink exactly-once 全绑在 checkpoint 上，为省开销关掉或拉到过长，换来的是重复数据。
 
 ## 实战演练
 
@@ -466,7 +466,7 @@ input 假设输入已含完整前像/后像（Debezium/Flink CDC 流），代价
 5. 表格式没有常驻进程，这如何改变监控体系的设计？给出指标采集的三个来源和两条告警。
 <details><summary>答案</summary>
 
-无进程意味着没有现成的 exporter/端口可抓，指标必须来自外部巡检与上下游，且"主动作业"本身就是运维对象。三来源：① 元数据巡检作业（读 `table.snapshots`/`files`/`manifests` 等元数据表，Pushgateway 推 gauge）；② 写路径引擎指标（Flink checkpoint 时长/失败率、反压——12 模块已建的监控面）；③ 存储与 catalog（对象存储 429/503、listing 延迟、HMS/REST catalog 可用性与连接数）。两条告警：snapshot 保留数持续上涨（expire 没跑或写频率突变）；文件平均大小低于阈值且数量周环比上涨（小文件恶化，触发 rewrite_data_files）。
+无进程意味着没有现成的 exporter/端口可抓，指标必须来自外部巡检与上下游，且"主动作业"本身就是运维对象。三来源：① 元数据巡检作业（读 `table.snapshots`/`files`/`manifests` 等元数据表，Pushgateway 推 gauge）；② 写路径引擎指标（Flink checkpoint 时长/失败率、反压——14 模块已建的监控面）；③ 存储与 catalog（对象存储 429/503、listing 延迟、HMS/REST catalog 可用性与连接数）。两条告警：snapshot 保留数持续上涨（expire 没跑或写频率突变）；文件平均大小低于阈值且数量周环比上涨（小文件恶化，触发 rewrite_data_files）。
 </details>
 
 ## 延伸阅读

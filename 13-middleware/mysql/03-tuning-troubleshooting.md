@@ -1,6 +1,6 @@
 # 03 · MySQL 调优与排障手册
 
-> 模块：中间件-MySQL ｜ 建议时长：3 小时 ｜ 关联认证：PCA-指标（本章监控节直接复用 PromQL 能力）；CKA-有状态应用运维
+> 模块：13-middleware/mysql ｜ 建议时长：3 小时 ｜ 关联认证：PCA-指标（本章监控节直接复用 PromQL 能力）；CKA-有状态应用运维
 
 ## 学习目标
 
@@ -9,6 +9,7 @@
 - 能解释：SRE 必调参数清单中每一项的取舍依据（双 1、buffer pool、连接数）
 - 能排查：按手册表处置连接打满、磁盘满、主从延迟三类高频故障
 - 能操作：在 K8s 上用 Operator 跑 MySQL，并用 mysqld_exporter 建立核心指标告警
+- 能解释：分区表解决什么、不解决什么，会用 DROP PARTITION 做秒级归档并辨析与分库分表的边界
 
 ## 1. 慢查询与 EXPLAIN
 
@@ -185,7 +186,7 @@ mysql -e "PURGE BINARY LOGS BEFORE NOW() - INTERVAL 1 DAY;"
 | 症状 | 原因 | 解法 |
 |---|---|---|
 | 延迟平稳增长 | 单线程重放能力 < 主库写入 | `replica_parallel_workers` 提到 8~16；主库 `binlog_transaction_dependency_tracking=WRITESET` |
-| 延迟阶梯跳变 | 大事务（批量 UPDATE/DELETE 千万行） | 拆成每批几千行；监控 `Seconds_Behind_Source` 跳变即对 binlog 时间点 |
+| 延迟阶梯跳变 | 大事务（批量 UPDATE/DELETE 千万行） | 拆成每批几千行；要滚动清理的历史表改分区表 DROP PARTITION（见第 5 节）；监控 `Seconds_Behind_Source` 跳变即对 binlog 时间点 |
 | IO 线程 Yes 但 relay 不长 | 主库 dump 慢或网络窄 | 主库看 Binlog Dump 线程；网络测速；开 binlog 压缩 `binlog_compress` 评估 |
 | SQL 线程 No，Last_SQL_Errno 非 0 | 从库数据不一致/无主键表 | GTID 跳过空事务；无主键表补主键；不一致严重直接重搭 |
 | 延迟只在备份时段 | 备份 IO 抢占（尤其 mysqldump 大查询） | 备份挪专用延迟从库；XtraBackup 替代 mysqldump |
@@ -197,7 +198,73 @@ SHOW REPLICA STATUS\G
 -- Retrieved_Gtid_set 不前进 → 收日志就断了,查网络与主库 dump 线程
 ```
 
-## 5. K8s 上跑 MySQL
+## 5. 分区表：大表的裁剪与归档
+
+索引解决"查得慢"，分区表解决"表大到不好管"：把一张逻辑表按规则切成多个物理分区（file-per-table 下一个分区一个 .ibd 文件），对 SQL 完全透明。SRE 视角它最大的价值是**冷热分层与秒级归档**。
+
+### 建表：PARTITION BY RANGE
+
+时间序列数据（订单、日志）按月 RANGE 是最常见形态：
+
+```sql
+-- [任意节点] RANGE COLUMNS 直接按 DATETIME 列切,不需要把列包进函数
+CREATE TABLE orders_big (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    BIGINT NOT NULL,
+  amount     DECIMAL(10,2),
+  created_at DATETIME NOT NULL,
+  PRIMARY KEY (id, created_at)     -- 铁律:分区键必须被主键/唯一键整个包含
+) ENGINE=InnoDB
+PARTITION BY RANGE COLUMNS (created_at) (
+  PARTITION p202607 VALUES LESS THAN ('2026-08-01'),
+  PARTITION p202608 VALUES LESS THAN ('2026-09-01'),
+  PARTITION p202609 VALUES LESS THAN ('2026-10-01'),
+  PARTITION pmax     VALUES LESS THAN (MAXVALUE)
+);
+```
+
+硬约束（全是报错高发点）：所有唯一键（含主键）必须包含分区键，否则"全局唯一"与"分区定位"矛盾，报错 1503——这是存量表改分区最大的改造量；分区表不能有外键（也不能被引用）；查询尽量带分区键，`WHERE id=10086` 不带 created_at 时点查要把每个分区都探一遍，分区越多越慢。
+
+### 分区裁剪：EXPLAIN 的 partitions 列
+
+优化器拿 WHERE 里的分区键条件与分区定义比对，跳过不可能有数据的分区——相当于索引之前的粗筛：
+
+```sql
+-- [任意节点] 裁剪效果直接看 partitions 列
+EXPLAIN SELECT COUNT(*) FROM orders_big
+WHERE created_at >= '2026-08-01' AND created_at < '2026-09-01'\G
+-- partitions: p202608  ← 只扫一个分区
+-- 对照: WHERE amount > 100 → 四个分区全扫
+-- 裁剪失效: WHERE YEAR(created_at)=2026(分区键上套函数)→ 全扫,改成范围写法
+```
+
+### 归档：DROP PARTITION vs 大批量 DELETE
+
+"删掉三个月前的历史数据"，两种写法的代价差一个数量级：
+
+```sql
+-- [任意节点] 推荐:先归档再 DROP
+CREATE TABLE orders_2026q3 LIKE orders_big;      -- 结构复制(连带分区定义)
+ALTER TABLE orders_2026q3 REMOVE PARTITIONING;   -- 归档表不需要分区
+INSERT INTO orders_2026q3 SELECT * FROM orders_big WHERE created_at < '2026-08-01';
+ALTER TABLE orders_big DROP PARTITION p202607;   -- 秒级:删的是分区文件,不逐行删
+```
+
+`DROP PARTITION` 在 binlog 里是一条语句事件，主从都瞬时完成；而 `DELETE FROM ... WHERE created_at < ...` 要逐行删：undo 暴涨、行锁成串、binlog 记海量 ROW 行事件，从库重放几小时——正是第 4 节"阶梯跳变型主从延迟"的制造机。滚动加月分区配套用 `REORGANIZE PARTITION pmax INTO (新月份, pmax)` 拆空的兜底分区，秒回。
+
+### 分区表 vs 分库分表
+
+| 维度 | 分区表 | 分库分表（ShardingSphere / Mycat / Vitess） |
+|---|---|---|
+| 对应用 | 完全透明,零改造 | 中间件/SDK 路由,跨片查询、跨片事务、全局 ID 全自己解决 |
+| 扩展能力 | 仍受单实例 CPU/内存/磁盘约束 | 近线性水平扩展 |
+| 高可用 | 单实例的主从 | 每片独立副本集,故障域更小 |
+| 跨分区/跨片查询 | 同实例多分区扫描 | 跨实例 scatter-gather 聚合 |
+| 运维复杂度 | 低(一串 DDL 的事) | 高(一片一个世界) |
+
+一句话：**分区表解决"一张表太大"，分库分表解决"一台机器不够"**。单机尚有余量、痛点是历史数据膨胀与归档——分区表；写入吞吐或容量真超单机——分库分表或换专用存储。把分区表当扩容手段是最常见的选型错误：所有分区仍共享同一份 buffer pool、redo 与网络。
+
+## 6. K8s 上跑 MySQL
 
 单机 MySQL 换到 K8s，本质变化是：**本地盘换成了 PV，主从换成了 Operator 管理的 StatefulSet + 自动 failover**。核心组件是本地存储（local PV / OpenEBS）而非网络盘——MySQL 对 fsync 延迟极敏感，普通网络存储可能让"双 1"配置的延迟放大十倍。
 
@@ -248,7 +315,7 @@ spec:
 
 版本字段 `crVersion` 与镜像 tag 以官方发布为准（https://docs.percona.com/percona-operator-for-mysql/pxc/index.html）。运维要点：Pod 反亲和保证三副本不共节点；PodDisruptionBudget 保证滚动维护时 quorum 不丢；PVC 生命周期独立于 Pod，**删 StatefulSet 不删 PVC**——这也是恢复数据和误删数据的同一把双刃剑；副本数保持奇数（Group Replication quorum）。
 
-## 6. mysqld_exporter 必看指标
+## 7. mysqld_exporter 必看指标
 
 ```yaml
 # [任意节点] 部署(容器或裸机均可)

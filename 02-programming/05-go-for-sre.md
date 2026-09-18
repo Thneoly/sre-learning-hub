@@ -1,6 +1,6 @@
 # 05 · Go for SRE：选学进阶，通向 Operator
 
-> 模块：02-programming ｜ 建议时长：6 小时 ｜ 关联认证：—（为 06 模块 CRD/Operator 开发与阅读 k8s 源码铺路）
+> 模块：02-programming ｜ 建议时长：6 小时 ｜ 关联认证：—（为 [07 章 CRD/Operator 开发](./07-operator-development.md)与阅读 k8s 源码铺路）
 
 ## 学习目标
 
@@ -528,7 +528,7 @@ func main() {
 }
 ```
 
-运行后在另一个终端 `kubectl delete pod -n kube-system <某个deployment的pod>`，本程序会打出 ADD（重建）与 DELETE 事件。这就是 controller 的骨架：**watch 期望状态变化 → 对比实际 → 调谐（reconcile）**。06 模块的 CRD/Operator 开发（controller-runtime、kubebuilder）把这套骨架封装成了 `Reconcile(ctx, req)` 一个函数——本章的 Informer 认知正是读懂它的前置条件。
+运行后在另一个终端 `kubectl delete pod -n kube-system <某个deployment的pod>`，本程序会打出 ADD（重建）与 DELETE 事件。这就是 controller 的骨架：**watch 期望状态变化 → 对比实际 → 调谐（reconcile）**。[07 章的 CRD/Operator 开发](./07-operator-development.md)（controller-runtime、kubebuilder）把这套骨架封装成了 `Reconcile(ctx, req)` 一个函数——本章的 Informer 认知正是读懂它的前置条件。
 
 ---
 

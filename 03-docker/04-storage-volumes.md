@@ -10,6 +10,7 @@
 - 能操作 named volume 的创建、共享、备份与清理，并用 `docker inspect`、`mount`、`findmnt` 验证挂载关系
 - 能解释 volume 的 copy-on-first-use 与 bind mount 的遮盖（masking）行为差异，说出 rprivate/rshared/rslave 各自的适用场景
 - 能排查"容器删了数据还在 / 数据莫名丢失 / 挂载后容器内目录变空"三类故障
+- 能操作 `--log-opt` 与 daemon.json 的 `log-opts` 落实容器日志轮转，并处置 /var/lib/docker/containers 日志打爆磁盘的故障
 
 ## 1. 为什么需要挂载：可写层的三个问题
 
@@ -253,6 +254,64 @@ sudo umount /srv/prop-demo/from-host
 sudo umount /srv/prop-demo
 ```
 
+## 7. 容器日志体系：json-file、轮转与磁盘兜底
+
+前 6 节的数据是应用主动写进 volume 的；还有一类"存储"由平台替应用保管——日志。容器的 stdout/stderr 被 containerd-shim 接管后，交给 dockerd 的 **logging driver** 处理。默认驱动 `json-file` 把每一行包装成 `{"log":"...\n","stream":"stdout","time":"..."}` 追加写到宿主机：
+
+```
+容器进程 stdout/stderr
+   │  containerd-shim 持有容器标准流的 fd
+   ▼
+dockerd logging driver（--log-driver，默认 json-file）
+   │  逐行包装为 JSON 追加
+   ▼
+/var/lib/docker/containers/<长ID>/<长ID>-json.log       ← 当前文件
+                          ├── ...-json.log.1 / .2 ...   ← 轮转出的旧文件（max-file 控制）
+
+docker logs 就是对这组文件的回放（--tail / --since / --follow 都在读这里）
+```
+
+两条推论：其一，`docker logs` 只在本地驱动（json-file / journald / local）下可用，配成 `syslog`、`fluentd` 等远程驱动后它会直接报错——日志去了别处。其二，应用把日志写进容器内文件而不写 stdout，`docker logs` 就是空的，采集链路也抓不到——输出到标准流是第一原则（K8s 侧同样的教训，见 [12-logging/01-logging-concepts.md](../12-logging/01-logging-concepts.md)）。
+
+轮转：单容器用 `--log-opt`。注意默认值——不配 `max-size` 时**从不轮转**，单个文件无限增长，这是"磁盘被日志打爆"事故的几乎全部根源：
+
+```bash
+# [任意节点]
+docker run -d --name log-demo \
+  --log-opt max-size=10m --log-opt max-file=3 \
+  alpine sh -c 'while :; do echo "$(date -Is) tick"; sleep 0.01; done'
+sudo ls -lh /var/lib/docker/containers/$(docker inspect -f '{{.Id}}' log-demo)/
+# 预期：*-json.log 始终 ≤10m，写满后被 rename 成 .1/.2，最多保留 3 份，总量封顶 ≈30m
+docker rm -f log-demo
+```
+
+全局默认写进 daemon.json 的 `log-opts`——但只对**之后新建**的容器生效（日志配置在容器创建时定格，`restart` 不会重新套用，要 `rm` 后重新 `run`）：
+
+```bash
+# [任意节点] 文件：/etc/docker/daemon.json
+sudo tee /etc/docker/daemon.json <<'EOF'
+{
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "10m", "max-file": "3" }
+}
+EOF
+sudo systemctl restart docker
+```
+
+磁盘已经被打爆时的处置顺序：
+
+```bash
+# [任意节点] 1) 定位元凶
+sudo du -sh /var/lib/docker/containers/*/*-json.log | sort -rh | head
+# 2) 截断释放（dockerd 持有文件 fd，truncate 立即生效）
+sudo truncate -s 0 /var/lib/docker/containers/<长ID>/<长ID>-json.log
+# 3) 治本：配好 daemon.json 的 log-opts，重建容器
+```
+
+红线：**不要 `rm` 日志文件**——dockerd 的 fd 还开着，空间并不释放（要等重启 docker），且后续写入会让日志错乱；`truncate -s 0` 才是标准姿势。`docker system prune` 清容器/卷/镜像，但不清活着容器的日志。磁盘长期紧张的还可以换 `--log-driver local`：二进制格式 + 压缩，同样用 max-size/max-file 轮转，`docker logs` 照常可读。
+
+到了 Kubernetes，这一整层移交给 CRI 运行时与 kubelet：日志落在 `/var/log/pods/`，轮转由 KubeletConfiguration 的 `containerLogMaxSize`（默认 10Mi）× `containerLogMaxFiles`（默认 5）控制，行格式也换成了 CRI 格式——见 [04-k8s-fundamentals/14-observability.md](../04-k8s-fundamentals/14-observability.md) 与 [12-logging/04-k8s-logging.md](../12-logging/04-k8s-logging.md)；采集与中心化（Fluent Bit / Loki / ELK）在 [12-logging](../12-logging/01-logging-concepts.md) 模块展开。
+
 ## 实战演练：一次把三种挂载全部跑通
 
 目标：起一个 nginx，同时使用三种挂载，逐项验证位置与生命周期。
@@ -352,6 +411,7 @@ spec:
 | 数据库放可写层，`docker rm` 后数据全丢 | 可写层生命周期 = 容器生命周期 | 数据永远放 named volume |
 | 非 root 容器写 volume 报 Permission denied | volume 初次复制/挂载内容属主是 root | 入口脚本 chown，或建卷时预设属主（见第 06 章） |
 | 宿主机新挂的盘在容器里看不到 | 默认 rprivate 不传播挂载事件 | 需要传播时显式 `bind-propagation=rslave/rshared` |
+| 节点磁盘稳步涨满，`docker system prune` 压不下去 | json-file 驱动默认不轮转，单个 `-json.log` 无限增长 | `truncate -s 0` 应急释放；daemon.json 配 max-size/max-file 后重建容器（§7） |
 
 ## 自测
 
@@ -403,6 +463,9 @@ rprivate 保证容器内的 mount/unmount 事件被限制在容器的 mount name
 - tmpfs 挂载：https://docs.docker.com/engine/storage/tmpfs/
 - K8s 卷与 mount propagation 矩阵：https://kubernetes.io/docs/concepts/storage/volumes/#mount-propagation
 - 内核共享子树（shared subtrees）文档：https://docs.kernel.org/filesystems/sharedsubtree.html
+- Docker 日志配置与驱动总览：https://docs.docker.com/engine/logging/configure/
+- json-file 驱动与 log-opts：https://docs.docker.com/engine/logging/drivers/json-file/
+- local 驱动（压缩轮转）：https://docs.docker.com/engine/logging/drivers/local/
 
 ---
 

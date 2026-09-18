@@ -208,6 +208,45 @@ systemctl show demo-svc -p MemoryMax -p LimitNOFILE
 
 timer 的写法（systemd 替代 cron 的形态）记个套路即可：`demo-report.timer` 用 `OnCalendar=*-*-* 03:30:00` 触发同名 `demo-report.service`（Type=oneshot），`Persistent=true` 允许补跑错过的周期，`systemctl list-timers` 查看下次触发时间。它的优势：输出进 journal、可补跑、防重叠。
 
+### 2.5 时间同步：chrony
+
+timer 依赖墙钟，而墙钟本身会漂——虚机尤其（宿主调度抖动，一天漂出几秒很常见）。对这台 kubeadm 节点，时间不是装饰而是地基：`journalctl --since` 跨节点对表、TLS 证书的 NotBefore/NotAfter 校验、kubelet 客户端证书的续期判断、etcd 的租约到期与选举超时，全部踩在时钟上。Ubuntu Server 默认装的 chrony 比 ntpd 更适合虚机：启动初期允许快速对表，间歇联网也能追回来。
+
+```bash
+# [任意节点]
+timedatectl                                  # 时区/UTC/NTP 同步状态一行看全
+timedatectl set-timezone Asia/Shanghai       # 时区只改显示，不改时钟本身(内部仍是 UTC)
+timedatectl set-ntp true                     # 把时间交给 NTP 服务接管(即 chronyd)
+chronyc sources -v                           # 上游源清单: 看左列符号
+chronyc tracking                             # 本机与选中源的偏差、频率、层级
+```
+
+`chronyc sources` 左列符号判读：
+
+| 符号 | 含义 |
+|---|---|
+| `^*` | 当前选中并已同步的源（要至少有一个，否则没对上表） |
+| `^+` | 通过筛选的备选源 |
+| `^-` | 被合并算法淘汰的候选 |
+| `^?` | 不可达/无响应——全是它就是 NTP 断了 |
+
+**步跳（step）与斜率校正（slew）是 chrony 的核心设计**：发现偏差后默认不直接改表，而是微调时钟频率慢慢追平（slew），避免时间倒跳打坏依赖时间顺序的东西——TLS 证书校验、数据库事务序、应用自己的定时器。只有偏差大到追不动时才允许步跳，阈值由 `makestep` 控制（`1.0 3` = 前 3 次测量中偏差超 1 秒才 step）。`chronyc tracking` 的 `System time : 0.000xxx seconds fast of NTP time` 就是正在追的进度。
+
+```ini
+# [任意节点] 文件: /etc/chrony/chrony.conf（默认已带 ntp.ubuntu.com 池，追加/调整后 restart）
+pool ntp.ubuntu.com iburst maxsources 4      # 内网可换成自建源: server 172.30.30.1 iburst
+makestep 1.0 3                               # 仅前 3 次测量中偏差超 1 秒才允许步跳
+rtcsync                                      # 定期把系统时钟同步回硬件 RTC
+```
+
+K8s 为什么特别在意：节点时钟比 CA 快了几小时，一张还没到生效时间的证书会被判 `x509: certificate has expired or is not yet valid`，kubelet 直接起不来；比真实时间慢则合法证书被判"已过期"。etcd 的 lease 到期判断拿墙钟做算术，时钟跳变会让租约提前或迟迟不过期，节点间偏差过大还会放大 apiserver 到 etcd 的超时误判——所以 etcd 官方运维要求明确列了各成员要有可靠时钟源。排障口诀：**先 `timedatectl` 看同步亮没亮，再 `chronyc sources` 看上游通不通，最后 `chronyc tracking` 看差多少**。
+
+```bash
+# [任意节点] 节点间对照，偏差超 ~0.5s 就值得追
+chronyc tracking | grep -E 'System time|Last offset|Leap'
+chronyc sourcestats | head -5                # 各源的频偏/抖动估计
+```
+
 ## 3. journalctl 三板斧
 
 journald 是 systemd 自带的结构化日志守护进程：二进制存储、按字段索引。三板斧覆盖 90% 的查日志场景。

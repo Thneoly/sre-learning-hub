@@ -110,7 +110,7 @@ K8s 的现实：kubectl get 大部分根本不到 etcd——
 | etcd/ZK | 未提交/未同步日志 | follower 落后，applied index 差距 | Raft nextIndex 回退补发 / ZK 快照+diff | 落后超日志保留 → 走 InstallSnapshot/全量 |
 | MySQL | binlog 位点断裂 | 主从延迟增长、1062/1032 报错 | IO/SQL 线程重放 | 单线程重放慢（平稳型延迟）要并行复制；位点断只能 GTID 跳过或重搭（[13-middleware/mysql/03 章](../13-middleware/mysql/03-tuning-troubleshooting.md)） |
 | Redis | repl backlog 被冲掉 | 闪断一次就全量同步（sync_full 涨） | 部分重同步，backlog 不够则全量 | backlog 按"断线时长×写流量"调（[redis 02 章 §5.2](../13-middleware/redis/02-persistence-and-ha.md)） |
-| Kafka | ISR 掉队 / under-replicated | 副本追不上 leader，ISR 收缩 | follower 拉取追赶 | 追不上持续存在 → 看 `replica.lag.time.max.ms` 与磁盘/网络（[12-kafka/03 章](../14-data-streaming/kafka/03-operations-and-performance.md)） |
+| Kafka | ISR 掉队 / under-replicated | 副本追不上 leader，ISR 收缩 | follower 拉取追赶 | 追不上持续存在 → 看 `replica.lag.time.max.ms` 与磁盘/网络（[14-kafka/03 章](../14-data-streaming/kafka/03-operations-and-performance.md)） |
 
 - **现象指纹**：复制延迟指标单调增长；断连后"全量同步风暴"（带宽打满又拖慢别人）；SQL 线程报错停摆。
 - **先查**：位点差（RAFT INDEX / Seconds_Behind_Source / LEO 差）；断线时长 vs backlog/保留窗口；是"追不上"（资源瓶颈）还是"接不上"（空洞超出保留）。
@@ -126,7 +126,7 @@ K8s 的现实：kubectl get 大部分根本不到 etcd——
 
 ### 3.5 再平衡风暴
 
-再平衡本身是维护动作，做成故障靠"叠加"：迁移流量撞业务高峰、消费组 rebalance 叠加滚动发布、一批慢消费者触发连环 rebalance（代价与触发条件见 [12-kafka/01 章 §6](../14-data-streaming/kafka/01-log-model-and-architecture.md)）。
+再平衡本身是维护动作，做成故障靠"叠加"：迁移流量撞业务高峰、消费组 rebalance 叠加滚动发布、一批慢消费者触发连环 rebalance（代价与触发条件见 [14-kafka/01 章 §6](../14-data-streaming/kafka/01-log-model-and-architecture.md)）。
 
 - **现象指纹**：周期性/发布后的整组停顿；`Rebalance`、`Attempt to heartbeat failed`、`IllegalGeneration` 日志刷屏；MIGRATE 期间源节点延迟尖刺；迁槽迁到一半整层拒写（有槽无归属）。
 - **先查**：rebalance 的触发源（心跳超时 vs `max.poll.interval` 超时，两者处理方向相反）；迁移进度与限速；是否与其他变更窗口重叠。
@@ -237,7 +237,7 @@ curl -s --cacert /etc/kubernetes/pki/etcd/ca.crt \
 | 读到旧值就报"P0 数据故障" | 一致性级别/读的副本在合同内允许旧 | 先查 consistency/readConcern/是否读从库（[02 章 §5](./02-consistency-models.md)） |
 | 主从延迟一律归咎"网络" | 多数是单线程重放慢（平稳型）或大事务（阶梯型） | 按斜率分型再处置（[13-middleware/mysql/03 章](../13-middleware/mysql/03-tuning-troubleshooting.md)） |
 | 断连后 replica 全量同步反复发生 | backlog 覆盖不了断线窗口 | 按"断线时长×写流量"调 repl-backlog-size（[redis 02 章常见坑](../13-middleware/redis/02-persistence-and-ha.md)） |
-| rebalance 风暴时调大心跳超时就收工 | 触发源可能相反（max.poll 超时 vs 心跳） | 先读日志关键词再选方向（[12-kafka/03 章三大排障表](../14-data-streaming/kafka/03-operations-and-performance.md)） |
+| rebalance 风暴时调大心跳超时就收工 | 触发源可能相反（max.poll 超时 vs 心跳） | 先读日志关键词再选方向（[14-kafka/03 章三大排障表](../14-data-streaming/kafka/03-operations-and-performance.md)） |
 | 双主事故后只修了锁超时 | 根因是下游没有 fencing，超时调多少都留窗口 | 下游令牌校验（第 06 章 §4.4），超时只是缓解 |
 | 滚动维护一次停两台共识成员 | "过半"按成员总数算，不是按"平时"算 | 一次一台、确认同步再下一台（第 06 章 §5） |
 
@@ -264,7 +264,7 @@ health 的实现是发起并提交一次提案（输出原文就是 "successfull
 4. 凌晨滚动发布后，Kafka 消费组每几分钟 rebalance 一次，白天恢复正常。归到哪一类？给出排查顺序。
 <details><summary>答案</summary>
 
-再平衡风暴（发布叠加触发）。顺序：① 日志先分型——`Attempt to heartbeat failed` 还是 `max.poll.interval` 相关（前者会话/网络问题，后者单批处理太慢被踢，处理方向相反）；② 对齐时间线——rebalance 时刻是否与 Pod 重启/发布批次吻合（group.instance.id 缺失时每次发布都触发全组重分配）；③ 查是否叠加了迁移/扩容（第 05 章 §4 的干扰账）；④ 根治：cooperative-sticky 策略 + 放宽超时 + 发布与迁移错峰（[12-kafka/03 章三大排障表](../14-data-streaming/kafka/03-operations-and-performance.md)）。
+再平衡风暴（发布叠加触发）。顺序：① 日志先分型——`Attempt to heartbeat failed` 还是 `max.poll.interval` 相关（前者会话/网络问题，后者单批处理太慢被踢，处理方向相反）；② 对齐时间线——rebalance 时刻是否与 Pod 重启/发布批次吻合（group.instance.id 缺失时每次发布都触发全组重分配）；③ 查是否叠加了迁移/扩容（第 05 章 §4 的干扰账）；④ 根治：cooperative-sticky 策略 + 放宽超时 + 发布与迁移错峰（[14-kafka/03 章三大排障表](../14-data-streaming/kafka/03-operations-and-performance.md)）。
 </details>
 
 5. 一个 5 节点共识集群挂了 3 台。数据丢了多少？现在还能做什么、绝不能做什么？

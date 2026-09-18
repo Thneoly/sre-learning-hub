@@ -6,9 +6,9 @@
 
 - 能解释 CRDT 买到的东西：副本各自接受写、任意顺序合并都收敛——把 02 章"最终一致"里最贵的冲突裁决环节变成数学保证
 - 能用"只增不减 + 可交换合并"两个性质判断一类数据能不能做成 CRDT，并说出删除为什么必须靠墓碑
-- 能写出 G-Counter / PN-Counter / G-Set / LWW-Register 的合并规则，各配一个日常类比
+- 能写出 G-Counter / PN-Counter / G-Set / OR-Set / MV-register / LWW-Register 的合并规则，各配一个日常类比
 - 能讲清 Redis CRDB 多活与 Redis 主从复制在分区期间的行为差异，以及 Cassandra LWW 在时钟漂移下静默丢写的原因与对策
-- 能用一句话回答"CRDT vs 共识"的选型题，并说出 CRDT 给不了的三样东西
+- 能用一句话回答"CRDT vs 共识"的选型题，说出 CRDT 给不了的三样东西，并区分状态型与操作型两条实现路线各自的传输前提
 
 ## 1. 为什么需要 CRDT：把"冲突裁决"变成"自动合并"
 
@@ -70,16 +70,32 @@ merge 操作满足交换律（`a ⊔ b = b ⊔ a`）、结合律（分组无关�
 
 判断口诀：**这份数据能不能表达成"只累积、不回退"，合并能不能写成取 max/并集/相加这类交换运算**——能，就是 CRDT 候选；要"覆盖旧值""扣减""按业务规则取舍"，就得另想办法（共识或应用层裁决）。
 
-## 3. 四类基础 CRDT 速览
+### 传状态还是传操作：状态型（CvRDT）与操作型（CmRDT）
+
+半格回答的是"合并为什么收敛"，还有一维正交的实现选择：**副本之间传什么**。
+
+| | 状态型（CvRDT，收敛型） | 操作型（CmRDT，通信型） |
+|---|---|---|
+| 传播单位 | 完整状态（或增量 delta），收到就 merge | 操作本身（"add x""incr 3"） |
+| 对传输层的要求 | **零要求**：可丢、可重、可乱序——幂等律+交换律全部吸收，gossip/反熵就能当载体（06 章的传播模型正好是现成的传输层） | **可靠因果广播**：操作必须按因果序、不重不漏地到达（至少 at-least-once + 操作本身幂等）；丢一条就永久少一次 effect，收敛保证直接失效 |
+| 代价 | 状态体积随历史单调增长（墓碑不可回退，4.4 节的账单）；缓解手段是 delta-CRDT——只传增量，仍按状态语义合并 | 带宽最省、延迟最低，但传输层的正确性要自己背（第 04 章 at-least-once + 幂等的地盘） |
+
+一句面试答法：**状态型把复杂度记在状态体积的账上，操作型把复杂度记在传输层的账上**。"为什么操作型省状态却要求可靠广播"——因为操作是增量信息，丢了乱了就没有还原依据；状态是全量信息，重复与乱序都被 merge 吸收。工业落位：Cassandra 的对账修复走状态思路；Redis CRDB 相互同步的是"CRDT 语义操作"（4.2 节，偏操作型）；Yjs 两条路都支持（网络好时传操作、恢复时对状态，以官方文档为准）。
+
+## 3. 六类基础 CRDT 速览
 
 | 类型 | 状态长什么样 | 合并规则 | 日常类比 | 运维注意 |
 |---|---|---|---|---|
 | G-Counter（只增计数器） | 每副本一格：`R1=5, R2=3` | 逐格取 max，值=求和 | 景点多入口客流统计：每个入口一本计数册，总数=各册相加，对账时"谁的多听谁的" | 无损，永不丢计数；副本数多时状态向量变大 |
 | PN-Counter（正负计数器） | 两个 G-Counter：P（加账）与 N（减账） | 分别合并，值 = P − N | 银行存/取两个台账：存款记 P 册，取款记 N 册，余额=相减 | "减法"其实是往 N 册加——单调性没破坏，代价是两倍空间 |
 | G-Set（只增集合） | 元素只加不删 | 并集 | 宾客签名簿：签过的名字永远在，合并=两本簿子拼起来 | 想删元素 → 用带墓碑的变体（OR-Set），元数据立刻上来 |
+| OR-Set（观察删除集合） | 元素 → 每次添加一个唯一 tag；删除 = 把**当时观察到**的 tag 埋进墓碑 | 添加集与墓碑集分别取并集；元素可见 ⟺ 存在未被埋掉的 tag | 会议室白板名单：谁都能再写上名字，"擦掉"只是盖便签，且只盖得住当时看见的笔迹 | add-wins：并发的删除盖不住并发的添加——"复活"是语义不是 bug（判例见下，实战演练二现场） |
+| MV-register（多值寄存器） | 并发版本全保留（siblings 列表），向量钟标注两两关系 | 可比的留新，不可比的全保留；读出多值，应用层裁决后写回 | 值日表两份手抄版对不上：先把两版都钉墙上，让班长圈一个 | Dynamo 的 siblings 读路径——01 章 §3.3 用向量钟**检测**并发之后的另一半：检测不等于裁决，裁决在这里交还应用 |
 | LWW-Register（最后写入者胜寄存器） | `(时间戳, 节点ID, 值)` | 时间戳大者胜，同戳比节点 ID 断胜负 | 值日排班表贴在墙上：谁最后改的听谁的 | **有损合并**：并发写只留一个；时间戳依赖时钟——第 4.3 节的坑全在这 |
 
-这张表要带着一句话读：**前三个是无损合并（谁的更新都保留），LWW 是有损裁决（自动但会丢写）**。"用了 CRDT 就不丢数据"是面试常见口误——LWW 也是 CRDT，它丢的是时间戳小的那次写。
+这张表要带着一句话读：**除 LWW 外五类都是无损合并（谁的更新都保留，或并发版本全留待裁决），LWW 是唯一有损裁决（自动但会丢写）**。"用了 CRDT 就不丢数据"是面试常见口误——LWW 也是 CRDT，它丢的是时间戳小的那次写；MV-register 不丢，但把裁决成本转嫁给了读方。
+
+**OR-Set 复活判例**（常见坑表"删除后再加同元素"的机理版）：副本 R2 执行删除时，只能埋掉它**当时观察到**的 tag；若 R1 在分区另一侧又对同一元素做了一次添加（新 tag），这次添加不在 R2 的观察范围内，埋不到——合并后元素带着新 tag 回到集合。从执行过删除的用户视角看"我删的东西复活了"；从语义看这是 add-wins 的正确行为——反过来做 remove-wins（2P-Set）会更糟：删过的元素永远加不回来。工程对策就是常见坑那行：**元素用唯一 ID，让"复活的"是可区分的新成员，而不是业务值本身**。动手现场见实战演练二。
 
 ## 4. 工程化身三处
 
@@ -94,7 +110,7 @@ merge 操作满足交换律（`a ⊔ b = b ⊔ a`）、结合律（分组无关�
 
 ### 4.2 Redis Enterprise CRDB：Active-Active 地理多活
 
-开源 Redis 的高可用答案在 11-redis/02 章：主从异步复制 + 哨兵多数派切主。它解决"一个地域挂了另一个顶上"，但**任一时刻只有一个主**——跨地域写延迟（每个写都要飞到主库所在洲）与切换丢写窗口是结构性代价。
+开源 Redis 的高可用答案在 13-middleware 的 redis 02 章：主从异步复制 + 哨兵多数派切主。它解决"一个地域挂了另一个顶上"，但**任一时刻只有一个主**——跨地域写延迟（每个写都要飞到主库所在洲）与切换丢写窗口是结构性代价。
 
 Redis Enterprise 的 CRDB（Conflict-free Replicated Database，Active-Active 数据库）换思路：**每个地域一个独立可写的 Redis 实例，相互间异步双向同步**，同步的不是"主从字节流"而是 CRDT 语义操作，按数据类型自动合并（官方文档为准）：
 
@@ -108,7 +124,7 @@ Redis Enterprise 的 CRDB（Conflict-free Replicated Database，Active-Active �
 
 ### 4.3 Cassandra/Dynamo 的 LWW：时钟漂移陷阱
 
-无主架构（Dynamo/Cassandra，一致性哈希 + NWR，`./05-sharding-and-rebalancing.md` §2）天然多主多写，那冲突怎么裁？两家走了不同的路：
+无主架构（Dynamo/Cassandra：一致性哈希的环模型在 `./05-sharding-and-rebalancing.md` §2，NWR 的可调一致性数学在 `./03-consensus-and-replication.md` §2）天然多主多写，那冲突怎么裁？两家走了不同的路：
 
 - **原始 Dynamo 论文**：向量钟**检测**并发版本，并发版本全部交给应用层合并（购物车合并是论文里的原例）。工程太重，后继实现大多简化。
 - **Cassandra**：干脆 LWW——同一个 key 的并发写，**写时间戳（timestamp）大的赢**，输的一方静默丢弃，连"发生过冲突"都不告诉你。删除也一样：delete 是写一个墓碑（tombstone），墓碑比数据新就遮住它，等 `gc_grace_seconds`（默认 10 天）过后才真正清除。
@@ -145,7 +161,9 @@ LWW 的坑精确对应 01 章的时钟模型：**写时间戳通常由客户端�
 
 ## 实战演练
 
-一个纯离线脚本，把"交换律""时钟漂移丢写"亲手算一遍。不需要集群。
+三个演练，全部只需要 `python3`，不需要集群：演练一用离线脚本把"交换律""时钟漂移丢写"亲手算一遍；演练二复现 OR-Set 的复活判例；演练三起两个进程，**亲眼看到分区期间的分歧与愈合后的收敛**。
+
+**演练一：离线半格——交换律、PN 账本与 LWW 丢写**
 
 ```bash
 # [任意节点] 写出演示脚本并运行（本地 Windows 可存成 crdt_demo.py 用 python -X utf8 运行）
@@ -201,6 +219,124 @@ LWW 合并结果: 库存=10 ← B 真实上写得【更晚】，但钟慢 → �
 
 验证方法：把合并顺序一改成 `r3.merge(r2).merge(r1)` 再跑，结果不变（交换律）；把 w_b 的时间戳改成 1100 再跑，LWW 结果翻转为"库存=9"（时间戳成为唯一裁判）——对照第 4.3 节，这就是 Cassandra/CRDB String 字段每天在做的事，而你的 NTP 质量决定它做得多对。
 
+**演练二：OR-Set 复活现场——删除盖不住并发的再添加**
+
+把第 3 节的复活判例跑出来：删除只埋"观察到的" tag，分区对面的并发再添加带着新 tag 存活，合并后元素复活。
+
+```bash
+# [任意节点] OR-Set 演示（本地 Windows 可存成 orset_demo.py 用 python -X utf8 运行）
+cat > /tmp/orset_demo.py <<'EOF'
+class ORSet:
+    def __init__(self):
+        self.adds = {}   # 元素 -> {tag, ...}：历次添加
+        self.rems = {}   # 元素 -> {tag, ...}：删除时"观察到"的 tag（墓碑）
+    def add(self, e, tag):
+        self.adds.setdefault(e, set()).add(tag)
+    def remove(self, e):
+        # 只埋"当前观察到"的 tag —— 并发添加产生的新 tag 埋不到
+        self.rems.setdefault(e, set()).update(self.adds.get(e, set()))
+    def value(self):
+        return {e for e, tags in self.adds.items() if tags - self.rems.get(e, set())}
+    def merge(self, o):
+        out = ORSet()
+        for d in (self, o):
+            for e, tags in d.adds.items(): out.adds.setdefault(e, set()).update(tags)
+            for e, tags in d.rems.items():  out.rems.setdefault(e, set()).update(tags)
+        return out
+
+# --- 场景：分区期间一边删、另一边对同一元素再添加 —— 合并后"复活" ---
+r1 = ORSet(); r1.add("sku:1001", "t1")
+r2 = ORSet().merge(r1)                      # 初始同步：两副本同一状态
+r2.remove("sku:1001")                       # 分区期间：R2 侧下架（只埋观察到的 t1）
+r1.add("sku:1001", "t2")                    # 分区期间：R1 侧又上架一次（新 tag）
+print("分区期间 R1 视图:", sorted(r1.value()))
+print("分区期间 R2 视图:", sorted(r2.value()))
+m = r1.merge(r2)
+print("愈合合并后:", sorted(m.value()), "← R2 明明删过，sku:1001 带着新 tag 复活（add-wins）")
+print("  添加记录:", sorted(m.adds["sku:1001"]), " 墓碑:", sorted(m.rems["sku:1001"]))
+
+# --- 对照：分区另一侧添加的是别的元素 —— 删除正常生效 ---
+b1 = ORSet(); b1.add("sku:1001", "t1")
+b2 = ORSet().merge(b1)
+b2.remove("sku:1001"); b1.add("sku:2002", "t3")
+print("对照（再添加的是别的元素）:", sorted(b1.merge(b2).value()), "← sku:1001 的删除正常生效")
+EOF
+python3 /tmp/orset_demo.py
+```
+
+预期输出：
+
+```
+分区期间 R1 视图: ['sku:1001']
+分区期间 R2 视图: []
+愈合合并后: ['sku:1001'] ← R2 明明删过，sku:1001 带着新 tag 复活（add-wins）
+  添加记录: ['t1', 't2'] 墓碑: ['t1']
+对照（再添加的是别的元素）: ['sku:2002'] ← sku:1001 的删除正常生效
+```
+
+验证方法：墓碑里只有 `t1`——删除动作埋不到它没见过的 `t2`，这就是"观察删除"四个字的全部含义；把 `r2.remove` 挪到 `r1.add` **之后**（先删后加、且 R2 观察到了 t2）再跑，复活消失、集合为空——复活的充分条件是"删除与再添加并发"。再对照常见坑那行对策：把元素从 `"sku:1001"` 换成带唯一 ID 的 `"sku:1001#txn42"`，复活的就是可区分的新成员，业务语义立刻理顺。
+
+**演练三：双终端看分区与愈合——G-Counter 的收敛现场**
+
+前两个演练是"演给别人看"，这个是**观测**：两个进程各自持续计数，用一个标志文件模拟分区，拿掉标志看它们多久重新一致——"最终一致的最终是多久"（02 章 4.2 节）在这里是可以掐表的。
+
+```bash
+# [任意节点] 写出副本脚本：每 2 秒本地 +1；无分区标志时读对方状态做 merge
+cat > /tmp/crdt_partition.py <<'EOF'
+import json, os, sys, time
+
+node = sys.argv[1]                        # 用法: python3 crdt_partition.py R1|R2
+base = "/tmp/crdt-lab"
+os.makedirs(base, exist_ok=True)
+state = {}                                # G-Counter: {副本名: 计数}，每副本只写自己那格
+def mine():   return f"{base}/{node}.json"
+def theirs(): return f"{base}/{'R2' if node == 'R1' else 'R1'}.json"
+
+for rnd in range(1, 200):
+    state[node] = state.get(node, 0) + 1            # 本地持续写（分区期间也不停）
+    if not os.path.exists(f"{base}/partition"):      # 无分区标志 → 反熵：读对方状态合并
+        try:
+            with open(theirs()) as f: peer = json.load(f)
+            for k, v in peer.items():
+                state[k] = max(state.get(k, 0), v)   # 逐格取 max：只增不减 + 可交换
+        except (OSError, ValueError):
+            pass                                    # 对方还没写/读到半个文件 → 下轮再试
+    with open(mine(), "w") as f: json.dump(state, f)
+    print(f"[{node}] 轮次 {rnd:3d} 视图 {state} 总数 {sum(state.values())}", flush=True)
+    time.sleep(2)
+EOF
+```
+
+```bash
+# [任意节点] 终端 A 与终端 B 分别启动两个副本（本地 Windows 存成 crdt_partition.py，
+# 两个 PowerShell 窗口分别运行 python -X utf8 crdt_partition.py R1 / R2，脚本的 base 改成同一本地目录）
+python3 /tmp/crdt_partition.py R1        # 终端 A
+python3 /tmp/crdt_partition.py R2        # 终端 B
+# 观察：两边视图很快一致（相差不超过一轮的读取时差），总数同步增长——反熵每轮都在合并
+
+# [任意节点] 制造"分区"：放一个标志文件，双方停止互读（但各自继续本地写）
+touch /tmp/crdt-lab/partition
+# 观察：R1 的视图里 R2 那一格冻结不动、R2 的视图里 R1 那一格冻结不动，
+#       总数各走各的——分歧可见，且两边谁也不报错
+
+# [任意节点] 愈合：删掉标志文件
+rm /tmp/crdt-lab/partition
+# 观察：1~2 轮（2~4 秒）内两边视图重新相等——"最终"的实测长度，就是反熵周期
+
+# [任意节点] 收尾：两个终端 Ctrl+C，清理
+rm -rf /tmp/crdt-lab /tmp/crdt_partition.py /tmp/orset_demo.py /tmp/crdt_demo.py
+```
+
+预期输出形如（两个终端各一份，时间上交错）：
+
+```
+[R1] 轮次   4 视图 {'R1': 4, 'R2': 3} 总数 7     ← 正常期：视图互相追赶
+[R1] 轮次   8 视图 {'R1': 8, 'R2': 4} 总数 12    ← 分区期：R2 那格冻在 4
+[R1] 轮次  10 视图 {'R1': 10, 'R2': 9} 总数 19   ← 愈合后：R2 那格从 4 跳到 9，追平
+```
+
+验证方法：分区期间记录两边总数差（这就是 02 章 4.2 节说的"收敛距离"），愈合后掐表看几轮归零；再做两个变体实验——① 把脚本里 `max(state.get(k, 0), v)` 改成 `state[k] = v`（用对方状态**直接覆盖**）：因为两边各自只写自己那格，覆盖与取 max 在这里仍等价、照样收敛；② 真正的对照是把本地自增也改成读写**同一个 key**（两副本共写一格，各跑 12 轮、真实应计 24）：取 max 两边收敛到同一个数，但只数到 12——并发的自增互相遮蔽；直接覆盖更惨，各自刚 +1 就被对方的值抹回去，视图停在原地不动，24 次自增几乎全部蒸发。对照结论：**"每副本只写自己那格"不是实现细节，是 G-Counter 正确性的一半**（另一半才是取 max 的合并律）。
+
 ## 常见坑
 
 | 症状 | 原因 | 解法 |
@@ -212,6 +348,7 @@ LWW 合并结果: 库存=10 ← B 真实上写得【更晚】，但钟慢 → �
 | 写完从另一副本立刻读不到，判定集群故障 | CRDT 是异步收敛，没有跨副本读己之写 | 写后读钉在同一副本，或该数据改走共识存储（第 5 节对照表） |
 | 协同文档内容收敛了，落库还是冲突 | CRDT 只保证它管辖的数据结构收敛，关系库不在此列 | 落库走单写者/队列串行化，两层分开设计 |
 | 拿 CRDT 系统做分布式锁/选主 | 可交换合并给不了唯一性与互斥 | 锁/选主走共识（etcd/ZK；租约与 fencing token 见 `./06-gossip-membership-fencing.md` §4，动手实验 `./labs/02-distributed-lock-idempotency/task.md`） |
+| 操作型 CRDT 挂在会丢消息的普通队列上，个别副本状态永久分叉 | CmRDT 的收敛前提是可靠因果广播，丢一条操作就永久少一次 effect | 换状态型互发状态（反熵补齐，传输层零要求），或给传输层补 at-least-once + 幂等 + 因果序（第 2 节末对照表、第 04 章） |
 
 ## 自测
 

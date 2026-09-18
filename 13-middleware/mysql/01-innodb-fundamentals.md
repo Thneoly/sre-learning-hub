@@ -1,6 +1,6 @@
 # 01 · MySQL 架构与 InnoDB 核心机制
 
-> 模块：中间件-MySQL ｜ 建议时长：3 小时 ｜ 关联认证：—（CKA/CKS/PCA 无直接考点，但为 SRE 面试与线上排障核心知识）
+> 模块：13-middleware/mysql ｜ 建议时长：3 小时 ｜ 关联认证：—（CKA/CKS/PCA 无直接考点，但为 SRE 面试与线上排障核心知识）
 
 ## 学习目标
 

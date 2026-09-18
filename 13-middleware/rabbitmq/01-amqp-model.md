@@ -112,17 +112,17 @@ broker 把消息 push 给消费者（`basic.deliver`），消息进入 unacked �
 
 ## 4. 与 Kafka 对比：路由模型 vs 分区日志
 
-Kafka 的心智模型见 [14-data-streaming/kafka/01-log-model-and-architecture.md](../14-data-streaming/kafka/01-log-model-and-architecture.md)（topic/partition/offset 三层模型）与 [02 章](../14-data-streaming/kafka/02-replication-and-reliability.md) §8（位移提交语义）。两者常被混用，但底层模型几乎处处相反：
+Kafka 的心智模型见 [14-data-streaming/kafka/01-log-model-and-architecture.md](../../14-data-streaming/kafka/01-log-model-and-architecture.md)（topic/partition/offset 三层模型）与 [02 章](../../14-data-streaming/kafka/02-replication-and-reliability.md) §8（位移提交语义）。两者常被混用，但底层模型几乎处处相反：
 
 | 维度 | RabbitMQ | Kafka |
 |---|---|---|
 | 数据模型 | 路由树：一条消息按绑定投给 N 条队列，消费即删 | 分区日志：消息按 key 哈希进分区，append-only，按 retention 保留 |
 | 路由 | broker 内完成（exchange + binding） | 客户端分区器决定进哪个分区，消费组订阅分区 |
 | 投递方向 | **push**（broker 主动 basic.deliver） | **pull**（消费者自己 fetch、自己管 offset） |
-| 背压 | 靠 prefetch/unacked 上限显式限制 | pull 天然背压（[kafka 01](../14-data-streaming/kafka/01-log-model-and-architecture.md) §4-5） |
+| 背压 | 靠 prefetch/unacked 上限显式限制 | pull 天然背压（[kafka 01](../../14-data-streaming/kafka/01-log-model-and-architecture.md) §4-5） |
 | 回溯 | ack 后即删，不可重放（stream 队列类型除外） | offset 任意回放，天然支持重跑/补数 |
 | 顺序 | 单队列 FIFO | 单分区内有序 |
-| 语义 | confirm = broker 收到（quorum 下多数派落盘）；消费端 at-least-once，去重靠业务幂等 | 幂等 producer + 事务，**Kafka→Kafka 链路可端到端 exactly-once**（[kafka 02](../14-data-streaming/kafka/02-replication-and-reliability.md) §8） |
+| 语义 | confirm = broker 收到（quorum 下多数派落盘）；消费端 at-least-once，去重靠业务幂等 | 幂等 producer + 事务，**Kafka→Kafka 链路可端到端 exactly-once**（[kafka 02](../../14-data-streaming/kafka/02-replication-and-reliability.md) §8） |
 | 积压指标 | queue depth（messages_ready/unacked） | consumer lag |
 | 强项 | 低延迟路由、任务队列、细粒度分发规则 | 高吞吐流式管道、回放、多消费者独立进度 |
 

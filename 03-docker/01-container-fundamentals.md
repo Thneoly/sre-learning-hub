@@ -7,7 +7,7 @@
 - 能解释容器与虚拟机的本质区别（共享内核 vs 独立内核），并据此判断哪些 workload 不适合容器化
 - 能操作 `lsns`、`nsenter`、`unshare` 查看和进入任意进程的 namespace
 - 能排查"容器里看到的 PID / 主机名 / 文件系统为什么和宿主机不一样"这类问题
-- 能解释 cgroups v1 与 v2 在挂载布局上的差异，并读出容器的 CPU/内存限制
+- 能解释 cgroups v1 与 v2 在挂载布局上的差异，读出容器的 CPU/内存限制，并完成 `--cpus` ↔ `--cpu-quota`/`--cpu-period` 换算与 OOMKill（Exited 137）的判读
 - 能解释 overlayfs 如何用"只读层 + 可写层"实现秒级启动与镜像共享
 
 ## 1. 容器是什么：一个被内核"隔离"的普通进程
@@ -133,7 +133,7 @@ PID 4833  nginx worker   ⇔   PID 8   nginx worker
 
 构建场景怎么选（dind sidecar / kanako / CI 实战坑）见 02 章 §4.4。
 
-### 2.7 动手：用 lsns / nsenter / unshare 亲手摸 namespace
+### 2.9 动手：用 lsns / nsenter / unshare 亲手摸 namespace
 
 ```bash
 # [任意节点] （Ubuntu VM，需 root 或 sudo）
@@ -183,23 +183,96 @@ cat /sys/fs/cgroup/cgroup.controllers
 # v2 输出示例：cpuset cpu io memory hugetlb pids rdma misc
 ```
 
-### 3.2 找到容器的 cgroup 并读限制
+### 3.2 容器资源限制全景：参数、cgroup 落点与 OOM 判读
+
+先定位目标容器的 cgroup 目录，本节所有参数最终都落到这棵目录里的接口文件：
 
 ```bash
 # [任意节点] 以 Docker 容器为例（cgroup v2 + systemd 驱动）
 PID=$(docker inspect -f '{{.State.Pid}}' ns-demo)
-cat /proc/$PID/cgroup
-# v2 输形如：0::/system.slice/docker-<容器长ID>.scope
-
-# 用 docker stats 验证（另一终端持续观察）
-docker stats --no-stream ns-demo
-# 直接读内核文件（路径接在上面 cgroup 路径下）
+cat /proc/$PID/cgroup    # v2 输出形如：0::/system.slice/docker-<容器长ID>.scope
 CG=/sys/fs/cgroup/system.slice/docker-$(docker inspect -f '{{.Id}}' ns-demo).scope
-cat $CG/memory.max     # 字节数；docker run --memory 256m 时为 268435456
-cat $CG/cpu.max        # "100000 100000" 表示 1 核（--cpus=1）
+grep . $CG/memory.max $CG/cpu.max
+# 预期：memory.max:268435456（--memory 256m）  cpu.max:100000 100000（--cpus 1）
 ```
 
-`cpu.max` 格式为 `<period 微秒> <quota 微秒>`：quota/period = 可用核数。`memory.max` 写入 `max` 表示不限。容器 OOMKill 时，v2 下 `memory.events` 里的 `oom_kill` 计数会 +1——Kubernetes 里 `kubectl describe pod` 看到的 `OOMKilled` 就源于此事件链（cgroup 事件 → kubelet → Pod status）。
+常用资源参数与内核落点对照（v2 文件名；`memory.max` 写 `max` 表示不限）：
+
+| docker 参数 | cgroup v2 落点 | 语义 |
+|---|---|---|
+| `--cpus 1.5` | `cpu.max` | 时间配额：quota/period = 可用核数 |
+| `--cpu-period` / `--cpu-quota` | `cpu.max` | 同上的原始形态，与 `--cpus` 互斥 |
+| `--cpu-shares 512` | `cpu.weight`（v1：`cpu.shares`） | 相对权重，仅在争抢时起作用（K8s requests 对应它，见 §3.3） |
+| `--memory 300m` | `memory.max` | 内存硬顶，触顶即走向 OOM |
+| `--memory-swap` | `memory.swap.max` | memory + swap 总额度 |
+| `--memory-reservation 200m` | `memory.low`（v1：`memory.soft_limit_in_bytes`） | 软限制，只影响回收倾向 |
+| `--pids-limit 100` | `pids.max` | 进程/线程总数上限，fork 炸弹防线 |
+
+**CPU：配额的换算**。`--cpus` 是 `--cpu-period`/`--cpu-quota` 的封装：period 默认 100000 微秒（100ms），quota = 核数 × period，因此 `--cpus 1.5` ≡ `--cpu-period 100000 --cpu-quota 150000`（quota 允许大于 period，4 核即 400000）；两套写法同时给会直接报错。dockerd 侧记录的是纳秒核 `HostConfig.NanoCpus`（1.5 核 = 1500000000）——labs/06 的验收点之一。配额被打满的可观测信号是 throttling：`cpu.stat` 里 `nr_throttled` 持续增长，labs/06 就是围绕这个计数器设计的实验。
+
+**内存：一硬一软一总量**。`--memory` 是硬顶（`memory.max`）；`--memory-reservation` 是软限制（`memory.low`），只在宿主机内存紧张时影响内核"优先从谁那里回收"，既不挡分配也不触发 OOM，适合给缓存型服务保护常驻内存；tmpfs 同样计入 cgroup 内存配额（第 4 章 §5）。`--memory-swap` 约定 memory + swap 的总额度，四种组合记牢：
+
+| 启动参数 | 效果 |
+|---|---|
+| 只设 `--memory 300m` | **不设 --memory-swap 时默认额度为 2 倍内存**：总额 600m，其中 300m 可换出到 swap |
+| `--memory 300m --memory-swap 300m` | swap 额度为 0，等于禁用 swap |
+| `--memory 300m --memory-swap 500m` | swap 200m |
+| `--memory 300m --memory-swap -1` | swap 不限量（仍受宿主机 swap 总量约束） |
+
+推论：以为 `--memory 256m` 就锁死了 256m，实际容器最多占着 512m 物理资源（一半在 swap 里），且换页会把延迟拖垮——对延迟敏感的服务一律把 `--memory-swap` 设成与 `--memory` 相等。
+
+**pids-limit：fork 炸弹防线**。CPU 超限是变慢（throttle），内存超限是死（OOM），进程数失控则是把整台宿主机拖下水——一句 `:(){ :|:& };:` 就够。`--pids-limit` 写 `pids.max`，给每容器的进程/线程总数封顶；K8s 侧的对应物是 kubelet 的 `podPidsLimit`。注意默认不设就是不限——裸 Docker 主机上这是默认裸奔项：
+
+```bash
+# [任意节点] fork 炸弹防线演示
+docker run -d --name fork-demo --pids-limit 20 alpine \
+  sh -c 'while :; do sleep 300 & done'
+sleep 3
+docker ps -a --filter name=fork-demo --format '{{.Names}}: {{.Status}}'
+docker logs fork-demo | tail -2
+# 预期：容器很快退出，日志尾部是 can't fork: Resource temporarily unavailable
+# （shell 行为随镜像略有差异，判据是 pids.current 顶在 pids.max、pids.events 的 max 行计数被拒的 fork）
+docker rm -f fork-demo
+```
+
+**docker update：不重启调参**。上表中的数字大多可以在线改，容器进程不重启（`StartedAt` 不变）：
+
+```bash
+# [任意节点] 在线调参
+docker run -d --name updt --memory 256m --cpus 1 alpine sleep 3000
+docker update --memory 512m --memory-swap 512m --cpus 2 --pids-limit 100 updt
+cat /sys/fs/cgroup/system.slice/docker-$(docker inspect -f '{{.Id}}' updt).scope/cpu.max
+# 预期：200000 100000
+docker inspect -f 'StartedAt={{.State.StartedAt}}' updt   # 时间没变：未重启
+docker rm -f updt
+```
+
+两条规矩：`--memory-swap` 要与 `--memory` 一起调（前者不得小于后者）；`--memory` 不能调到低于当前实际用量。对照 K8s：Pod 的 resources 长期只能改了重建（In-place Pod Vertical Scaling 1.27 起 alpha、1.33 才进入默认 beta，以官方文档为准）——Docker 这一层反而更灵活。
+
+**OOMKill → Exited (137) 的完整判读链**。内存到达 `memory.max`、换出与回收都无济于事时：
+
+```
+容器内存用量 → 触到 memory.max
+        ▼
+内核 cgroup OOM killer 选中 victim（badness 最高，通常是最吃内存的进程），发 SIGKILL(9)
+        ▼  ← 内核强制执行：不经过 handler，也不受 PID 1 信号特判保护（§2.4）
+victim 是 PID 1 ───────────── victim 是普通子进程
+        ▼                           ▼
+容器退出 Exited (137)          容器还在，只是少了个进程
+inspect: OOMKilled=true       只有 memory.events 的 oom_kill 计数留痕
+```
+
+判读三连：
+
+```bash
+# [任意节点] 137 的证据链
+docker inspect -f 'OOMKilled={{.State.OOMKilled}} ExitCode={{.State.ExitCode}}' <容器>
+# OOMKilled=true ExitCode=137（137 = 128 + 9，即 SIGKILL）
+dmesg -T | grep -iE 'oom-killer|killed process' | tail
+docker events --since 10m --filter event=oom
+```
+
+两个易混点：137 只说明"死于 SIGKILL"，`OOMKilled=false` 的 137 还可能是 `docker stop` 十秒超时后的强杀（§2.4 的 PID 1 不处理 SIGTERM）——先看 OOMKilled 再看 dmesg；victim 不是 PID 1 时容器并不退出，现象退化为"服务里部分连接莫名消失"，只能靠 `memory.events` 的 oom_kill 计数定位。K8s 侧 kubelet 把 137 翻译成 `Last State: Terminated, Reason: OOMKilled`，QoS 与驱逐的完整分析见 [04-k8s-fundamentals/11-resources-and-qos.md](../04-k8s-fundamentals/11-resources-and-qos.md)；还有两个微调旋钮 `--oom-score-adj`（调整被宿主机全局 OOM 选中的倾向）与 `--oom-kill-disable`（仅在与 `--memory` 同用时才安全）。
 
 ### 3.3 Kubernetes 侧的对应关系
 
@@ -331,6 +404,7 @@ docker rm -f ns-demo
 | 共享内存不够（PG/Redis 报错） | /dev/shm 默认只有 64MB | `docker run --shm-size=1g`；K8s 用 emptyDir medium:Memory |
 | `--user 1000` 后写 /data 报 Permission denied | bind mount 保留宿主机属主 | chown 宿主机目录或 `--user $(id -u):$(id -g)` 对齐 UID |
 | 镜像明明在本地却重复占空间 | 每个容器独立 upperdir，误以为镜像复制 | `docker system df` 区分 Images/Containers/Volume 占比 |
+| `docker ps` 显示 Exited (137) | 触到 memory.max 被 cgroup OOM 杀；或 stop 超时后被 SIGKILL 强杀 | 先看 `inspect` 的 OOMKilled 区分两类（§3.2），再决定调大限额还是查内存泄漏 |
 
 ## 自测
 

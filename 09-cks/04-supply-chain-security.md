@@ -9,6 +9,7 @@
 - 能用 cosign 完成 key pair 生成、镜像签名与验证
 - 能部署 ImagePolicyWebhook 的完整配置链（AdmissionConfiguration、kubeconfig、apiserver flags），并理解 ValidatingWebhookConfiguration 的字段语义
 - 能写出 distroless/scratch 多阶段构建的最小镜像并掌握其调试方法
+- 能用 kubesec 对 Deployment 做静态打分并说清它与 trivy 的分工边界
 
 ## 1. 供应链视角：四个环节四个威胁
 
@@ -356,6 +357,72 @@ kubectl debug -it hello --image=busybox:1.36 --target=hello
 
 Java/Node 等运行时语言用对应 distroless 变体（`gcr.io/distroless/java21-debian12`、`gcr.io/distroless/nodejs22-debian12`）；需要 ca-certificates、tzdata 的场景选 distroless 而不是 scratch。
 
+## 7. 静态分析：kubesec 扫部署清单
+
+考纲 Supply Chain Security 明列 static analysis：不运行制品、只读定义文件找安全问题。trivy（第 2 节）、digest、cosign 都作用于**制品**；静态分析作用于**定义**——manifest 里的 privileged、hostPath、缺失的 securityContext，构建部署前就能审出来，修复也最便宜。
+
+### 7.1 kubesec：给 manifest 打安全分
+
+```bash
+# [任意节点] 安装（版本以官方 releases 页为准）
+sudo wget -qO /usr/local/bin/kubesec https://github.com/controlplaneio/kubesec/releases/download/v2.11.0/kubesec-linux-amd64
+sudo chmod +x /usr/local/bin/kubesec
+```
+
+准备一个"典型危险 Deployment"：
+
+```yaml
+# [任意节点] bad-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: risky
+spec:
+  selector:
+    matchLabels:
+      app: risky
+  template:
+    metadata:
+      labels:
+        app: risky
+    spec:
+      containers:
+        - name: main
+          image: nginx:1.27
+          securityContext:
+            privileged: true
+```
+
+```bash
+# [任意节点]
+kubesec scan bad-deployment.yaml | jq '.[0] | {score, message}'
+# 预期: {"score": -30, "message": "Failed with a score of -30 points"}
+#       scoring.failed 里逐条列出 Privileged（severity: critical）等问题与修复建议
+```
+
+每条 failed advice 都指向一个可修字段。去掉 privileged、补上 `runAsNonRoot`、`readOnlyRootFilesystem`、`capabilities.drop: [ALL]`（正是 03 篇 restricted 基线那组字段）后重扫，分数转正：
+
+```bash
+# [任意节点] 修好的清单重扫
+kubesec scan fixed-deployment.yaml | jq '.[0].score'
+# 预期: 正数（如 6）
+
+# [CI runner] 门禁：分数不达标即失败（jq -e 把布尔结果转成退出码）
+kubesec scan deployment.yaml | jq -e '.[0].score > 0' > /dev/null
+```
+
+### 7.2 kubesec 与 trivy 的分工
+
+| 维度 | kubesec | trivy |
+| --- | --- | --- |
+| 扫描对象 | K8s manifest 的 spec（Pod/Deployment YAML） | 镜像层 CVE ＋ misconfig ＋ secret（`trivy fs/image/k8s`） |
+| 发现的问题 | securityContext 缺失、privileged、hostPath、危险 capabilities | 已知漏洞、Dockerfile/K8s 错误配置、硬编码凭据 |
+| 检查时机 | 提交/评审阶段，无需构建镜像 | 构建后（制品级）或仓库级 |
+| 输出形态 | 打分＋逐条修复建议 | CVE 清单＋固定版本 |
+| CI 门禁写法 | `jq -e '.[0].score > 0'` | `--severity CRITICAL --exit-code 1` |
+
+一句话分工：**kubesec 审"你写了什么配置"，trivy 审"你带了什么货"**。注意 trivy 的 `--scanners misconfig`（2.2 节）已覆盖一部分 manifest 配置检查，二者侧重不同：kubesec 胜在评分模型与修复指引直观，trivy 胜在漏洞库与一条流水线全包。考试视角：trivy 是明列考点必须练熟，kubesec 掌握概念加一条扫描命令即可。
+
 ## 实战演练：扫描—固定—签名—准入四连
 
 环境：kubeadm 集群（master）＋ 一台带 Docker 的 Ubuntu VM（做镜像侧操作）。
@@ -377,6 +444,8 @@ kubectl run probe --image=nginx:1.27 --restart=Never 2>&1 | head -2
 ```
 
 回滚务必执行：`defaultAllow=false` 且无后端时集群将无法创建任何新 Pod。
+
+配套练习：[labs/01-trivy-scan-admission](labs/01-trivy-scan-admission/task.md)（第 2 节扫描门禁的可判分版）与 [labs/09-imagepolicy-webhook](labs/09-imagepolicy-webhook/task.md)（第 5 节准入链的完整实验）。
 
 ## 常见坑
 
@@ -436,3 +505,4 @@ digest 保证的是"部署的内容＝你验证过的内容"（防仓库侧替�
 - 动态准入控制：<https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/>
 - distroless 官方仓库：<https://github.com/GoogleContainerTools/distroless>
 - Verify Signed Kubernetes Artifacts：<https://kubernetes.io/docs/tasks/administer-cluster/verify-signed-artifacts/>
+- kubesec 官方仓库：<https://github.com/controlplaneio/kubesec>

@@ -1,6 +1,6 @@
 # 03 · 性能调优与故障定位
 
-> 模块：07-中间件/nginx ｜ 建议时长：3 小时 ｜ 关联认证：PCA-监控（exporter/PromQL）/ CKA-网络（ingress-nginx 排障）
+> 模块：13-middleware/nginx ｜ 建议时长：3 小时 ｜ 关联认证：PCA-监控（exporter/PromQL）/ CKA-网络（ingress-nginx 排障）
 
 ## 学习目标
 

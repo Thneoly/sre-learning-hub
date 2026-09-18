@@ -9,6 +9,7 @@
 - 能按固定路径排查 Redis 阻塞：慢命令、fork、swap、AOF fsync 四类元凶逐一定位
 - 能对比 8 种 maxmemory 淘汰策略并为缓存/存储两类场景给出选型
 - 能部署 redis_exporter，编写命中率/内存/淘汰/连接数告警，并给出阈值依据
+- 能写出正确的 Redis 分布式锁（SET NX PX + Lua 释放 + 看门狗续期），并说清单实例锁与 Redlock 的适用边界
 
 ## 1. 三大经典故障：穿透、击穿、雪崩
 
@@ -32,7 +33,7 @@
 | 穿透 | 数据在缓存和 DB 都不存在 | 缓存空值（短 TTL 30~300s） | 实现最简单 | 空值 key 会占内存；DB 新增该数据后要能被查到（TTL 要短） |
 | 穿透 | 同上 | Bloom filter 前置过滤 | 内存省、判定快 | 存在误判率（宁可放行不可错杀）；新增数据要重建过滤器 |
 | 穿透 | 恶意请求 | 入口参数校验 + 限流/风控 | 从源头省流量 | 治本但跨团队 |
-| 击穿 | 热点 key 过期瞬间并发回源 | 互斥锁回源（`SET lock:key 1 NX EX 10`，拿到锁的线程查库回填，其余短暂等待或返回旧值） | 只放一个请求去 DB | 等待增加延迟；锁超时要兜底防死锁 |
+| 击穿 | 热点 key 过期瞬间并发回源 | 互斥锁回源（`SET lock:key 1 NX EX 10`，拿到锁的线程查库回填，其余短暂等待或返回旧值；分布式锁的完整形态见第 5 节） | 只放一个请求去 DB | 等待增加延迟；锁超时要兜底防死锁 |
 | 击穿 | 同上 | 逻辑过期（value 里带过期时间字段，物理不设 TTL；发现过期后异步刷新，先返回旧值） | 永不阻塞 | 牺牲短暂一致性；代码复杂 |
 | 雪崩 | 大量 key 同时过期 | TTL 加随机抖动（`expire = base + rand(0,300)`） | 一行代码 | 无 |
 | 雪崩 | 实例宕机/网络故障 | 哨兵/Cluster 高可用 + 客户端快速重连 | 自动恢复 | 第 2 章整章内容 |
@@ -147,7 +148,64 @@ redis-cli INFO commandstats | grep -E 'cmdstat_(keys|hgetall|smembers|del)'
 
 选型一句话：**纯缓存 allkeys-lru（热点明显用 allkeys-lfu）；Redis 里有不可重建数据就 noeviction + 严格容量告警 + 提前扩容**。最容易踩的坑：配了 `volatile-lru` 但业务 key 全没设 TTL——一个都淘汰不掉，写入照样报 OOM。
 
-## 5. redis_exporter：必看指标与告警
+## 5. 分布式锁：SET NX PX 起步，到看门狗与 Redlock 争议
+
+§1.1 击穿的"互斥回源"是分布式锁的最小场景；把它推广到定时任务防重跑、多实例防双活，问题就从"缓存"变成了"锁"。Redis 锁的正确形态与能力边界，是一线值班必须门儿清的一节。
+
+### 加锁：一条命令，三个要素
+
+```bash
+# [任意节点] NX=不存在才写 PX=毫秒级 TTL value=持有者唯一标识(UUID)
+SET lock:report-job 7c9e6679-7425-40de-963c-b5d48a1f8b6e NX PX 30000
+# OK=拿到锁; (nil)=别人持有,稍后重试
+```
+
+两个经典错误写法：`SETNX` + `EXPIRE` 分两步——中间进程崩了就是永死锁（TTL 没设上）；value 写死 `1`——谁都能 DEL，会误删别人的锁。TTL 是"持有者崩了锁也能自己解开"的兜底，**必须与加锁压进同一条命令**才原子。
+
+### 释放：Lua 保证"比对 + 删除"原子
+
+先 GET 判断"是我的锁"再 DEL，两步之间有缝隙：锁恰好过期、别人刚拿到，你的 DEL 就删掉了别人的锁。压进一个脚本：
+
+```lua
+-- [任意节点] unlock.lua:KEYS[1]=锁键,ARGV[1]=自己的 token
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+else
+  return 0
+end
+```
+
+```bash
+# [任意节点] EVAL "脚本内容" numkeys key token
+redis-cli EVAL "if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end" \
+  1 lock:report-job 7c9e6679-7425-40de-963c-b5d48a1f8b6e
+# 预期: (integer) 1=删掉自己的锁; 0=锁已不属于你,什么都不动
+```
+
+"比对+删除"原子性的现场演示（误删场景 A/B 对照）在 [19-distributed/06-gossip-membership-fencing.md](../../19-distributed/06-gossip-membership-fencing.md) 实战演练 2，值得亲手跑一遍。
+
+### 看门狗续期：业务比 TTL 长怎么办
+
+TTL 30 秒、任务跑了 90 秒：锁中途过期，第二个实例进场，双跑。看门狗（watchdog）是标准解：**加锁后起一个后台线程，每 TTL/3 续一次**（Redisson 默认 30s、每 10s 续回 30s；续期同样要 Lua 比对 token，不是无脑 PEXPIRE）：
+
+```
+拿锁(TTL=30s) ──► 业务线程干活
+                     │
+看门狗线程每 10s ────┘► Lua 比对"还是我的锁?" → 是则 PEXPIRE 回 30s
+进程崩溃 ──► 看门狗一起死 ──► 无人续期 ──► 最迟 30s 后锁自动释放(TTL 兜底仍在)
+```
+
+手写续期的坑与释放同源：不比对 token 就续期，可能把别人的锁续成永生。成熟客户端（Java 的 Redisson、Go 的 go-redsync）都内置了这套，别自己造轮子。
+
+### Redlock 争议：多实例锁换不来正确性
+
+主从架构下单实例锁会丢：写锁进 master、异步复制还没到 replica 时 master 宕机，新主上没有这把锁——两个客户端同时持锁。Redlock 的思路是向 5 个**互不复制的独立 master** 依次加锁、多数派成功才算持有。antirez 与 Martin Kleppmann 的著名论战，结论值得背下来：
+
+- **GC 停顿/时钟跳变可以击穿 Redlock**：客户端 A 拿锁后长 GC，锁过期、B 拿锁、A 醒来继续"以为持锁"地写下游——两个持有者并存，下游毫不知情（zombie writer 的完整时序推导见 [19-distributed/06](../../19-distributed/06-gossip-membership-fencing.md) §4.2）。
+- Redlock 的安全性依赖各节点时钟大体不跳，而这恰是分布式系统最不敢假设的东西。
+- **选型分界**：锁为了"效率"（防重复计算、防任务双跑，偶尔双跑可接受）→ 单实例 `SET NX PX` + Lua 释放 + 看门狗足够；锁为了"正确性"（双跑即资损）→ 别指望 Redis，用 etcd/ZK 这类共识存储加 **fencing token**（下游记录见过的最大令牌、拒绝旧令牌的写，理论见 [19-distributed/06](../../19-distributed/06-gossip-membership-fencing.md) §4.4），或者把操作本身做成幂等——后者永远是更工程化的答案。
+
+## 6. redis_exporter：必看指标与告警
 
 oliver006/redis_exporter 是事实标准（GitHub 官方仓库）。部署（Docker 单机演示）：
 
@@ -228,7 +286,7 @@ groups:
       summary: 'Redis {{ $labels.instance }} 没有在线从库'
 ```
 
-## 6. K8s 上的 Redis：Operator
+## 7. K8s 上的 Redis：Operator
 
 StatefulSet 手搭 Redis + Sentinel 的痛点：Pod 重建 IP 变化、Sentinel 回写的配置与声明式配置打架、failover 后 StatefulSet 仍想"修回"旧主。Operator 用 CRD + 控制器把这些流程代码化。常见选择：
 
@@ -266,7 +324,7 @@ kubectl get pods -n middleware -l app=cache-redis
 # 客户端连哨兵 Service 查 master 地址（sentinel 端口 26379），SDK 走 sentinel 协议
 ```
 
-容量要点（把第 1/2 章落进来）：容器 memory limit 要给 RDB fork COW 与复制缓冲留余量（limit ≈ maxmemory 的 1.5 倍以上）；持久化用 PVC（StatefulSet volumeClaimTemplates 或 CR 的 storage 字段）；大实例建议 maxmemory 与 limit 同时配置并按第 5 节做内存告警。
+容量要点（把第 1/2 章落进来）：容器 memory limit 要给 RDB fork COW 与复制缓冲留余量（limit ≈ maxmemory 的 1.5 倍以上）；持久化用 PVC（StatefulSet volumeClaimTemplates 或 CR 的 storage 字段）；大实例建议 maxmemory 与 limit 同时配置并按第 6 节做内存告警。
 
 ## 实战演练
 
@@ -315,7 +373,7 @@ docker run -d --name redis-exporter -p 9121:9121 \
   oliver006/redis_exporter:latest
 sleep 2
 curl -s http://localhost:9121/metrics | grep -E '^redis_(up|connected_clients|keyspace_hits_total|commands_processed_total)'
-# 预期: redis_up 1 以及若干指标行；把这些指标对照第 5 节阈值表逐个认一遍
+# 预期: redis_up 1 以及若干指标行；把这些指标对照第 6 节阈值表逐个认一遍
 ```
 
 验证方法：`SLOWLOG GET` 的耗时与 `time` 测得的 KEYS 耗时对得上；淘汰实验里 `evicted_keys` 增长与 `DBSIZE` 不变相互印证；三次策略切换的报错差异就是排查 OOM 问题的肌肉记忆。清理：`docker rm -f redis-trouble redis-evict redis-exporter`。

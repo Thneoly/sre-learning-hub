@@ -440,6 +440,8 @@ kubectl exec seccomp-default -- cat /proc/self/status | grep Seccomp
 
 清理：`kubectl delete pod iso-apparmor gvisor-test seccomp-default seccomp-violation`。
 
+配套练习：[labs/03-apparmor-profile](labs/03-apparmor-profile/task.md)、[labs/04-seccomp-profile](labs/04-seccomp-profile/task.md)、[labs/05-runtimeclass](labs/05-runtimeclass/task.md)——本章三类隔离各有专属的可判分实验。
+
 ## 常见坑
 
 | 症状 | 原因 | 解法 |

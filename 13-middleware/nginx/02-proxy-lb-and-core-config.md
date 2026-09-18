@@ -1,6 +1,6 @@
 # 02 · 反向代理与负载均衡：核心配置
 
-> 模块：07-中间件/nginx ｜ 建议时长：3 小时 ｜ 关联认证：CKA-网络（Ingress 的底层就是这套机制）/ —
+> 模块：13-middleware/nginx ｜ 建议时长：3 小时 ｜ 关联认证：CKA-网络（Ingress 的底层就是这套机制）/ —
 
 ## 学习目标
 
@@ -8,6 +8,7 @@
 - 能为 upstream 选择正确的负载策略（轮询/weight/ip_hash/least_conn/random）并说明取舍
 - 能预测 `proxy_pass` 带/不带 URI 时后端实际收到的路径
 - 能配置被动健康检查（max_fails/fail_timeout）、TLS 终止、limit_req/limit_conn
+- 能配置 proxy_cache 反代缓存，用 X-Cache-Status 判读命中形态并排查"全在回源"
 
 ## 1. 指令上下文：先搞清"指令能写在哪儿"
 
@@ -178,6 +179,58 @@ server {
 - **limit_req 是令牌桶**：`rate` 是补充速率；`burst` 是桶深度（排队额度）；`nodelay` 表示突发请求立即处理、不排队但消耗额度。瞬时打来 50 个请求（rate=5、burst=10、nodelay）：前 11 个左右立即通过，其余直接 429。**不带 `nodelay` 时超额请求会排队等令牌**，表现为"请求变慢"而不是"被拒"。
 - **limit_conn 数的是并发连接数**，防的是单 IP 挂着连接不干活；key 同样建议用 `$binary_remote_addr`（比字符串地址省一半内存）。
 - key 选 `$remote_addr` 的前提是 nginx 就是流量的第一跳；前面有 LB 时要换成 realip 还原后的变量或 `X-Forwarded-For` 的第一个值，否则限的是"整个 LB"。
+
+## 8. 反代缓存：proxy_cache
+
+TLS 与限流都在"护后端"，缓存则直接替后端把活儿干了：把 upstream 的响应落到 nginx 本地磁盘，TTL 内的重复请求不再回源。前提永远先问一句——**这个响应允许被缓存吗、每个用户拿到的是不是同样内容**（带登录态、个性化的接口别碰）。
+
+### 配置：cache_path 在 http 层，开关在 location
+
+```nginx
+# http 层:一个缓存区,所有 server 共用
+proxy_cache_path /var/cache/nginx/proxy
+                 levels=1:2                # 两级 hash 目录,避免单目录几万文件
+                 keys_zone=apicache:10m    # key 的共享内存区,1MB 约存 8000 个 key
+                 max_size=5g               # 磁盘上限,超出由 cache manager 按 LRU 淘汰
+                 inactive=60m              # 60 分钟无人访问即删(与"过期"是两码事)
+                 use_temp_path=off;
+
+server {
+    location /api/ {
+        proxy_pass http://webpool/;
+        proxy_cache apicache;
+        proxy_cache_key "$scheme$request_method$host$request_uri";  # 默认 $scheme$proxy_host$request_uri
+        proxy_cache_valid 200 10m;     # 兜底 TTL:仅在响应没有 Cache-Control/Expires 时生效
+        proxy_cache_valid 404 1m;
+        proxy_cache_lock on;           # 同 key 并发 MISS 只放一个去回源(击穿互斥,同 redis 章第 1 节)
+        proxy_cache_use_stale error timeout http_5xx;   # 回源失败先吐陈旧副本保命
+        add_header X-Cache-Status $upstream_cache_status always;   # 排障的眼睛
+    }
+}
+```
+
+### X-Cache-Status 判读
+
+| 值 | 含义 | 动作 |
+|---|---|---|
+| MISS | 无缓存，已回源并存入 | 正常的第一次 |
+| HIT | 命中，未回源 | 一切正常 |
+| EXPIRED | 过期后回源并已刷新 | 正常的 TTL 节奏 |
+| STALE | 回源失败，吐的是陈旧副本 | 查后端健康——正在吃 use_stale 的保命额度 |
+| UPDATING | 后台正在回源，先给旧副本 | 只在配了 background_update 时出现 |
+| BYPASS | proxy_cache_bypass 命中，绕过缓存 | 核对 bypass 条件是否误伤 |
+
+### 为什么全在回源：排障清单
+
+X-Cache-Status 永远 MISS 时按序核对——nginx 默认**尊重响应头**，多数"缓存不生效"出在前三条：
+
+1. 响应带 `Cache-Control: no-store/no-cache/private` 或 `Set-Cookie` → 默认不缓存。确认业务后按需 `proxy_ignore_headers Cache-Control Expires Set-Cookie;`（想清楚再开：把登录响应缓存住是事故级误配）。
+2. 请求带 `Authorization` 头 → 默认不缓存（每人内容不同）。
+3. `proxy_cache_valid` 只是兜底：响应自带 `Cache-Control: max-age=1` 时以响应头为准，valid 写 10m 也不生效。
+4. cache_key 里混进易变变量（query 里带时间戳/随机数）→ key 永不重复，缓存形同虚设。
+5. 磁盘与权限：cache 目录对 worker 用户不可写（error.log 里 failed to create 字样）；max_size 太小 + inactive 太短 → 存进去就被淘汰。
+
+失效（purge）：开源版没有内置的按 key 删除接口（NGINX Plus 的 `proxy_cache_purge` 才有）。工程做法是**短 TTL 自然过期 + key 版本化**（URI 带版本参数，或发布时换 `proxy_cache_key` 的前缀）；第三方 ngx_cache_purge 模块需自编译，引入要谨慎。
 
 ## 实战演练
 
@@ -365,6 +418,27 @@ curl -sk -D - -o /dev/null --resolve demo.local:8443:127.0.0.1 https://demo.loca
 
 预期：正文是 app1/app2，响应头 `HTTP/1.1 200 OK` 且 `Server: nginx`；`docker exec ngx2 tail /var/log/nginx/access.log` 中 `/` 的请求来自 TLS server 块。
 
+**第 9 步：反代缓存——看 MISS 变 HIT。**
+
+```bash
+# [Ubuntu VM] 往 nginx.conf 注入缓存配置:http 层的 proxy_cache_path + 80 server 的 /cached/ location
+sed -i 's|^    upstream webpool {|    proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=democache:10m max_size=1g inactive=10m use_temp_path=off;\n\n    upstream webpool {|' /opt/nginx-demo/nginx.conf
+sed -i 's|^        location /api/ {|        location /cached/ {\n            proxy_cache democache;\n            proxy_cache_valid 200 1m;\n            add_header X-Cache-Status $upstream_cache_status always;\n            proxy_pass http://webpool/;\n        }\n\n        location /api/ {|' /opt/nginx-demo/nginx.conf
+docker exec ngx2 nginx -t && docker exec ngx2 nginx -s reload
+
+curl -s -D - -o /dev/null http://127.0.0.1:8088/cached/hello | grep -i x-cache-status
+# 预期: X-Cache-Status: MISS   (回源 app1/app2 并存入缓存)
+curl -s -D - -o /dev/null http://127.0.0.1:8088/cached/hello | grep -i x-cache-status
+# 预期: X-Cache-Status: HIT    (不再回源)
+
+docker stop app2
+curl -s -D - -o /dev/null http://127.0.0.1:8088/cached/hello | grep -i x-cache-status
+# 预期: 仍是 200 + HIT——读的是本地缓存,与后端存活无关(对照第 7 步无缓存时的 502)
+docker start app2
+```
+
+http-echo 的响应没有 Cache-Control，正好落在 `proxy_cache_valid` 的兜底路径上；等 1 分钟 TTL 过后再请求，会看到 `EXPIRED`——三种状态就是第 8 节判读表的现场版。
+
 ```bash
 # [Ubuntu VM] 用完清理
 docker rm -f ngx2 app1 app2 whoami && docker network rm lbnet
@@ -383,6 +457,9 @@ docker rm -f ngx2 app1 app2 whoami && docker network rm lbnet
 | 后端重定向跳到 `http://` 被浏览器拦 | nginx TLS 终止后没传 `X-Forwarded-Proto` | proxy_set_header X-Forwarded-Proto https，后端框架读取该头 |
 | 5xx 时 nginx 不切换后端 | 默认 `proxy_next_upstream error timeout` 不含 http_5xx | 按需追加 `http_500 http_502 http_503`（注意 5xx 重试可能放大后端压力） |
 | upstream 疑似"没探活" | 开源版只有被动检查，失败窗口内请求仍会被派给已 down 的 server（各 worker 计数独立） | 调小 fail_timeout、加共享 zone、用 curl 主动拨测补充 |
+| X-Cache-Status 永远 MISS | 后端响应带 Cache-Control: private / Set-Cookie，nginx 默认不缓存 | 按需 proxy_ignore_headers 覆盖；个性化接口干脆别缓存 |
+| 缓存目录涨满磁盘 | max_size 未设、inactive 过长 | 补 max_size + inactive；cache 目录单独挂盘 |
+| 缓存的页面串号（A 看到 B 的内容） | 响应带 Set-Cookie/个性化却被强行缓存 | 该 location 关 proxy_cache，回到 8 节第 1 条前提 |
 
 ## 自测
 
@@ -423,3 +500,4 @@ docker rm -f ngx2 app1 app2 whoami && docker network rm lbnet
 - proxy 模块（proxy_pass/proxy_buffering/proxy_next_upstream）：https://nginx.org/en/docs/http/ngx_http_proxy_module.html
 - limit_req / limit_conn：https://nginx.org/en/docs/http/ngx_http_limit_req_module.html
 - TLS 配置与 ssl_param：https://nginx.org/en/docs/http/ngx_http_ssl_module.html
+- 反代缓存管理指南（keys_zone 容量、purge 策略）：https://docs.nginx.com/nginx/admin-guide/content-cache/content-caching/

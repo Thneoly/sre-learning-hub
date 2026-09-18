@@ -6,6 +6,7 @@
 
 - 能画出 Prometheus server 内外的主要组件，并说明一次 scrape 从服务发现到落盘经过哪些环节
 - 能分别解释 static_configs、file_sd_configs、kubernetes_sd_configs 的发现机制与适用场景
+- 能解释练习环境里的 ServiceMonitor/PodMonitor 如何经 Prometheus Operator 变成 scrape config，以及它和手写 sd_configs 的关系
 - 能准确说出 relabel_configs 与 metric_relabel_configs 的执行时机差异并正确选用
 - 能描述 TSDB 中 WAL、head block、2h block、compaction、retention 的生命周期
 - 能为给定场景在 federation 与 remote_write 之间做出选择并说明理由
@@ -123,6 +124,86 @@ scrape_configs:
 ```
 
 这段配置是"给 Pod 打注解就自动被监控"的实现，考题常考 keep/replace/labelmap 各自动作了什么。
+
+### 3.4 Operator CRD：ServiceMonitor/PodMonitor 如何变成 scrape config
+
+上面三小节是"手写 prometheus.yml"的世界。练习环境装的 kube-prometheus-stack 是另一个世界：**prometheus.yml 不是人写的，而是 Prometheus Operator 生成的**，人只提交声明式的 CR 对象。生成链路：
+
+```
+你 kubectl apply 一个 ServiceMonitor（只声明"抓哪些 Service、怎么抓"）
+        │
+        ▼
+Prometheus Operator（集群里的一个 Deployment）持续 watch 各类 Monitor CRD
+        │ 第一层筛选：Prometheus CR 的 serviceMonitorSelector 挑出"归我管"的 Monitor
+        ▼
+把每个 Monitor 渲染成一段标准 scrape_config（kubernetes_sd_configs + relabel）
+        │ 写进同名 Secret（key: prometheus.yaml.gz）→ Prometheus Pod 挂载，配置变化自动 reload
+        ▼
+/targets 里出现 job_name 形如 serviceMonitor/monitoring/xxx/0 的目标
+```
+
+CRD 速查（都属于 apiVersion `monitoring.coreos.com/v1`）：
+
+| CRD | 声明什么 | 原生等价物 |
+| --- | --- | --- |
+| ServiceMonitor | 经 Service/Endpoints 抓取一组工作负载 | kubernetes_sd role: endpoints + relabel |
+| PodMonitor | 不经 Service，直接按 Pod label 抓 | kubernetes_sd role: pod + relabel |
+| Probe | blackbox 探测目标清单（module、target） | 04 文件的 /probe 抓取任务 |
+| Prometheus | 一个 Prometheus 实例及其采纳哪些 Monitor/Rule | prometheus.yml 全文 + 部署参数 |
+| PrometheusRule | 告警规则与 recording rules | rule_files 指向的文件 |
+
+**匹配机制有两层 selector**——"我的 ServiceMonitor 不生效"几乎都卡在这两层：
+
+1. **第一层（Operator 挑 Monitor）**：Prometheus CR 的 `serviceMonitorSelector` 与 `serviceMonitorNamespaceSelector` 决定采纳哪些 ServiceMonitor。kube-prometheus-stack 默认按 helm release 标签匹配，即 Monitor 必须带 `release: prom-stack`（值等于 release 名）才会被选中
+2. **第二层（Monitor 挑 Service）**：ServiceMonitor 的 `spec.selector` 决定匹配哪些 Service，`namespaceSelector` 决定去哪些 namespace 找
+
+```yaml
+# [master] kubectl apply -f demo-servicemonitor.yaml（两层 selector 各就各位）
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: demo-app
+  namespace: monitoring
+  labels:
+    release: prom-stack              # 第一层：让 Prometheus CR 的 selector 选中本 Monitor
+spec:
+  selector:
+    matchLabels:                      # 第二层：选中带这些 label 的 Service
+      app.kubernetes.io/name: demo-app
+  namespaceSelector:
+    matchNames: [demo]                # 去 demo namespace 找上述 Service
+  endpoints:
+    - port: metrics                   # 按 Service 的端口名匹配（不是端口号）
+      interval: 30s
+```
+
+PodMonitor 少了第二层对 Service 的依赖，直接按 Pod label 匹配（`spec.selector` + `namespaceSelector`），适合 DaemonSet、headless 服务等"没有像样 Service"的负载。
+
+排障三连（每层都能直接验证）：
+
+```bash
+# [master] 1. 第一层：Prometheus 实例到底用什么标签挑 ServiceMonitor
+kubectl -n monitoring get prometheus -o jsonpath='{.items[0].spec.serviceMonitorSelector}'
+
+# [master] 2. 第二层：核对目标 Service 的 label 能否被 Monitor 的 selector 匹配
+kubectl -n demo get svc -l app.kubernetes.io/name=demo-app --show-labels
+
+# [master] 3. 终局：看 Operator 生成的原生配置（含 kubernetes_sd_configs 与 job 命名）
+kubectl -n monitoring get secret prom-stack-kube-prom-prometheus \
+  -o jsonpath='{.data.prometheus\.yaml\.gz}' | base64 -d | gunzip | grep -E 'job_name|kubernetes_sd_configs' | head
+```
+
+**与原生 sd_config 的关系**：ServiceMonitor 不是新的服务发现机制，而是 3.3 节那套 `kubernetes_sd_configs + relabel_configs` 的声明式封装。字段映射：
+
+| ServiceMonitor 字段 | 生成的原生 scrape config |
+| --- | --- |
+| spec.selector.matchLabels | relabel：只保留 label 匹配的 Service 的 endpoints |
+| namespaceSelector | kubernetes_sd_configs 的 namespaces 过滤 |
+| endpoints[].port | relabel：keep `__meta_kubernetes_endpoint_port_name` 为该端口名的目标 |
+| endpoints[].path / interval | metrics_path / scrape_interval |
+| （整体形态） | 一段 role: endpoints 的 kubernetes_sd_configs 抓取任务 |
+
+所以原生知识在 CRD 世界原样适用：/targets 里每条 target 的最终 label 依然来自 `__meta_kubernetes_*` 的 relabel 提升，第 4 节的两类 relabel 语义不变。11-otel 模块的实战会直接让你写 ServiceMonitor 把 Collector 指标接进 Prometheus（见 [11-otel/04-k8s-deployment-and-operator.md](../11-otel/04-k8s-deployment-and-operator.md)），本节就是那次作业的前置。
 
 ## 4. relabel_configs vs metric_relabel_configs：时机决定一切
 
@@ -317,6 +398,8 @@ kubectl -n monitoring delete svc prom-stack-kube-prom-node-exporter
 ```
 
 到 Web UI 执行 `up{job="node-exporter"}`，所有实例变为 0（抓取失败即失联）；随后 `kubectl rollout restart` 恢复方式依环境而定，或重装 chart 恢复。实验后务必 `helm upgrade prom-stack prometheus-community/kube-prometheus-stack -n monitoring` 回滚环境。
+
+架构域的查询手感（up/target/TSDB 自监控等 60 道梯度题）在 [labs/promql-exercises](labs/promql-exercises.md) 里继续刷。
 
 ## 常见坑
 

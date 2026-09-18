@@ -8,15 +8,15 @@
 - 能画出 FE/BE 分工图并跟踪一条 SQL 的执行路径（解析 → CBO 规划 → tablet 路由 → MPP 扫描 → 汇聚）
 - 能区分 Duplicate/Aggregate/Unique 三种模型的语义与读写代价，说出 rollup 的加速原理与代价
 - 能从 SRE 视角讲清四件事：FE 元数据与 Leader 选举、BE 磁盘与 compaction、查询排队与资源隔离、监控指标
-- 能对比 Doris / StarRocks / ClickHouse 的选型差异，并按 12 模块的 exactly-once 框架布置 Flink → Doris 导入链路
+- 能对比 Doris / StarRocks / ClickHouse 的选型差异，并按 14 模块的 exactly-once 框架布置 Flink → Doris 导入链路
 
 版本约定：Apache Doris 2.x、StarRocks 3.x。两个项目小版本迭代快（向量化、存算分离、merge-on-write 默认值都随版本变），凡涉及"默认值/是否默认开启"的细节以官方文档为准，本文不写死小版本号。
 
 ## 1. 为什么 OLAP 单独一列：负载形态决定架构
 
-前面几章已经覆盖了"存"（HDFS）与"批算"（Hive/Spark），12 模块覆盖了"流算"（Kafka/Flink）。还缺最后一环：**人要看的报表与多维分析**。它和前几种负载的形状完全不同：
+前面几章已经覆盖了"存"（HDFS）与"批算"（Hive/Spark），14 模块覆盖了"流算"（Kafka/Flink）。还缺最后一环：**人要看的报表与多维分析**。它和前几种负载的形状完全不同：
 
-| 维度 | OLTP（MySQL，11 模块） | 流处理（Flink，12 模块） | OLAP（Doris/StarRocks） |
+| 维度 | OLTP（MySQL，13 模块） | 流处理（Flink，14 模块） | OLAP（Doris/StarRocks） |
 |---|---|---|---|
 | 典型请求 | 按 key 点查、小事务 | 预定义逻辑的持续计算 | 任意 SQL：大扫描 + 多维聚合 + 多表 join |
 | 延迟目标 | 个位毫秒 | 事件时延毫秒~秒 | 百毫秒~几十秒（人可接受） |
@@ -167,10 +167,10 @@ curl ──HTTP PUT /api/{db}/{table}/_stream_load──► FE:8030 ──307 �
 1. **label 是导入的幂等键**。每个导入必须带唯一 label（如 `flink_job_chk_42`），BE/FE 会记录已成功的 label；重复提交同一 label 直接返回 `Label Already Exists` 而不会写两遍。at-least-once 的上游（Flink checkpoint 恢复、Kafka 重放）全靠这层去重达到端到端 exactly-once。
 2. **认证与重定向**。经 FE 8030 发起时 FE 会 307 重定向到某个 BE，curl 默认不透传 Authorization 头，要么加 `--location-trusted`，要么像下文实验一样直发 BE 8040。
 
-**Flink Doris Connector** 的 exactly-once 与 12 模块 KafkaSink 两阶段提交同构（对照 14-data-streaming/flink/02-deployment-and-exactly-once.md#5. 端到端 exactly-once：三个前提缺一不可）：
+**Flink Doris Connector** 的 exactly-once 与 14 模块 KafkaSink 两阶段提交同构（对照 [flink 02 章 §5：端到端 exactly-once 的三个前提](../14-data-streaming/flink/02-deployment-and-exactly-once.md)）：
 
 ```sql
--- [Flink SQL 客户端（连接方式同 12 模块 sql-client）]
+-- [Flink SQL 客户端（连接方式同 14 模块 sql-client）]
 CREATE TABLE doris_events (
   event_time TIMESTAMP,
   event_type STRING,
@@ -211,7 +211,7 @@ doris-meta/
 ### 6.2 BE 磁盘与 compaction
 
 - 每个 BE 用 `storage_root_path` 挂多块盘（可带 `medium:ssd/hdd` 介质标签，冷热分层靠它），tablet 副本在盘间均衡；磁盘满的表现是导入报错而查询继续，所以容量告警要打到"分区级增长速率"而不只是盘使用率。
-- 写入是"追加 rowset 版本"：每次导入给 tablet 增加一个版本，后台 **cumulative compaction**（小版本逐级合并）与 **base compaction**（全量重写、处理 delete 条件）把版本压回去——对 Aggregate 模型，这一步也是第 3 节三阶段聚合里的"compaction 阶段"：跨批次的中间聚合结果在这里被合并掉，查询要合并的版本因此变少。compaction 跟不上的连锁反应：版本数堆积 → 写入被拒（too many versions）→ 上游 Flink 反压 → Kafka lag（一路串回 12 模块的排障链）。高频小批量导入是头号元凶，治本是攒批。
+- 写入是"追加 rowset 版本"：每次导入给 tablet 增加一个版本，后台 **cumulative compaction**（小版本逐级合并）与 **base compaction**（全量重写、处理 delete 条件）把版本压回去——对 Aggregate 模型，这一步也是第 3 节三阶段聚合里的"compaction 阶段"：跨批次的中间聚合结果在这里被合并掉，查询要合并的版本因此变少。compaction 跟不上的连锁反应：版本数堆积 → 写入被拒（too many versions）→ 上游 Flink 反压 → Kafka lag（一路串回 14 模块的排障链）。高频小批量导入是头号元凶，治本是攒批。
 - 副本自修复：BE 心跳失联后 FE 从健康副本 clone 补齐，`SHOW PROC '/cluster_health/tablet_health'` 与 `SHOW PROC '/cluster_balance'` 是健康度入口（具体 PROC 路径以版本文档为准）。
 
 ### 6.3 查询排队与资源隔离
@@ -424,7 +424,7 @@ docker exec doris-fe ls /opt/apache-doris/fe/doris-meta/image
 2. compaction 长期跟不上，会在 Doris、Flink、Kafka 三层分别看到什么现象？治理动作是什么？
 <details><summary>答案</summary>
 
-Doris 层：compaction score 持续升高，tablet 版本数堆积，最终写入被拒（too many versions）；导入事务排队、label 提交变慢。Flink 层：sink 写入变慢 → 算子反压 → checkpoint 变慢/超时（backPressured 指标顶满，见 12 模块反压定位法）。Kafka 层：source 消费停滞，消费组 lag 直线上扬。治理：降低导入频次、攒大批次（减少版本产生速度）；清理不必要的小表导入任务；评估调大 compaction 线程/磁盘能力；根治是"明细 Duplicate + 报表 Aggregate"分层，避免高频小导入。
+Doris 层：compaction score 持续升高，tablet 版本数堆积，最终写入被拒（too many versions）；导入事务排队、label 提交变慢。Flink 层：sink 写入变慢 → 算子反压 → checkpoint 变慢/超时（backPressured 指标顶满，见 14 模块反压定位法）。Kafka 层：source 消费停滞，消费组 lag 直线上扬。治理：降低导入频次、攒大批次（减少版本产生速度）；清理不必要的小表导入任务；评估调大 compaction 线程/磁盘能力；根治是"明细 Duplicate + 报表 Aggregate"分层，避免高频小导入。
 </details>
 
 3. FE Leader 宕机的 30 秒里，哪些操作失败、哪些照常？为什么生产要求至少 3 个 FOLLOWER 而 OBSERVER 不能算数？

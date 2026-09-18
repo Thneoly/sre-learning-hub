@@ -1,6 +1,6 @@
 # 05 · Astronomy Shop：OpenTelemetry Demo 实战
 
-> 模块：OpenTelemetry（06）｜ 建议时长：3 小时 ｜ 前置：01~04 章 ｜ 关联实验环境：kubeadm 单 master 集群（16 GB 内存为宜），或装有 Docker 的 Ubuntu VM
+> 模块：OpenTelemetry（11）｜ 建议时长：3 小时 ｜ 前置：01~04 章 ｜ 关联实验环境：kubeadm 单 master 集群（16 GB 内存为宜），或装有 Docker 的 Ubuntu VM
 
 ## 学习目标
 
@@ -242,6 +242,8 @@ kubectl taint node ${MASTER} node-role.kubernetes.io/control-plane:NoSchedule:No
 ```
 
 最后一条把 taint 加回去，恢复练习集群原状。
+
+把本章演练固化成可判分 lab 的是 [labs/03-demo-fault-tracing](labs/03-demo-fault-tracing/task.md)：精简子集安装 + 故障注入（cart 依赖被改错）+ 标准排障路径 + `check.sh`。
 
 ## 常见坑
 

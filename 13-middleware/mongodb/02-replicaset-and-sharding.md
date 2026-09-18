@@ -1,6 +1,6 @@
 # 02 · MongoDB 副本集与分片
 
-> 模块：中间件-MongoDB ｜ 建议时长：3 小时 ｜ 关联认证：—（CKA/CKS/PCA 无直接考点，但为 SRE 面试与线上排障核心知识）
+> 模块：13-middleware/mongodb ｜ 建议时长：3 小时 ｜ 关联认证：—（CKA/CKS/PCA 无直接考点，但为 SRE 面试与线上排障核心知识）
 
 ## 学习目标
 
@@ -9,6 +9,7 @@
 - 能解释 oplog 的工作机制与"oplog 窗口"的意义，以及 w:1 与 w:"majority" 的安全性差异
 - 能解释分片架构中 mongos / config server / shard 三层职责，以及好分片键的两条判据
 - 能排查：根据 rs.status 与 oplog 位点判断复制延迟、脑裂残余与回滚风险
+- 能操作：走完 addShard → enableSharding → shardCollection 上线三步，管理 balancer 窗口、jumbo chunk 与 zone
 
 ## 1. 副本集架构：一个可写的 PRIMARY
 
@@ -163,9 +164,89 @@ PRIMARY 把每次写（含 `rs.reconfig` 等管理操作）记录到 `local` 库
 两个必须能一眼识别的分片病理：
 
 - **单调递增键的写热点**：自增 id、时间戳做 ranged 分片键时，所有新写入永远落在"最后一片"，其余片闲置——要么换 hashed，要么复合一列高基数随机值打散。
-- **jumbo chunk**：一个 chunk 内所有文档共享同一分片键取值（低基数键、或某键值下文档量巨大）时无法 split，超出大小上限后被标记为 jumbo，balancer 搬不动只能原地放置，数据与负载同时倾斜。解法是 `refineCollectionShardKey` 给键增补高基数后缀列（4.4+）或重选键——本质还是"基数/打散度"两条判据没满足的病。
+- **jumbo chunk**：一个 chunk 内所有文档共享同一分片键取值（低基数键、或某键值下文档量巨大）时无法 split，超出大小上限后被标记为 jumbo，balancer 搬不动只能原地放置，数据与负载同时倾斜。解法是 `refineCollectionShardKey` 给键增补高基数后缀列（4.4+，命令清单见 §5.3）或重选键——本质还是"基数/打散度"两条判据没满足的病。
 
 分片键历史上不可改（5.0 起可用 `reshardCollection` 在线重分片，代价很大）；单文档 16MB 上限依旧，跨文档事务 4.2 起已支持但开销显著，建模上仍应优先靠内嵌规避。**分片不是免费的**：路由层、balancer、跨片查询复杂度都在收费，容量规划先确认副本集+读扩展真的不够。
+
+### 5.1 上线三步：addShard → enableSharding → shardCollection
+
+先备好环境（练习拓扑：1 mongos + 1 config 副本集 + 2 个分片副本集；生产里 config 与每个分片各自都是三节点副本集）：
+
+```bash
+# [Ubuntu VM] config server 与分片先各自组成副本集,再由 mongos 聚合
+docker network create shnet
+docker run -d --name cfg1 --net shnet mongo:7.0 --replSet cfg --bind_ip_all --configsvr
+docker exec cfg1 mongosh --quiet mongodb://localhost:27019/?directConnection=true --eval 'rs.initiate({_id:"cfg",configsvr:true,members:[{_id:0,host:"cfg1:27019"}]})'
+for i in 1 2; do
+  docker run -d --name shard$i --net shnet mongo:7.0 --replSet shard$i --bind_ip_all --shardsvr
+  docker exec shard$i mongosh --quiet mongodb://localhost:27018/?directConnection=true --eval "rs.initiate({_id:'shard$i',members:[{_id:0,host:'shard$i:27018'}]})"
+done
+sleep 15 && docker run -d --name mongos --net shnet mongo:7.0 --configdb cfg/cfg1:27019 --bind_ip_all
+```
+
+三步全部在 mongos 上执行（分片集群的管理与读写永远别直连 shard）；顺序不能颠倒，已有数据的集合切分片会触发全量 split + 搬迁，务必低峰执行：
+
+```javascript
+// [Ubuntu VM] docker exec -it mongos mongosh mongodb://localhost:27017 后执行
+// ① addShard:把分片(副本集)挂进集群;扩容就是再来一次
+sh.addShard("shard1/shard1:27018")   // { shardAdded: 'shard1', ok: 1 }
+sh.addShard("shard2/shard2:27018")   // { shardAdded: 'shard2', ok: 1 }
+// ② enableSharding:对库开闸(只是许可,还没切任何数据)
+sh.enableSharding("app")             // { ok: 1 }
+// ③ shardCollection:选键切表(空集合自动建分片键索引;已有数据须先手工建索引)
+sh.shardCollection("app.orders", { user_id: 1 })
+// { collectionsharded: 'app.orders', ok: 1 }
+```
+
+### 5.2 日常观测：sh.status() 与 balancer 窗口
+
+巡检第一站 `sh.status()`：分片列表、库/集合路由、各片 chunk 分布；配套 `sh.isBalancerRunning()`（是否正在搬）与 `sh.balancerStatus()`（balancer 是否启用，4.4+，返回字段随版本略有差异，以官方文档为准）。`sh.status()` 关键段预期（7.0 输出节选）：
+
+```
+shards
+  [ { _id: 'shard1', host: 'shard1/shard1:27018', state: 1 }, { _id: 'shard2', host: 'shard2/shard2:27018', state: 1 } ]
+databases
+  { _id: 'app', partitioned: true, primary: 'shard1',
+    collections: { 'app.orders': { shardKey: { user_id: 1 },
+        chunks: [ { shard1: '2' }, { shard2: '1' } ] } } }   # chunk 分布,倾斜一眼可见
+```
+
+balancer 默认常开；业务高峰、备份窗口、大批量导入前要停，窗口过了开回来（更稳的做法是不停 balancer，只圈一个允许搬迁的时间窗）：
+
+```javascript
+sh.stopBalancer()   // 关(会等正在搬的 chunk 收尾再返回);sh.startBalancer() 开回来
+db.getSiblingDB("config").settings.updateOne(
+  { _id: "balancer" },
+  { $set: { activeWindow: { start: "02:00", stop: "06:00" } } },
+  { upsert: true })   // 关了忘记开回来是经典事故:倾斜积累,某片磁盘先满
+```
+
+### 5.3 jumbo chunk 的正解：refineCollectionShardKey
+
+chunk 拆不动是因为所有文档共享同一分片键值——那就**给键增补一列高基数后缀**（4.4+，只能加列不能改列，新键必须以旧键为前缀）：
+
+```javascript
+// [Ubuntu VM] 在 mongos 上:先建索引,再 refine
+db.getSiblingDB("app").orders.createIndex({ user_id: 1, order_id: 1 })
+sh.refineCollectionShardKey("app.orders", { user_id: 1, order_id: 1 })
+// { ok: 1 }——同一 user_id 下的文档从此可按 order_id 继续切分,原 jumbo chunk 能拆能搬
+```
+
+refine 是在线操作，但伴随的分裂与搬迁产生集中 IO，低峰做；个别版本里已标 jumbo 的 chunk 要 `clearJumboFlag` 清标记后才重新参与调度，以官方文档为准。根因永远是选键时的低基数——refine 是补救，不是设计。
+
+### 5.4 zone sharding：把数据钉在指定的片
+
+zone（老叫法 tag）把"键空间某一段 ↔ 某几个 shard"绑定，balancer 自动把这段 chunk 收敛到 zone 的片上：
+
+```javascript
+// [Ubuntu VM] 在 mongos 上:user_id < 1000000 的数据只落 shard1
+sh.addShardToZone("shard1", "eu")                     // { ok: 1 }
+sh.updateZoneKeyRange("app.orders",
+                      { user_id: MinKey }, { user_id: 1000000 }, "eu")
+// balancer 随后把该区间 chunk 收敛到带 eu 标签的片
+```
+
+三个典型用途：数据主权合规（某地区用户数据只落某地区的片）、冷热分层（老数据钉在便宜大容量硬件）、读就近（高频租户钉在低延迟片）。撤销用 `sh.removeRangeFromZone` / `sh.removeShardFromZone`。注意 zone 只影响"放哪"，不改路由规则——查询路由仍由 chunk 边界决定。
 
 ## 实战演练
 
@@ -291,3 +372,5 @@ docker exec mongo-1 mongosh --quiet "mongodb://localhost:27017/?directConnection
 - 官方手册 Read Preference / Write Concern：https://www.mongodb.com/docs/manual/core/read-preference/ 、https://www.mongodb.com/docs/manual/reference/write-concern/
 - 官方手册 Sharding：https://www.mongodb.com/docs/manual/sharding/
 - 官方手册 Choose a Shard Key：https://www.mongodb.com/docs/manual/core/sharding-choose-a-shard-key/
+- 部署分片集群与 balancer 管理（addShard / activeWindow）：https://www.mongodb.com/docs/manual/tutorial/deploy-sharded-cluster/
+- refineCollectionShardKey 命令参考：https://www.mongodb.com/docs/manual/reference/command/refineCollectionShardKey/

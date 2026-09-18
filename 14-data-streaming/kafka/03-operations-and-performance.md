@@ -1,6 +1,6 @@
-# 03 · Kafka 运维与性能：容量规划、retention、lag 监控与 Strimzi
+# 03 · Kafka 运维与性能：容量规划、retention、lag 监控、Strimzi 与 CDC 链路
 
-> 模块：14-data-streaming/kafka ｜ 建议时长：4 小时 ｜ 关联认证：CKA-工作负载/CRD（Strimzi 是 Operator + CRD 的完整范例）｜ PCA-指标与告警（kafka_exporter + PromQL 告警思路）
+> 模块：14-data-streaming/kafka ｜ 建议时长：5 小时 ｜ 关联认证：CKA-工作负载/CRD（Strimzi 是 Operator + CRD 的完整范例）｜ PCA-指标与告警（kafka_exporter + PromQL 告警思路）
 
 ## 学习目标
 
@@ -9,6 +9,7 @@
 - 能背出生产端（retries/enable.idempotence/linger.ms）与消费端（max.poll.interval.ms/max.poll.records）关键配置的默认值与调整方向，并按排障表处置频繁 rebalance、磁盘满、broker 掉线三大高频故障
 - 能用 kafka_exporter 的指标写 lag 绝对值、消费停滞、under-replicated 三类告警的 PromQL
 - 能用 Strimzi Operator 完成 Kafka / KafkaTopic / KafkaUser 三种 CR 的部署与验证
+- 能排查 Kafka Connect connector 的堆积与 task FAILED、画出 Debezium CDC 全链路（snapshot / 复制槽 / offset topic），并能按 BACKWARD/FORWARD/FULL 兼容策略治理消息 schema、与湖仓表 schema evolution 分清分工
 
 ## 1. 容量规划：五步估算法
 
@@ -309,6 +310,137 @@ spec:
 
 要点：`KafkaTopic` 的 `spec` 变更里**分区数只能增不能减**（和原生 Kafka 一致，Operator 会拒绝并报错）；`KafkaUser` 的 Secret（证书）由 Operator 生成在同名 Secret 里；broker 扩容只是改 `KafkaNodePool.replicas`，但**已有分区不会自动迁移**，要 `KafkaRebalance`（Cruise Control）或手工 reassignment。版本组合（Strimzi 版本 × Kafka 版本）以 https://strimzi.io/docs/quickstart/latest 的说明为准。
 
+## 7. Kafka Connect 与 Debezium：CDC 的"重装"路线
+
+前六节解决的是"Kafka 本身怎么跑"，还有一个工程问题没回答：**数据怎么进出 Kafka？** 每个上游系统都写一遍 producer/consumer 代码不可复制。Kafka Connect 是官方的框架答案——把"连接外部系统"从写代码变成写配置；Debezium 是其中最重要的 source connector 家族，专职 CDC（变更数据捕获）。`../../13-middleware/postgresql/02-replication-and-ha.md` 第 2 节说过"把 WAL 解码结果交给 Debezium 进 Kafka"，缺的那一环就在这里补齐。
+
+**三层概念：connector / task / worker。** connector 是一份 JSON 配置（连什么、怎么连、`tasks.max`），由 worker 进程装载运行；task 是并行单位；worker 是常驻 JVM 进程。
+
+```
+                 connector 配置（JSON）
+                        │ 由 worker 装载运行
+                        ▼
+     ┌──── worker（JVM 进程，Connect 集群成员）────┐
+     │   task-0       task-1       task-2  …并行单位│
+     │   source: 外部系统 ──────► Kafka topic      │
+     │   sink:   Kafka topic ──────► 外部系统      │
+     └─────────────────────────────────────────────┘
+  分布式模式：多个 worker 组成一个组，task 均摊；worker 挂掉后
+  task 在其余 worker 上重建——与消费者组 rebalance 同一套机制（01 章第 6 节）
+```
+
+- **source connector** 读外部系统写 Kafka（Debezium、JDBC、File）；**sink connector** 反向（JDBC、Elasticsearch、S3、湖表写入器）。
+- worker 分 **standalone**（单进程 + 配置文件，测试用）与 **distributed**（多 worker 组集群、REST API 管理，生产标配）两种模式。运维对象 = worker 进程 + 内部 topic + 每个 connector 的 task。
+- **converter** 决定消息体编码（JSON/Avro，见第 8 节）；**SMT**（single message transform）做单条级轻量改写，能不写代码解决的字段裁剪/重命名都在这里做。
+
+**内部 topic 与堆积排障。** distributed 模式必须先建三个内部 topic：`config.storage.topic`（连接器配置）、`offset.storage.topic`（source 位点）、`status.storage.topic`（connector/task 状态），默认名 `connect-config` / `connect-offsets` / `connect-status`，**全部 compact**——第 2 节的清理策略在这里是刚需：每个 key（连接器名、源库位点 key）只需要最新值，历史值不清掉就无限膨胀；`connect-config` 固定单分区（配置写入要求全序）。排障按 source/sink 分两边：
+
+- **sink connector 的堆积就是普通消费 lag**：每个 sink connector 是一个名为 `connect-<name>` 的消费者组，第 4 节的 kafka_exporter 指标与告警原样适用。
+- **source connector（CDC）的堆积在源端，不在 Kafka**：Debezium PG connector 停摆时，位点（存进 `connect-offsets` 的 LSN）不再推进，PG 就一直为它的复制槽保留 WAL——正是 `../../13-middleware/postgresql/02-replication-and-ha.md` 第 1 节"槽 pin 住 WAL 拖满磁盘"的 CDC 版本，巡检 SQL（`pg_replication_slots` 的 retained / wal_status）直接复用。
+- **task 状态优先于 lag**：lag 高只是症状，task FAILED 才是根因入口。REST 三板斧（Connect 默认 8083 端口）：
+
+```bash
+# [任意节点] Connect REST 排障（前两条只读）
+curl -s http://localhost:8083/connectors                          # 列出 connector
+curl -s http://localhost:8083/connectors/orders-pg/status         # connector + 各 task 状态与 trace
+curl -s "http://localhost:8083/connectors/orders-pg/tasks?expand=status"
+# connector RUNNING 但 task FAILED：读 trace 里的异常栈定位
+# 确认后重启（POST，可精确到单个 task）：
+curl -s -X POST http://localhost:8083/connectors/orders-pg/tasks/0/restart
+```
+
+高频 task FAILED 原因对照：源库凭据/网络/ACL；表没主键且 REPLICA IDENTITY 不全（UPDATE/DELETE 无法定位行）；schema 变更后 converter 不兼容；slot 名被复用但 `decoding.plugin.name` 换过（沿用旧槽会报插件不匹配）；`tasks.max` 大于分区数产生空闲 task。
+
+**worker 的关键配置**（distributed 模式，`connect-distributed.properties` 节选）：
+
+```properties
+# [任意节点] 同一个 group.id 的 worker 才属于同一个 Connect 集群
+bootstrap.servers=kafka-1:9092
+group.id=connect-cluster
+offset.storage.topic=connect-offsets
+config.storage.topic=connect-config
+status.storage.topic=connect-status
+# 内部 topic 的副本数按集群规格设（生产 ≥3；单节点练习环境保持 1）
+```
+
+两个评审要点：内部 topic 的 RF 与全集群口径一致（它们坏了整个 Connect 集群瘫）；connector 配置里的密码不要明文进 config topic（它是 compact 的普通 topic，读权限要当凭据仓库对待），用 ConfigProvider（如 Vault 提供器）注入。部署形态上，K8s 环境优先 Strimzi 的 `KafkaConnect` CR（operator 管镜像、配置、滚动升级），裸机/虚机就是一个 `connect-distributed.sh` 进程组 + 前置 LB。
+
+**Debezium CDC 链路。** 以 PG 为例，从业务写入到 Kafka topic 的完整路径：
+
+```
+PG 主库(wal_level=logical)           Kafka Connect(distributed)              Kafka
+  │ 业务写入 → WAL                    ┌────────────────────────────────┐
+  │                                   │ Debezium PG source connector   │
+  └── replication slot(pgoutput) ───► │ 1. snapshot：全量扫表           │──► topic: pgsvr.public.orders
+     （槽 = Debezium 的"消费组"，      │ 2. streaming：增量读 WAL        │     key = 表主键 → 同实体同分区
+      位点记在 connect-offsets）       │ （offset 提交到 connect-offsets）│    value = {before, after, op}
+                                      └────────────────────────────────┘
+ 下游：Flink / 入湖 / 缓存失效……多消费者各自消费这份 CDC 流（可回放、可重算）
+```
+
+- **topic 划分**：默认每张表一个 topic，命名 `<topic.prefix>.<schema>.<table>`（旧参数 `database.server.name`，新版为 `topic.prefix`）；**key 取表主键**，同实体的变更有序落同一分区，下游才能按 key upsert。
+- **消息结构**：`before`/`after` 是变更前/后镜像，`op` 区分 `r`（snapshot 读）/`c`（insert）/`u`（update）/`d`（delete）；DELETE 事件后补一条 **tombstone**（value=null），让下游与 compact 清理能真正抹掉该 key。
+- **全量 + 增量两阶段**：默认 `snapshot.mode=initial`——offset topic 里没有该连接器位点才做全量，扫完切增量流。经典坑：删掉 `connect-offsets` 里的位点记录或更换 `topic.prefix`，Debezium 认不出"读过了"，**重新全量扫表**——大表上这是一次事故级 IO。
+- **schema history topic**（`schema.history.internal.*` 配置）：记录源端 DDL 的演进时刻，重建 connector 时靠它把"每条变更当时的表结构"对齐；这个 topic 丢了，增量解码可能直接起不来。
+
+与 Flink CDC 的分工：Debezium + Connect + Kafka 是**重装路线**——CDC 流落地 Kafka，多下游复用、可回放，代价是多维护一套 Connect 集群与内部 topic；**轻装路线**是 Flink 直接内嵌 Debezium 读源库（`flink-connector-*-cdc`），不经过 Kafka，exactly-once 与 Flink checkpoint 一体，见 `../flink/03-operations-and-state.md` 第 5 节。Strimzi 侧用 `KafkaConnect` CR 部署 worker、`KafkaConnector` CR 管理连接器配置（开启 `strimzi.io/use-connector-resources` 注解），插件镜像可由 operator 的 build 机制从 Maven 拉包构建，细节以 Strimzi 文档为准。
+
+## 8. Schema Registry 与 schema 演进
+
+Kafka 只见字节不见结构：producer 升级了字段、consumer 还在用旧代码，反序列化当场炸——这是 `../../18-bigdata/07-lakehouse-table-formats.md` 第 1 节"裸文件堆无 schema 保护"的消息版。Schema Registry 补的就是传输层的契约：**schema 的版本仓库 + 注册时的兼容性门卫**。
+
+**机制：消息里带的是 schema ID，不是 schema 本身。** producer 先把 schema 注册进 Registry（挂在某个 subject 下），拿到整数 id；写出的每条消息 = magic 字节 + 4 字节 id + 编码后的 payload。consumer 读到 id，向 Registry 取 schema（本地缓存）后反序列化。format 支持 Avro / JSON Schema / Protobuf，Avro 最常用。subject 默认按 topic 命名（TopicNameStrategy）：`<topic>-key` 与 `<topic>-value`，一个 subject 下多版本并存，注册新版本时按该 subject 的兼容策略检查。
+
+兼容策略四种，判断方向用"谁读谁"：
+
+| 策略 | 含义 | Avro 下的典型安全变更 | 升级顺序 |
+|---|---|---|---|
+| BACKWARD（默认） | 新 schema 能读**旧数据** | 删除字段；新增**带默认值**的字段 | 先升消费者，再升生产者 |
+| FORWARD | 旧 schema 能读**新数据** | 新增字段；删除字段（要求旧字段有默认值） | 先升生产者，再升消费者 |
+| FULL | 双向都成立 | 只动带默认值的可选字段 | 任意顺序，约束最严 |
+| NONE | 不检查 | — | 自担风险，生产禁用 |
+
+Kafka 默认 BACKWARD 的原因：消息在 topic 里**留存多天**（retention），新消费者随时从头读历史消息，"新代码读旧数据"必须永远成立。记忆法：**策略名描述的是数据倒着流——BACKWARD = 把旧数据喂给新代码**。
+
+拿一对 Avro schema 对照着看最直观（subject：`orders-value`，策略默认 BACKWARD）：
+
+```jsonc
+// 左：v1                            // 右：v2 —— 注册结果：通过
+{ "type": "record",                  { "type": "record",
+  "name": "Order",                     "name": "Order",
+  "fields": [                          "fields": [
+    {"name":"id","type":"long"},         {"name":"id","type":"long"},
+    {"name":"amount","type":"double"}    {"name":"amount","type":"double"},
+  ]}                                     {"name":"currency",
+                                          "type":["null","string"],"default":null}
+                                       ]}
+```
+
+v2 新增的 `currency` 带默认值：旧数据里没有它，新 reader 用 null 补位，BACKWARD/FORWARD 双向都安全——这是"最廉价的安全演进"。反过来，若 `currency` 不带 default，BACKWARD 检查直接拒绝（409）；若 v2 删掉 `amount`，BACKWARD 没问题（新 reader 不读它），但旧 reader 读新数据会缺列报错——除非 `amount` 在 v1 里就有默认值。**加字段配默认值、删字段三思**，两条经验覆盖 90% 的日常演进。
+
+```bash
+# [任意节点] Registry REST（默认 8081；前两条只读，可放心在生产跑）
+curl -s http://localhost:8081/subjects | head
+curl -s http://localhost:8081/subjects/orders-value/versions
+# 按 subject 覆盖兼容策略（只影响之后注册的新版本）
+curl -s -X PUT http://localhost:8081/config/orders-value \
+  -H 'Content-Type: application/vnd.schemaregistry.v1+json' \
+  -d '{"compatibility": "FULL"}'
+```
+
+生产纪律：schema 在 CI 里显式注册、producer 侧 `auto.register.schemas=false`（禁止业务代码随手注册绕过评审）；"删列"这类破坏性变更别指望兼容策略兜底——策略只覆盖常见模式，绕过手段很多（比如换 subject 名）。
+
+**与湖仓表 schema evolution 的分工。** 两层 schema 治理各管一段，CDC 链路上前后接力：
+
+| | Schema Registry（传输层） | 湖表格式 evolution（存储层，18-bigdata/07 第 6.3 节） |
+|---|---|---|
+| 治理对象 | Kafka 消息的读写契约 | 表的列结构（按 field id 追踪） |
+| 生效时点 | 注册时**强制检查**，门卫在门口 | 演进是元数据操作，兼容靠**流程纪律** |
+| 粒度 | 逐条消息带 schema id，多版本共存 | 表级一个当前 schema，历史文件按 id 对齐 |
+| 破坏性变更 | 按策略拒绝注册 | 走"新列 + 双写 + 切读 + 删旧"四步 |
+
+口诀：**Registry 管"路上的字节"，表格式管"落地的表"**。Debezium 把源端 DDL 记进 schema history 与事件元数据，下游（Flink CDC → Paimon）把它翻译成表 schema 演进——18-bigdata/07 第 6.3 节"演进只做加法"的铁律，与 Registry 默认 BACKWARD 是同一条纪律在两层的落地。
+
 ## 实战演练
 
 环境：装有 Docker 的 Ubuntu VM。目标：把 retention、compact、lag 三件事亲手各做一遍。
@@ -385,6 +517,10 @@ docker exec kafka-ops /opt/kafka/bin/kafka-consumer-groups.sh \
 | Strimzi 里改 KafkaTopic 分区数被拒 | 分区缩减在 Kafka 本身就不允许 | 只能增；建 topic 前按容量规划留余量 |
 | 扩容 KafkaNodePool 后新 broker 空转 | 分区不会自动迁移 | KafkaRebalance（add-brokers 模式）或 kafka-reassign-partitions.sh |
 | exporter 指标里找不到某组 | 组内无活跃成员且位移过期被清理 | 正常现象；需要长期跟踪静止组就记录在 dashboards 上而不是告警里 |
+| Connect task 反复 FAILED，trace 见 slot/插件不匹配 | 换过 `decoding.plugin.name` 但沿用了旧 slot 名 | 换 `slot.name`，或确认无消费者后 drop 旧槽重建 |
+| 删了 connect-offsets 的位点，源库被全量重扫 | 位点没了，Debezium 视为"从未读过" | 位点 topic 按破坏性变更对待；确需重扫要错峰并评估源库 IO |
+| sink connector 有 lag 告警，`kafka-consumer-groups` 却查不到组 | 组名是 `connect-<name>`（或配置里自定义的 `group.id`） | 用 connector 实际 group.id 查；告警规则按该前缀圈定 Connect 组 |
+| 新 schema 注册被拒（HTTP 409） | 与 subject 的兼容策略冲突 | 按策略改 schema（如给新字段加默认值）；破坏性变更走新 subject/topic + 双写切换 |
 
 ## 自测
 
@@ -418,6 +554,18 @@ retention 删除的最小单位是 segment，且活跃段不可删。该 topic �
 Kafka 的分区分配在创建时确定，之后不会自动迁移（副本位置是元数据里的静态映射，性能考虑：自动迁移会造成带宽与 IO 的不可控搬移）。所以新 broker 只会承接**新创建**的分区，老分区仍留在旧 broker 上，集群忙闲不均。KRaft 时代迁移要写元数据日志、搬数据、更新 ISR，Strimzi 把它封装成 KafkaRebalance（Cruise Control 生成提案，人工 approve 后执行），底层等价于 kafka-reassign-partitions.sh。
 </details>
 
+6. sink connector 和 source connector 的"堆积"分别在哪里看？为什么不一样？
+<details><summary>答案</summary>
+
+sink connector 本质是一个消费者组（`connect-<name>`），堆积就是普通消费 lag，kafka_exporter / `kafka-consumer-groups --describe` 原样可用。source connector 消费的不是 Kafka 而是源库的变更日志（WAL/binlog），它的"位点"是 `connect-offsets` topic 里的 LSN / binlog 坐标，不在 `__consumer_offsets` 里，Kafka 侧看不到滞后——要看源端：PG 查 `pg_replication_slots` 的 retained 字节与 wal_status，MySQL 看 binlog 保留与主从延迟。本质区别：sink 的消费进度由 Kafka 消费者组管理，source 的消费进度由 Connect 自己的 offset topic 管理、但压力外化到源库的日志保留。
+</details>
+
+7. 团队要求"orders-value 上允许删除字段，且还在用旧 schema 的消费者不炸"，该设什么兼容策略？删字段在 Avro 下还有什么附加约束？
+<details><summary>答案</summary>
+
+FORWARD（旧 schema 能读新数据），FULL 也满足但更严。附加约束：被删字段在旧 schema 里必须有默认值——旧 reader 仍然"期望"这个字段，新数据里已经没有了，没有默认值就直接反序列化失败。若旧 schema 的该字段没默认值，删字段就是破坏性变更，任何策略都救不了，只能走"新 topic/subject + 双写 + 切读"的迁移。这也解释了为什么很多团队第一天就给所有可选字段配上默认值：是在给未来的演进买期权。
+</details>
+
 ## 延伸阅读
 
 - 官方配置清单（broker/producer/consumer 全量默认值）：https://kafka.apache.org/documentation/#configuration
@@ -426,4 +574,8 @@ Kafka 的分区分配在创建时确定，之后不会自动迁移（副本位�
 - Strimzi 快速上手（版本组合以官方为准）：https://strimzi.io/docs/quickstart/latest/
 - Strimzi Kafka CR 文档：https://strimzi.io/docs/operators/latest/configuring
 - Cruise Control 与 KafkaRebalance：https://strimzi.io/docs/operators/latest/deploying#con-kafka-rebalancing-str
+- Kafka Connect 官方运行指南（worker 模式与内部 topic）：https://kafka.apache.org/documentation/#connect
+- Debezium 连接器文档（PG/MySQL source、snapshot 模式、schema history）：https://debezium.io/documentation/
+- Confluent Schema Registry（兼容策略与 wire format）：https://docs.confluent.io/platform/current/schema-registry/index.html
+- Avro Schema Resolution（兼容判断的底层规则）：https://avro.apache.org/docs/
 

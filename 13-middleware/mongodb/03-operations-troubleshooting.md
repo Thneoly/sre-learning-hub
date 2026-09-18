@@ -1,6 +1,6 @@
 # 03 · MongoDB 运维与排障
 
-> 模块：中间件-MongoDB ｜ 建议时长：3 小时 ｜ 关联认证：—（CKA/CKS/PCA 无直接考点，但为 SRE 面试与线上排障核心知识）
+> 模块：13-middleware/mongodb ｜ 建议时长：3 小时 ｜ 关联认证：—（CKA/CKS/PCA 无直接考点，但为 SRE 面试与线上排障核心知识）
 
 ## 学习目标
 

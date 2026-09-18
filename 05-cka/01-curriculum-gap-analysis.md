@@ -42,7 +42,7 @@
 | 11 | CRD 浏览 + kubectl explain | 超纲（CKA 不考 CRD 定义）；explain 是通用工具技能 | 边缘 | 无 lab；把 `kubectl explain` 当考场工具练熟即可（见 00 章 4.3） |
 | 12 | ConfigMap（immutable / rollout restart） | Workloads & Scheduling（"用 ConfigMaps **和 Secrets** 配置应用"） | 部分覆盖 | 只练了 ConfigMap 一半，Secret 一半是缺口 → 05 章 |
 | 13 | Calico CNI 迁移（CIDR 一致性） | Cluster Architecture（provision infrastructure / CNI） | 部分覆盖 | 练的是"换 CNI"，但 kubeadm init 本体没练 → 03 章 |
-| 14 | 资源管理（Capacity/Allocatable/requests/scale） | Workloads & Scheduling + Troubleshooting（monitor metrics） | 部分覆盖 | lab 19；metrics-server 链路（kubectl top）题库未涉及 → 06 章 |
+| 14 | 资源管理（Capacity/Allocatable/requests/scale） | Workloads & Scheduling + Troubleshooting（monitor metrics） | 部分覆盖 | lab 19；metrics-server 链路（kubectl top）题库未涉及 → 06 章第 4 节 |
 | 15 | etcd 排错 + 静态 Pod 修复 | Troubleshooting（cluster components） | 部分覆盖 | lab 15；etcd **备份/恢复**完全没练 → 04 章 + labs 13/20 |
 | 16 | cri-dockerd + 内核参数 | Cluster Architecture（容器运行时与基础设施） | 部分覆盖 | runtime 从 Docker 迁到 containerd 的完整安装链没练 → 03 章 |
 
@@ -83,7 +83,7 @@ Storage              10% ██                  题库: 全覆盖
 | --- | --- | --- |
 | evaluate cluster and node troubleshooting | 题 15 排错场景部分 | 06 章决策树 + labs 16、20 |
 | troubleshoot cluster components（apiserver/etcd/scheduler） | 题 15（静态 Pod 修复） | 06 章速查表 #8/#9 + lab 15 |
-| monitor cluster and application metrics | 题 14 只用 describe node | 06 章 L2/L5 + lab 19 |
+| monitor cluster and application metrics | 题 14 只用 describe node | 06 章第 4 节 + lab 19（资源压力） |
 | manage application logs（多容器/sidecar/previous） | 题 3 全覆盖 | lab 09 + 06 章 2.2 |
 | 证书相关故障（隐含在组件排错里） | 无 | 05 章 |
 
@@ -126,7 +126,7 @@ Storage              10% ██                  题库: 全覆盖
 | P1 | **证书排错**：check-expiration、renew、x509 过期症状 | Troubleshooting + Cluster Architecture | 0 题 | 05 章 |
 | P1 | **节点维护**：cordon/drain/uncordon 语义与参数 | Troubleshooting + Cluster Architecture（升级流程的一环） | 0 题 | 06 章 + lab 14 |
 | P1 | **Secret**：三种创建方式、TLS secret + Ingress | Workloads & Scheduling（15%，与 ConfigMap 并列明列） | 题 12 只覆盖 ConfigMap | 05 章 |
-| P1 | **集群监控**：metrics-server、kubectl top、日志定位 | Troubleshooting（30%，monitor metrics 明列） | 题 14 只用 describe node | 06 章 + lab 19 |
+| P1 | **集群监控**：metrics-server、kubectl top、日志定位 | Troubleshooting（30%，monitor metrics 明列） | 题 14 只用 describe node | 06 章第 4 节 + lab 19 |
 | P2 | **kubeadm 从零安装**：init 参数、join 流程 | Cluster Architecture（明列"用 kubeadm 安装集群"） | 题 13/16 只碰前置条件 | 03 章 |
 | P2 | **CoreDNS 排错**：解析失败定位链 | Services & Networking（20%） | 0 题 | 06 章 + lab 17 |
 | P2 | **Deployment 滚动更新/回滚** | Workloads & Scheduling | 题 7 间接涉及 | lab 01 |
@@ -147,9 +147,11 @@ Storage              10% ██                  题库: 全覆盖
 
 合计约 18 小时（不含 lab 重做）。建议与 labs 目录交叉进行——先读章节再进 lab，lab 卡住回章节"常见坑"表对号入座；每完成一步回到第 6 节自评表把对应行打勾。
 
-## 6. 30 分钟缺口自评（可周期性重跑）
+## 6. 缺口自评 checklist（打勾制，可周期性重跑）
 
-做完一轮补习后，按下面清单逐条实操（不是口头回答），完成的打勾。全部打勾 = 大纲域上无死角，可以进入全真模拟。
+用法：先跑 6.1 的七组验收命令（每条一次做对/读懂才算过），再逐条勾 6.2 的三块清单；哪一格勾不动，就回第 5 节路线图对应行重补。三块全勾 = 大纲域上无死角，具备进入全真模拟的资格。
+
+### 6.1 验收命令组（做题手感，不是背诵）
 
 ```bash
 # [master] 自评脚本：每行独立执行，能一次做对才算过
@@ -157,7 +159,8 @@ Storage              10% ██                  题库: 全覆盖
 kubectl -n selftest create sa t1
 kubectl -n selftest create role r1 --verb=list --resource=pods
 kubectl -n selftest create rolebinding b1 --role=r1 --serviceaccount=selftest:t1
-kubectl auth can-i list pods -n selftest --as=system:serviceaccount:selftest:t1   # yes
+kubectl auth can-i list pods -n selftest --as=system:serviceaccount:selftest:t1    # 期望 yes
+kubectl auth can-i delete pods -n selftest --as=system:serviceaccount:selftest:t1  # 期望 no（反向验证）
 
 # 2. etcd：不看文档写出 snapshot save 全参数
 sudo mkdir -p /opt/etcd-backup
@@ -167,20 +170,56 @@ sudo ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \
   --key=/etc/kubernetes/pki/etcd/server.key \
   snapshot save /opt/etcd-backup/selftest.db
 sudo ETCDCTL_API=3 etcdctl snapshot status /opt/etcd-backup/selftest.db --write-out=table
+
+# 3. 升级：读懂 plan（不必真升）
+sudo kubeadm upgrade plan
+# 通过标准：指出可升级到的最新补丁版本，以及 etcd 要随之到的目标版本
+
+# 4. drain：实操一次并口述三个放行参数
+kubectl drain worker1 --ignore-daemonsets --delete-emptydir-data
+# 通过标准：DaemonSet/emptyDir/裸 Pod 分别加哪个参数 30 秒内说出；卡住先查 PDB
+
+# 5. 证书：check-expiration 对到六张证书
+sudo kubeadm certs check-expiration
+# 通过标准：每行说出"谁连谁"（职责表见 05 章）
+
+# 6. Secret：generic + tls 各建一次，TLS 挂 Ingress 全链路验证
+kubectl -n selftest create secret tls demo-tls --cert=tls.crt --key=tls.key
+# 通过标准：Ingress tls 段引用后，curl -kv https://<域名> 出示的证书 SAN 是自己的域名
+
+# 7. 监控链路：kubectl top 双可用
+kubectl top nodes && kubectl -n selftest top pods --containers
+# 通过标准：两边出数；报错时能按 06 章第 4 节四步定位（Pod→logs→APIService→raw）
 ```
 
-| 自评项（脱离文档完成） | 关联 | 通过标准 |
-| --- | --- | --- |
-| RBAC 三步模板 + can-i 正反验证 | 02 章 | 全部 yes/no 符合预期 |
-| 从内存写出 etcd save 全参数并成功出快照 | 04 章 | snapshot status 有非零 TOTAL KEYS |
-| 恢复快照到新目录并改 etcd.yaml 两处 | 04 章 | 测试对象随快照回归 |
-| drain 三参数各放行什么，口述 + 实操一次 | 06 章 | drain 卡住时能 30 秒内说出原因 |
-| `kubeadm upgrade plan` 输出能读懂 | 03 章 | 指出可升版本与 etcd 目标版本 |
-| 升级 worker 的六步顺序默写 | 03 章 | 与 4.4 步骤表一致 |
-| Secret 三种创建 + TLS 挂 Ingress | 05 章 | curl -kv 看到 SAN 为自己的域名 |
-| `check-expiration` 输出对应到六张证书 | 05 章 | 每行说出"谁连谁" |
-| 十大故障现象的"第一检查命令" | 06 章 | 抽 3 条能秒答 |
-| 03 章 1.1~1.4 前置从空 VM 跑一遍 | 03 章 | init 出 Ready 单节点集群 |
+### 6.2 打勾清单
+
+**A. 缺口域验收（02~06 章补习成果，勾完一条少一块盲区）**
+
+- [ ] RBAC 三步模板 + can-i 正反验证（02 章）——命令组 1 的 yes/no 全符合预期
+- [ ] 从内存写出 etcd save 全参数并成功出快照（04 章）——snapshot status 有非零 TOTAL KEYS
+- [ ] 恢复快照到新目录并改 etcd.yaml 两处（04 章）——恢复后测试对象随快照回归
+- [ ] `kubeadm upgrade plan` 输出能读懂（03 章）——指出可升版本与 etcd 目标版本
+- [ ] 升级 worker 的六步顺序默写（03 章 4.4）——与步骤表逐条一致
+- [ ] drain 三参数实操 + 卡住 30 秒定位（06 章）——先 `get pdb -A` 再看剩余 Pod 归属
+- [ ] `check-expiration` 输出对应到六张证书（05 章）——每行说出"谁连谁"
+- [ ] Secret 三种创建 + TLS 挂 Ingress（05 章）——curl -kv 看到 SAN 为自己的域名
+- [ ] metrics-server 链路 + top 报错分层定位（06 章第 4 节）——命令组 7 通过，四步能走全
+- [ ] 十大故障现象的"第一检查命令"（06 章）——随机抽 3 条秒答
+- [ ] 03 章 1.1~1.4 前置从空 VM 跑一遍（03 章）——init 出 Ready 单节点集群
+
+**B. 题库已覆盖域的考前抽查（每行 5 分钟复述解法，不重做）**
+
+- [ ] Workloads：题 1 HPA 的 scaleDown 行为与 `--cpu` 语法、题 12 ConfigMap immutable/rollout restart
+- [ ] Services：题 5 port 与 targetPort 的关系、题 10 NetworkPolicy"同组 AND 异组 OR"题眼
+- [ ] Storage：题 4 is-default-class 注解、题 8 accessModes 与 storageClassName 判定
+- [ ] 排错手感：题 3 sidecar `kubectl logs`、题 15 静态 Pod 定位——各口述一条完整解题路径
+
+**C. 进入全真模拟的门槛（呼应 00 章时间轴的考前承诺）**
+
+- [ ] A 块 11 项全勾 + B 块 4 项复述无卡顿
+- [ ] 120 分钟限时完成一套混合题（全真模拟），错题归入 A 块对应行回炉
+- [ ] 考前 48 小时只重跑 6.1 命令组与错题行，不引入新内容
 
 ## 7. 题库本身的使用建议
 

@@ -1,6 +1,6 @@
 # 02 · PostgreSQL 复制与高可用：流复制、逻辑复制、Patroni 与 pgbouncer
 
-> 模块：中间件-PostgreSQL ｜ 建议时长：3.5 小时 ｜ 关联认证：—（CKA 备份思想可迁移：etcd 多数派与 Patroni 的脑裂防护同构）；对照参照 13-middleware/mysql/02、13-middleware/redis/02
+> 模块：13-middleware/postgresql ｜ 建议时长：3.5 小时 ｜ 关联认证：—（CKA 备份思想可迁移：etcd 多数派与 Patroni 的脑裂防护同构）；对照参照 13-middleware/mysql/02、13-middleware/redis/02
 
 ## 学习目标
 

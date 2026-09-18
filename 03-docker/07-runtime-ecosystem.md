@@ -198,15 +198,15 @@ nerdctl --namespace k8s.io ps    # 与 ctr 同源，但输出对人类友好得�
 
 ## 5. 接下来 K8s 章节如何衔接
 
-Docker 模块到本章收口，四个概念地图直接平移到 02 模块：
+Docker 模块到本章收口，四个概念地图直接平移到 04 模块：
 
-- **调用链位置**：`kubelet → CRI → containerd → shim → runc` 将出现在架构图里（02-02）。你已在本章用 `crictl pods`/`crictl ps` 亲眼看过它的两个视角，考场上排障的三板斧就是 `crictl ps` / `crictl logs` / `crictl images`。
-- **Pod 的底层形态**：`crictl pods` 里的 PodSandbox 就是"pause 容器 + 共享 network namespace"的正式表达——02-03 Pods 深入会从它讲到容器为什么天然共享网络栈。
-- **镜像体系**：OCI image spec 的 manifest/layers 直接对接 02-01 的"为什么 K8s 能拉 Docker 构建的镜像"；供应链安全（CKS 04-04）的镜像签名、digest 锁定也建立在这套 content-addressable 结构上。
+- **调用链位置**：`kubelet → CRI → containerd → shim → runc` 将出现在架构图里（04-02）。你已在本章用 `crictl pods`/`crictl ps` 亲眼看过它的两个视角，考场上排障的三板斧就是 `crictl ps` / `crictl logs` / `crictl images`。
+- **Pod 的底层形态**：`crictl pods` 里的 PodSandbox 就是"pause 容器 + 共享 network namespace"的正式表达——04-03 Pods 深入会从它讲到容器为什么天然共享网络栈。
+- **镜像体系**：OCI image spec 的 manifest/layers 直接对接 04-01 的"为什么 K8s 能拉 Docker 构建的镜像"；供应链安全（CKS 04-04）的镜像签名、digest 锁定也建立在这套 content-addressable 结构上。
 - **运行时可替换**：runtime spec 的状态机与实现多样性是 CKS RuntimeClass 实验（gVisor/Kata）的前置知识（09-cks/labs/05-runtimeclass）。
-- **概念迁移表**：compose 服务 → Deployment+Service（05 章映射表）、volume → PV/PVC（04 章）、CNM 网络模型 → CNI 插件体系（02-10）。
+- **概念迁移表**：compose 服务 → Deployment+Service（05 章映射表）、volume → PV/PVC（04 章）、CNM 网络模型 → CNI 插件体系（04-10）。
 
-至此，容器层的"为什么"已经铺完：镜像是分层的 OCI 工件、进程是 namespace+cgroup 的受裁剪视图、编排是声明式期望状态。02 模块开始，把"单机 Docker"换算成"集群 API 对象"。
+至此，容器层的"为什么"已经铺完：镜像是分层的 OCI 工件、进程是 namespace+cgroup 的受裁剪视图、编排是声明式期望状态。04 模块开始，把"单机 Docker"换算成"集群 API 对象"。
 
 ## 实战演练
 
@@ -329,4 +329,4 @@ shim 提供了"容器进程不依赖 daemon 存活"的机制，live-restore 是 
 
 ---
 
-上一章：[06 容器安全最佳实践](06-security-best-practices.md) ｜ 下一模块：[02 Kubernetes 基础](../04-k8s-fundamentals/01-why-kubernetes.md) ｜ 配套练习：`labs/08-local-registry`
+上一章：[06 容器安全最佳实践](06-security-best-practices.md) ｜ 下一模块：[04 Kubernetes 基础](../04-k8s-fundamentals/01-why-kubernetes.md) ｜ 配套练习：`labs/08-local-registry`

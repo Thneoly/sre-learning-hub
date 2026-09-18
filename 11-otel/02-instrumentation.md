@@ -1,6 +1,6 @@
 # 02 · 埋点：手动 SDK、自动注入与采样
 
-> 模块：OpenTelemetry（06）｜ 建议时长：2.5 小时 ｜ 前置：00、01 章 ｜ 关联认证：—（无直接考点，PCA 进阶）
+> 模块：OpenTelemetry（11）｜ 建议时长：2.5 小时 ｜ 前置：00、01 章 ｜ 关联认证：—（无直接考点，PCA 进阶）
 
 ## 学习目标
 
@@ -277,6 +277,8 @@ for i in $(seq 1 20); do curl -s -o /dev/null http://127.0.0.1:5000/api/order; d
 ```
 
 预期：Jaeger 中新增 trace 数约为 5 条上下（25% 采样），且**要么整条在、要么整条不在**——这就是 parentbased 的一致性；inventory-svc 不加采样变量也不会产生半截链路，因为它跟随上游的 sampled 位。
+
+本章 VM 上的零代码注入，在 K8s 里的完整落地是 [labs/02-auto-instrumentation](labs/02-auto-instrumentation/task.md)：装好 Operator 后只写一个 `Instrumentation` CR + 一条 Pod 注解，业务镜像一行不改（对应本章 4 节与第 4 章的机制讲解）。
 
 ## 4. 自动埋点路线二：K8s Operator 注入
 

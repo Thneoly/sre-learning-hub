@@ -227,6 +227,67 @@ input {
 4. **降载**：采样（debug 丢 99%）、丢健康检查日志、按 team 路由到不同保留期——不是所有日志都值同样的钱。
 5. **演进到混合**：全文检索的需求集中在一小撮日志（业务审计、安全）时，把大规模基础设施日志切去 Loki（第 3 章），ES 只留需要全文索引与复杂聚合的部分——这是当下最流行的成本答案。
 
+## 9. 安全与快照：X-Pack TLS/认证与 SLM 备份恢复
+
+前 8 节的实验全部跑在 `xpack.security.enabled=false` 上——那是实验环境的特权（8.x 起安全默认开启，且这些能力包含在免费的 Basic 许可里）。生产要回答两个问题：**流量与身份安全吗（9.1）？误删索引、磁盘损毁后拿什么恢复（9.2/9.3）？**
+
+### 9.1 节点间 TLS 与认证
+
+两条 TLS 通道分开配，防的东西不同：
+
+| 通道 | 配置前缀 | 防什么 |
+|---|---|---|
+| transport（节点间 9300） | `xpack.security.transport.ssl` | 任意进程冒充数据节点加入集群读写分片 |
+| http（客户端 9200） | `xpack.security.http.ssl` | 凭据明文裸奔；Kibana↔ES 也走这条 |
+
+```yaml
+# elasticsearch.yml 片段（http 层同三把钥匙，前缀换 xpack.security.http.ssl；证书用自带 certutil 生成）
+xpack.security.enabled: true
+xpack.security.transport.ssl:
+  verification_mode: full
+  key:          /etc/elasticsearch/certs/es01.key
+  certificate:  /etc/elasticsearch/certs/es01.crt
+  certificate_authorities: [/etc/elasticsearch/certs/ca.crt]
+```
+
+配套纪律：安全开启后内置用户生效（`elastic` 是超级用户，密码第一时间改掉并收进 Secret）；管道与应用用最小角色（Filebeat 只写自己的 data stream、看板用户只读自己的索引）——拿 elastic 跑采集管道等价于给 shipper 发 root，与 09-cks 里 RBAC 批到通配符是同款错误。
+
+### 9.2 SLM：把备份变成生命周期
+
+snapshot 不是"拷贝数据目录"（那不是一致性点），而是 ES 原生的集群状态 + 索引内容的一致性快照，写入 repository（fs 共享盘或 S3）。SLM（Snapshot Lifecycle Management）让它按策略自动执行：
+
+```
+策略(每 30 分钟) ──► snapshot（增量：仅上次之后的新 segment）
+                      │ 保留 max_count 50 份 / expire_after 30d
+                      ▼ repository：fs 共享盘 / S3 桶
+恢复：_restore 到原索引（先 close）或改名 restored-*（回查旧数据）
+```
+
+四步 API（可直接跑）：
+
+```bash
+# [任意节点] 1) 注册仓库（fs 型必须先在所有节点的 elasticsearch.yml 配 path.repo 且路径可达）
+curl -s -X PUT "http://localhost:9200/_snapshot/logs_repo" -H 'Content-Type: application/json' \
+  -d '{"type":"fs","settings":{"location":"/mnt/snapshots"}}'
+# 2) 建 SLM 策略：每 30 分钟一份，保 50 份或 30 天（先到期者生效）
+curl -s -X PUT "http://localhost:9200/_slm/policy/logs-every-30m" -H 'Content-Type: application/json' \
+  -d '{"schedule":"0 */30 * * * ?","name":"<logs-snapshot-{now/d}>","repository":"logs_repo","retention":{"expire_after":"30d","min_count":5,"max_count":50}}'
+# 3) 手动触发一次并查看
+curl -s -X POST "http://localhost:9200/_slm/policy/logs-every-30m/_execute"
+curl -s "http://localhost:9200/_cat/snapshots/logs_repo?v&h=id,status,indices"
+# 4) 恢复演练：恢复成新名字回查，不动在线索引
+curl -s -X POST "http://localhost:9200/_snapshot/logs_repo/<快照名>/_restore" -H 'Content-Type: application/json' \
+  -d '{"indices":"logs-000001","rename_pattern":"(.+)","rename_replacement":"restored-$1"}'
+```
+
+### 9.3 RTO/RPO 对账（SRE 视角）
+
+快照策略买的就是两个数字，要写进值班手册并定期对账：
+
+- **RPO = 快照间隔**：每 30 分钟一份 = 最多丢 30 分钟数据。日志场景常接受 30min~1h；审计类要更小 RPO 就得上跨集群复制（CCR）或独立近实时副本，成本是另一个量级。
+- **RTO = 实测的恢复耗时**：与快照大小、repository 读吞吐（S3 拉回带宽）、索引数量正相关，只能靠演练拿到真数。
+- **对账动作**（每季度或大版本升级后）：拿最近一份快照 restore 成 `drill-*` 索引，`_cat/indices` 比对 docs.count——差值 ≤ RPO 窗口内的写入量为健康，超出即丢数据事故而不是误差；同时记录本次耗时作为 RTO 证据。**没演练过的备份等于没有备份**。
+
 ## 实战演练：单节点 ELK 收 JSON 日志
 
 环境：装有 Docker 的 Ubuntu 22.04/24.04 VM，内存 ≥ 4 GB（ES heap 512m + Kibana）。镜像 tag 以官方 release 为准，本文用 8.17.0。

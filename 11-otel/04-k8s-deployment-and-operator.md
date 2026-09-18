@@ -1,6 +1,6 @@
 # 04 · Kubernetes 部署与 OTel Operator
 
-> 模块：OpenTelemetry（06）｜ 建议时长：3 小时 ｜ 前置：01~03 章 ｜ 关联认证：CKA-工作负载/RAC（弱相关）｜ 关联实验环境：kubeadm 单 master 集群 + Calico
+> 模块：OpenTelemetry（11）｜ 建议时长：3 小时 ｜ 前置：01~03 章 ｜ 关联认证：CKA-工作负载/RAC（弱相关）｜ 关联实验环境：kubeadm 单 master 集群 + Calico
 
 ## 学习目标
 
@@ -508,6 +508,62 @@ kubectl -n otel port-forward svc/jaeger 16686:16686 &
 2. **注入只发生在 Pod 创建时**——给已有 Deployment 加注解必须触发滚动重启（`kubectl rollout restart`）才生效；
 3. 多容器 Pod 用 `instrumentation.opentelemetry.io/container-names: "<容器名>"` 告诉 Operator 该动哪个容器（Go/Node.js 必需）。
 
+## 6. Securing the pipeline：给采集面上锁
+
+本章默认配置的 agent 对全集群敞开 4317/4318——实验环境无所谓，但生产上的 Collector 是"每个节点都有入口、流动的数据常带 PII"的关键数据面：任何人都能注入伪造遥测（污染仪表盘、灌高基数拖垮后端）。加固思维与 09-cks 一脉相承（纵深防御、默认拒绝、最小权限，见 [09-cks/03-microservice-vulnerabilities.md](../09-cks/03-microservice-vulnerabilities.md)）。
+
+### 6.1 传输加密与认证：OTLP TLS/mTLS + auth extension
+
+证书复用本章装好的 cert-manager（CA 直接用它的根，或自签后导入 Secret）；认证用 extension 家族的 server 端组件（basicauth、bearertokenauth、oidc 等），挂在 receiver 上实现"有凭证才能推数据"。两件事都发生在 receiver 一段配置里：
+
+```yaml
+# [master] Collector CR 的 config 片段（证书/htpasswd 的 secret 卷挂载省略，字段细节以官方文档为准）
+extensions:
+  basicauth:                              # server 端认证扩展：校验用户名/密码（htpasswd 文件）
+    htpasswd: {file: /etc/otel/secrets/.htpasswd}
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        tls: {cert_file: /certs/tls.crt, key_file: /certs/tls.key}     # mTLS 再加 client_ca_file
+      http:
+        endpoint: 0.0.0.0:4318
+        auth: {authenticator: basicauth}                               # receiver 引用认证器
+service:
+  extensions: [basicauth]                 # 第 3 章的规则：不被 service 引用的组件不生效
+```
+
+升级成 mTLS（客户端也要出示证书）时，tls 段加 `client_ca_file`，应用侧 SDK 配 `OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE` / `OTEL_EXPORTER_OTLP_CLIENT_KEY`（名称以各 SDK 文档为准）——它把"谁有资格发数据"收紧到证书持有者，代价是证书签发与轮换进入应用发布流程，对外暴露的 gateway 值得上。basicauth 这条路应用侧也不用改代码：`OTEL_EXPORTER_OTLP_HEADERS` 带上 `Authorization=Basic <base64(user:pass)>`（gRPC 走 metadata、HTTP 走 header），凭证放 Secret，别进 Git。
+
+### 6.2 网络层：NetworkPolicy 收口入口
+
+最后一道闸在 L3/L4：otel namespace 默认拒绝入站，只放"业务 namespace → 4317/4318"和"Prometheus → 8889"。练习集群是 Calico，NetworkPolicy 直接生效：
+
+```yaml
+# [master] kubectl apply -f otel-agent-netpol.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: otel-agent-ingress
+  namespace: otel
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/managed-by: opentelemetry-operator}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: default}       # 只放业务 ns 推数据
+      ports: [{port: 4317}, {port: 4318}]
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}    # 只放 Prometheus 抓 8889
+      ports: [{port: 8889}]
+```
+
+验证：从 default 起一个 Pod 访问 4318 通、从不被允许的 namespace 做同样操作超时，即证明策略生效。出口方向同理可加 Egress 规则（agent 只许访问 Jaeger/后端），配合 09-cks 的"default deny + 按需放开"检查单。生产清单四件套：receiver TLS、认证 extension、NetworkPolicy、exporter 到后端的 TLS（`tls.ca_file` 等）——练习集群做前三个，足以体会收益。
+
 ## 实战演练：与练习集群 Prometheus 栈整合
 
 前提：已用 `scripts/setup/install-prom-stack.sh` 装好 kube-prometheus-stack（含 Prometheus Operator）。整合点是 agent 的 8889 端口——按 PCA 的老路子：ServiceMonitor 让 Prometheus 来拉。
@@ -561,6 +617,8 @@ topk(5, k8s.pod.memory.usage)
 ```
 
 至此完整拓扑成立：**应用(注解注入) → agent(DaemonSet, 富化+缓冲) → Jaeger(traces) + Prometheus(metrics, ServiceMonitor 拉) + debug/任意后端(logs)**。要加 Loki，把 logs pipeline 的 exporter 换成第 3 章配方 C 的 `otlphttp/loki` 即可。
+
+本章 Operator 安装与注入流程的 lab 版：[labs/02-auto-instrumentation](labs/02-auto-instrumentation/task.md)——cert-manager → Operator → `Instrumentation` CR → Pod 注解，`check.sh` 逐项验收（含 init 容器与环境变量的存在性检查）。
 
 ## 常见坑
 

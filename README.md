@@ -1,4 +1,4 @@
-# Learning Hub — 云原生 SRE 学习中心（20 模块）
+# Learning Hub — 云原生 SRE 学习中心（22 模块）
 
 一套自包含的**学习材料 + 学习平台 + 练习平台**，专为以下情况设计：
 
@@ -14,7 +14,7 @@
 - 证书备考与三视图（学习顺序/能力支柱/场景索引）见 `ROADMAP.md`、`SCENARIOS.md`
 - 许可：代码 MIT，文档 CC BY-NC-SA 4.0（见 LICENSE）
 
-## 20 个模块
+## 22 个模块
 
 | # | 目录 | 内容 | 定位 |
 |---|---|---|---|
@@ -34,10 +34,12 @@
 | 14 | `14-data-streaming/` | Kafka 3 章 + Flink 2 章 + labs | 日志模型、ISR/KRaft、流处理、exactly-once、反压 |
 | 15 | `15-sre-methodology/` | 5 章 + 2 labs | **中级→高级分水岭**：SLO/错误预算、On-call、无责复盘、混沌工程 |
 | 16 | `16-cloud/` | 3 章 + 1 lab | 云平台：阿里云实操 + AWS 对照 + 认证路径 |
-| 17 | `17-aiops-llm/` | 4 章 + 1 lab | **差异化选修**：LLM 辅助排障、RAG 知识库、Agent skill、安全护栏 |
+| 17 | `17-aiops-llm/` | 5 章 + 1 lab | **差异化选修**：LLM 辅助排障、RAG 知识库、Agent skill、安全护栏、私有化 LLM 端点 |
 | 18 | `18-bigdata/` | 9 章 + 5 labs | 大数据平台（运维专线岗画像）：HDFS/YARN/Hive 数仓/Spark/Doris·StarRocks/ZooKeeper/ClickHouse/**湖仓表格式深讲（Iceberg/Hudi/Paimon，含 Arrow）** |
 | 19 | `19-distributed/` | 12 章 + 3 labs | **分布式理论层**（面试深水区）：故障模型与时钟/一致性模型/共识与 Raft/分布式事务/分片再平衡/Gossip 与脑裂/排障方法论/经典不可能性/Paxos/CRDT/协调工具选型——每个概念映射到已学组件（etcd/Kafka/Redis/Flink） |
 | 20 | `20-lifecycles/` | 2 章 | **横向参考图鉴**：16 个组件的 ASCII 状态图 + 卡住场景——K8s 八类资源与 etcd/Kafka/Redis/MySQL/PostgreSQL/RabbitMQ/Flink 的状态机、RTO/RPO 一图对照 |
+| 21 | `21-perf-testing/` | 2 章 | 性能工程：k6/wrk/JMeter 压测方法与 **p99 拐点**、**容量规划**（USE 水位、K8s 四本账、Redis/MySQL 基线、Proactive Scaling、容量评估报告） |
+| 22 | `22-incident-stories/` | 1 章 | **故障复盘故事集**：PDB 缺失级联驱逐、缓存雪崩打穿 DB、etcd 磁满瘫痪控制面、慢查询拖垮连接池——时间线/探测误判/根因/修复全推演 |
 
 ## 能力支柱视图（"我是谁 / 补哪块"的叙事层）
 
@@ -47,7 +49,7 @@
 |---|---|---|---|
 | **云原生平台域** | 云原生运维 / 容器平台工程师 | 01-linux · 02-programming · 03-docker · 04-k8s · 05-cka · 09-cks · 13-middleware · 14-data-streaming · 16-cloud · 18-bigdata · 19-distributed | 以容器为中心的平台栈：从内核底座、数据面组件到分布式理论底座 |
 | **DevOps 工程域** | DevOps 工程师 / 交付效率方向 | 06-ci-cd · 07-cd-gitops · 08-iac（DevOps 概念/Git/GitLab CI/Jenkins/ArgoCD/Ansible/Terraform） | 优化软件交付流程：流动、反馈、持续学习（三步工作法） |
-| **可观测与 SRE 域** | SRE / 稳定性方向 | 10-pca · 11-otel · 12-logging · 15-sre-methodology | 优化系统可用性：指标/日志/追踪 + SLO/错误预算/混沌 |
+| **可观测与 SRE 域** | SRE / 稳定性方向 | 10-pca · 11-otel · 12-logging · 15-sre-methodology · 21-perf-testing · 22-incident-stories | 优化系统可用性：指标/日志/追踪 + SLO/错误预算/混沌 + 压测容量/故障复盘 |
 | **AIOps 智能域**（增值） | 智能运维 / AIOps 工程师 | 17-aiops-llm + scripts/faults 靶场 | 用 LLM 增强判断：辅助排障、RAG 知识库、Agent 护栏 |
 
 三支柱的关系（也是面试的标准答法）：DevOps 优化**工程流程**，SRE 优化**系统可用性**，云原生是两者的**平台底座**，AIOps 是叠加在三者上的**能力倍增器**。
@@ -56,7 +58,7 @@
 
 ### 1. 学习平台（浏览器打开）
 
-双击 `portal/index.html`——无需服务器、无需联网。含：20 模块进度追踪（自动存本地）、内置题库测验、CKA 考试计时器、kubectl/vim/PromQL 速查。
+双击 `portal/index.html`——无需服务器、无需联网。含：22 模块进度追踪（自动存本地）、内置题库测验、CKA 考试计时器、kubectl/vim/PromQL 速查。
 （如需站内阅读 markdown，先在 portal/ 下运行 `build-content.ps1` 生成 content.js。）
 
 ### 2. 系统学习（按 ROADMAP.md 的阶段与闭环推进）

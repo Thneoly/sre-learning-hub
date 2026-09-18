@@ -9,6 +9,7 @@
 - 能操作 taint/toleration 的三种 effect，并分别预测"已运行 Pod"和"新建 Pod"的遭遇
 - 能解释 PriorityClass 的抢占流程与受害者选择规则
 - 能排查 Pod Pending：从 FailedScheduling 事件链区分"调度失败"与"被驱逐"
+- 能操作 PodDisruptionBudget 约束自愿中断的副本下线数量，并按 cordon → drain → uncordon 标准流程完成节点维护
 
 ## 1. 调度器在架构里的位置：一次性决策
 
@@ -290,6 +291,79 @@ urgent Pod (priority 100000) Pending
 
 一句话记忆：**调度失败是"没地方去"，驱逐是"待不下去了"**。前者看 apiserver 的 FailedScheduling 事件，后者看节点 kubelet 日志与 Pod 的 Evicted 事件。
 
+## 7. PodDisruptionBudget 与自愿中断：给"计划内下线"设一道闸
+
+第 6 节末尾把驱逐归为"人工/API 发起的 eviction（如 drain）"——官方对这类中断有正式分类，PDB 只管其中一类：
+
+| 中断类型 | 谁发起 | 例子 | PDB 管不管 |
+| --- | --- | --- | --- |
+| 非自愿（involuntary） | 不可抗力或节点自保 | 宿主机硬件故障、内核 panic、节点失联、节点压力驱逐（第 11 章） | 管不了，但会占用预算 |
+| 自愿（voluntary） | 人或自动化主动发起 | drain 节点做维护/升级、集群缩容腾挪 | 管其中走 Eviction API 的部分 |
+
+PDB（PodDisruptionBudget）不创建任何东西、不参与调度，它只是一本"同一组 Pod 同时自愿下线数量"的账，被 Eviction API 在放行驱逐前查询。副本基数由控制器（Deployment/StatefulSet）的 `spec.replicas` 经 Pod 的 ownerReferences 反查得到。
+
+### 7.1 PDB YAML：minAvailable 与 maxUnavailable 二选一
+
+```yaml
+# [master] 保存为 pdb-web.yaml（配合 3.3 节的 web Deployment 使用）
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web-pdb
+spec:
+  minAvailable: 2           # 驱逐后至少保留 2 个健康副本；也可写 "50%"
+  selector:
+    matchLabels:
+      app: web              # 与控制器 selector 一致
+```
+
+两个语义相反的字段**只能设其中一个**，同时写会被 apiserver 直接拒绝：
+
+| 字段 | 语义 | 3 副本时 | 适用场景 |
+| --- | --- | --- | --- |
+| `minAvailable: 2` | 驱逐后"存活数"下限 | 最多赶 1 个 | 关心绝对可用数的核心服务 |
+| `maxUnavailable: 1` | 驱逐后"下线数"上限 | 最多赶 1 个 | replicas 常变的场景（HPA），不用跟着改 PDB |
+
+百分比写法的取整方向要记牢：`minAvailable: "50%"` 向上取整的是"必须存活数"（7 副本 → 4）；`maxUnavailable: "30%"` 向上取整的是"允许下线数"（7 副本 → 3），因此实际不可用比例可能略超百分比。另一个 policy/v1 与老 policy/v1beta1 的差异：**空 selector 在 policy/v1 下匹配 namespace 内全部 Pod**（v1beta1 是 0 个）——别裸提交空 selector 的 PDB。
+
+三个"不保护"的边界，排障时先自查是否踩中：
+
+- Deployment/StatefulSet 的**滚动升级不受 PDB 约束**（升级造成的不健康副本只是计入预算）；
+- 裸 `kubectl delete pod` / `kubectl delete deployment` 绕过 Eviction API，PDB 拦不住；
+- 节点压力驱逐等非自愿中断本来就防不住，PDB 的职责只是"别让自愿中断雪上加霜"。
+
+### 7.2 drain 为什么会卡住：Eviction API 的三种回应
+
+drain 对每个 Pod 调用 eviction 子资源——一次"受 PDB 约束的 DELETE"，apiserver 的回应只有三种：
+
+| apiserver 回应 | 含义 | drain 的反应 |
+| --- | --- | --- |
+| 200 | 放行（无 PDB 或预算充足） | 删除该 Pod，继续下一个 |
+| 429 Too Many Requests | 会打破 PDB | 每隔约 5 秒重试，直到预算恢复或超时 |
+| 500 | 配置错误 | 最典型：两个 PDB 的 selector 圈中了同一个 Pod |
+
+"drain 卡住不动"多数时候不是故障，而是 PDB 在等别处副本恢复健康（重建副本 Ready 后预算自动回来）。卡住时的真实输出：
+
+```text
+error when evicting pods/"web-5d8f9c7b4a-abcde" -n "default" (will retry after 5s):
+Cannot evict pod as it would violate the pod's disruption budget.
+```
+
+排障顺序：① `kubectl get pdb web-pdb` 看 `ALLOWED DISRUPTIONS`——为 0 就查预算被谁占了（Pending/未 Ready 的副本同样占预算）；② 单副本应用配 `minAvailable: 1` 在数学上无解，要么加副本要么调 PDB；③ 500 错误就找 selector 重叠的 PDB；④ 确属紧急可"绕闸"：直接 `kubectl delete pod`（不查 PDB），服务能否承受自己评估。前两条是治病，第四条是砸锁。
+
+### 7.3 节点维护标准流程
+
+```
+# [图] 一次节点维护的标准骨架
+kubectl cordon worker1  ──► 1. 关门: spec.unschedulable=true, 新 Pod 不再落进来
+kubectl drain worker1 --ignore-daemonsets --delete-emptydir-data
+                        ──► 2. 清场: 逐 Pod 走 Eviction API, 尊重 PDB, 优雅终止
+(在 worker1 上做内核升级 / kubelet 升级 / 换盘等维护操作)
+kubectl uncordon worker1 ──► 3. 开门: 恢复调度, 控制器把副本重新铺回来
+```
+
+三个常用 flag 都是在放行特定例外：`--ignore-daemonsets`（DS Pod 跟节点走，赶走没意义）、`--delete-emptydir-data`（emptyDir 数据随 Pod 消失，需显式确认）、`--force`（连裸 Pod 一起删，慎用）。第 13 章 4.2 节 kubeadm 升级流程里每台 worker 走的正是"drain → 升级 → uncordon"这个骨架；CKA 视角的完整排障（PDB、emptyDir、DaemonSet 三种卡住原因）在 `05-cka/06-node-maintenance-troubleshooting.md` 展开，配套动手练习在 `05-cka/labs/14-kubeadm-upgrade-drain/`。第 11 章末尾的"三个被杀/被赶概念"三分法里，"API 驱逐尊重 PDB"指的就是本节这套机制。
+
 ## 实战演练
 
 环境：kubeadm 集群（单 master + Calico）。把命令中的 `worker1` 替换成你环境里的真实节点名。
@@ -395,6 +469,39 @@ kubectl delete -f low-batch.yaml; kubectl delete pod urgent --force --grace-peri
 kubectl delete priorityclass urgent batch-low
 ```
 
+### 演练 6：亲手被 PDB 拦一次
+
+```bash
+# [master] 单副本服务 + "一个都不许少"的 PDB
+kubectl create deployment solo --image=nginx:1.27 --replicas=1
+kubectl apply -f - <<'EOF'
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: solo-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: solo
+EOF
+kubectl get pdb solo-pdb
+# 预期: MIN AVAILABLE 1, ALLOWED DISRUPTIONS 0（1 副本至少留 1，没有任何余量）
+
+# [master] drain：预期被 PDB 卡到超时（worker1 换成实际节点）
+kubectl drain worker1 --ignore-daemonsets --delete-emptydir-data --timeout=30s
+# 预期（核心两行）:
+#   error when evicting pods/"solo-xxxxxxx-xxxxx" (will retry after 5s):
+#   Cannot evict pod as it would violate the pod's disruption budget.
+#   error: unable to drain node "worker1" due to error: timeout
+
+# [master] 给预算松绑后重跑（模拟"加了副本/调整了 PDB"），drain 即可完成
+kubectl patch pdb solo-pdb --type=merge -p '{"spec":{"minAvailable":0}}'
+kubectl drain worker1 --ignore-daemonsets --delete-emptydir-data --timeout=120s
+kubectl uncordon worker1
+kubectl delete deployment solo && kubectl delete pdb solo-pdb
+```
+
 ## 常见坑
 
 | 症状 | 原因 | 解法 |
@@ -404,6 +511,7 @@ kubectl delete priorityclass urgent batch-low
 | Deployment 扩容后部分副本永久 Pending | required 反亲和/spread 超过节点数 | 改 preferred/ScheduleAnyway，或加节点 |
 | 改了节点标签，已运行 Pod 没动 | IgnoredDuringExecution：绑定后不再迁移 | 滚动重启让新 Pod 按新标签落位 |
 | 以为 NoSchedule 会踢 Pod，节点上却安然无恙 | NoSchedule 只拦新 Pod | 要踢存量用 NoExecute 或 drain |
+| `kubectl drain` 卡住，报 `Cannot evict pod as it would violate the pod's disruption budget` | PDB 预算耗尽：别处副本未恢复健康，或 PDB 比副本数还紧 | `kubectl get pdb` 看 ALLOWED DISRUPTIONS；等重建副本 Ready；单副本应用调 PDB 或加副本；紧急时裸 `kubectl delete pod` 绕闸 |
 
 ## 自测
 
@@ -448,3 +556,6 @@ cordon 把 `spec.unschedulable` 置 true，默认调度器不再往该节点放�
 - 污点与容忍：https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
 - Pod 拓扑分布约束：https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/
 - Pod 优先级与抢占：https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/
+- Pod 中断与 PodDisruptionBudget：https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+- API 发起驱逐（Eviction API 与 429/500 语义）：https://kubernetes.io/docs/concepts/scheduling-eviction/api-eviction/
+- 安全排空节点（drain 任务页）：https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/

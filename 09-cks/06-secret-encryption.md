@@ -259,6 +259,8 @@ kubectl delete secret db-cred plain-demo -n default
 # 回滚=把 providers 改成只有 identity: {}（放第一位），touch manifest，再全量重写即恢复明文存储
 ```
 
+配套练习：[labs/08-encryption-at-rest](labs/08-encryption-at-rest/task.md)——本章"生成 key→挂载→重加密→轮换"全流程的可判分版本。
+
 ## 常见坑
 
 | 症状 | 原因 | 解法 |

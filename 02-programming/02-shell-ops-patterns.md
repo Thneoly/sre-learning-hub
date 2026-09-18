@@ -8,6 +8,7 @@
 - 能用 `trap` 保证脚本被 Ctrl-C / kill 时也执行清理，不留锁文件和临时目录
 - 能用 `xargs -P` 做受控并行，把百台机器的采集时间从串行小时级压到分钟级
 - 能套用"参数校验 / 统一日志 / 幂等"三件套，把一次性脚本改造成可交出去的工具
+- 能用密钥/agent/ProxyJump/本地隧道把"跳板访问内网服务"制度化，而不是每次手敲密码
 
 ---
 
@@ -322,6 +323,78 @@ log "done, remaining: $(ls -1 "$BACKUP_DIR"/snapshot-*.db 2>/dev/null | wc -l)"
 
 ---
 
+## 7. SSH 深入与隧道
+
+批量 ssh 只是"用"SSH；管好密钥、跳板与隧道，才是把 SSH 当基础设施来运维。
+
+### 7.1 密钥管理与 known_hosts
+
+```bash
+# [本地Windows] 每个用途一把独立 ed25519 密钥，绝不共用一把"万能钥匙"
+ssh-keygen -t ed25519 -f ~/.ssh/id_ops -C "ops-2026"
+
+# [任意节点] CI/自动化场景：首次连接自动接受指纹，之后指纹变化仍然拒绝
+ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes user@host 'uptime'
+```
+
+`known_hosts` 记录的是"我第一次见到的服务器指纹"，之后每次连接核对。三档配置的取舍：
+
+| 配置 | 行为 | 适用 |
+|---|---|---|
+| `yes`（默认） | 首次连接交互确认，指纹变化直接拒绝 | 交互终端 |
+| `accept-new` | 首次自动接受（TOFU），**变化仍拒绝** | CI/批量脚本：免交互又防中间人 |
+| `no` | 完全不校验 | 基本没有正当理由——等于放弃防中间人 |
+
+CI 里更严格的做法是构建镜像时预置指纹：`ssh-keyscan -t ed25519 host` 的输出与人审过的指纹比对后写入 known_hosts，让"首次"也不存在。
+
+### 7.2 ssh-agent：把口令留在本地
+
+密钥加了 passphrase 后每次使用都要输口令，agent 进程在会话内代持解密后的密钥：
+
+```bash
+# [本地Windows] 或任意发起跳板连接的终端
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ops        # 输一次口令，之后本会话内的 ssh/git 免输（ssh-add -l 查看已持有）
+```
+
+注意 `ssh -A`（agent forwarding）能让远端借用你的 agent——方便在服务器上 `git pull`，但被入侵的中间主机可以盗用你的 socket 冒充你。纪律：**宁可 ProxyJump，不开 AgentForwarding**。
+
+### 7.3 ProxyJump：一脚直达内网
+
+```bash
+# [本地Windows] 等价于"先登录 bastion，再从 bastion ssh 内网机"，但认证与连接端到端加密
+ssh -J user@bastion.example.com user@cka000001
+
+# [本地Windows] 写进 ~/.ssh/config 一劳永逸
+cat >> ~/.ssh/config <<'EOF'
+Host bastion
+  HostName bastion.example.com
+  User user
+
+Host cka*
+  ProxyJump bastion          # 之后 ssh cka000001 直接达
+  ServerAliveInterval=30     # NAT 空闲断连防护，长隧道同样需要
+EOF
+```
+
+比"bastion 上再转发一层 agent"或"`ssh -L` 套 `ssh -L` 的糖葫芦"干净：认证始终发生在你本机，bastion 只转发加密流量。
+
+### 7.4 ssh -L：从办公网直达内网 apiserver
+
+apiserver 的 6443 通常只对内网开放，一条本地转发就能让 kubectl 在办公网使用：
+
+```bash
+# [本地Windows] 把本地 16443 转发到 master 的 6443（-N 不执行远端命令，专职隧道）
+ssh -N -L 16443:cka000001:6443 bastion &
+
+# [本地Windows] kubectl 走本地端口；tls-server-name 指定证书校验用的名字
+kubectl --server=https://127.0.0.1:16443 --tls-server-name=cka000001 get nodes
+```
+
+两个细节：客户端连的是 `127.0.0.1:16443`，而 kubeadm 签的 apiserver 证书 SAN 里没有 127.0.0.1，所以要用 `--tls-server-name`（或 kubeconfig 的同名字段）按主机名校验证书，而不是退到 `--insecure-skip-tls-verify`；隧道进程退出后 kubectl 会报 connection refused——`ServerAliveInterval` 保活，或用 autossh 自动重连。
+
+---
+
 ## 实战演练
 
 ```bash
@@ -364,8 +437,10 @@ kill %1
 | xargs 报 "argument line too long" 或删错文件 | 空格/特殊字符文件名被拆 | `find -print0` + `xargs -0` |
 | `xargs` 在输入为空时仍然执行了一次目标命令 | 默认行为会裸跑 | 加 `-r`（GNU findutils） |
 | cron 里脚本每分钟叠着一个跑 | 无锁，上一轮未结束 | `exec 9>lock; flock -n 9 || exit 0` |
+| CI 里 ssh 报 Host key verification failed | 全新环境无 known_hosts，交互确认无人应答 | `-o StrictHostKeyChecking=accept-new`，或镜像构建时预置人审过的指纹 |
 | 脚本退出但临时文件/挂载残留 | 异常路径没有清理 | `trap cleanup EXIT`，清理函数只删自己创建的东西 |
 | webhook 偶发把脚本拖挂 | curl 无超时 | `--max-time 5` + 有限次重试 + 失败降级为日志 |
+| kubectl 走 `ssh -L` 隧道报 x509 证书错误 | apiserver 证书 SAN 不含 127.0.0.1 | `--tls-server-name=<master主机名>`（勿用 insecure-skip-tls-verify），或重签证书加 SAN |
 | 告警 JSON 报 400 | 手拼字符串遇正文引号/换行断裂 | `jq -n --arg` 构造 payload |
 
 ---

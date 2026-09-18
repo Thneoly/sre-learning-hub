@@ -140,6 +140,63 @@ def sync_inventory(sku: str):
 
 重试必然带来重复，幂等模式直接复用 [19-distributed/04 §6](../19-distributed/04-distributed-transactions.md) 的速查表：能落库用业务唯一键（`UNIQUE KEY` + `INSERT IGNORE`），跨系统用消息 ID 去重表，短窗口去重用 `SET NX EX`。落到 Celery 语境的映射：**task_id 就是现成的消息 ID**——消费侧以 `(task_name, task_id)` 建去重键，第二个 worker 重新执行同一条任务时命中去重，副作用只发生一次。去重键的窗口必须覆盖"最长重投延迟"（可见性超时 + 重试链），太短等于没设。
 
+### 6.3 可运行骨架：task_id 去重守卫 + 完整任务定义
+
+把 §6.1 的重试参数与 §6.2 的去重思路合成一份可直接拷走的骨架（[labs/03](./labs/03-celery-tasks/solution.md) 负责实证"重复必然发生"，本骨架负责"发生了也不重复执行副作用"，两者互补）：
+
+```python
+# [任意节点] dedupe.py —— 消费侧幂等守卫 + 生产配置（沿用 lab 的 Redis 端口 6392）
+import redis
+from celery import Celery
+
+app = Celery(
+    "myapp",
+    broker="redis://127.0.0.1:6392/1",
+    backend="redis://127.0.0.1:6392/2",
+    broker_transport_options={"visibility_timeout": 7200},
+)
+rdb = redis.Redis.from_url("redis://127.0.0.1:6392/3")  # 去重键独立 db，不与 broker/backend 挤占
+
+app.conf.update(
+    worker_prefetch_multiplier=1,        # 长任务公平分发（第 4 节）
+    task_acks_late=True,                 # 至少一次语义，配套下面的去重守卫
+    task_reject_on_worker_lost=True,
+    result_expires=3600,                 # 结果 1h 后过期清理，防 result db 无限膨胀
+    task_ignore_result=True,             # 默认不写结果：多数任务 fire-and-forget
+)
+
+DEDUPE_TTL = 7200 + 1800  # 必须覆盖 visibility_timeout + 重试链总时长，否则等于没设
+
+
+def first_time(task_id: str) -> bool:
+    """SET NX EX 原子判定：第一个到场返回 True，重投的第二个直接 False"""
+    return bool(rdb.set(f"dedupe:{task_id}", 1, nx=True, ex=DEDUPE_TTL))
+
+
+@app.task(
+    bind=True,
+    autoretry_for=(ConnectionError,),    # 只救瞬时故障（§6.1）
+    retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
+    max_retries=5,
+    soft_time_limit=280,                 # 软超时先抛异常给任务善后
+    time_limit=300,                      # 硬超时兜底杀进程
+)
+def sync_inventory(self, sku: str) -> str:
+    if not first_time(self.request.id):  # 消费侧检查：重投进来的同一 task_id 到此为止
+        return "duplicate-skipped"
+    ...  # 真实副作用：写库/调第三方——业务唯一键仍是最后防线（§6.2）
+    return "ok"
+
+
+@app.task(ignore_result=False)           # 少数确实要读结果的任务单独放开
+def query_report(n: int) -> int:
+    return n * 2
+```
+
+四个要点：`SET NX EX` 必须一条命令完成，`SETNX` + `EXPIRE` 两步在中间崩溃会留下永不过期的键；`task_ignore_result=True` 是全局默认关、个别任务用 `ignore_result=False` 单独开，方向别写反；`result_expires` 只清理 result backend 的状态键，与 broker 消息无关；`DEDUPE_TTL` 的下界就是 §6.2 说的"最长重投延迟"——可见性超时 7200s 加最长重试链，这里留了 30 分钟余量。
+
 ## 7. 积压监控：LLEN / flower / 探针
 
 积压（backlog）是任务队列的第一健康指标——队列深度只增不减，等于系统在"假活着"。

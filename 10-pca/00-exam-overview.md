@@ -8,6 +8,7 @@
 - 能描述 PCA 与 CKA/CKS 的题型差异（纯选择题 vs 实操题）以及由此带来的不同复习方法
 - 能针对"概念辨析多、存在多选题"的特点建立一套审题与排除策略
 - 能按一个可执行的四周计划把五个域的学习分配到本模块的 7 篇文件
+- 能给出 PCA 与 CKA/CKS 的报考顺序建议，并列出至少三种可用的练习环境
 
 ## 1. PCA 是什么
 
@@ -118,7 +119,43 @@ PCA 内容特点是"知识点都不深，但互相咬合"。背清单能应付 4
 2. **报错是最好的老师**。`vector selector must contain at least one non-empty matcher`、`expected type range vector` 这类报错本身就常被改编成考题
 3. **用官方文档当地图，不用第三方题库当教材**。prometheus.io 的 querying/functions、practices/alerting、practices/histograms 三篇与考点重合度极高
 
-## 6. 考前 48 小时清单
+## 6. PCA 与 CKA/CKS：报考组合策略
+
+本模块读者通常同时面对三张证，先摆到一张表里（政策类数字以官方页面为准，不依赖本文记忆）：
+
+| 维度 | PCA | CKA | CKS |
+| --- | --- | --- | --- |
+| 定位 | 入门级知识型认证（概念/辨析） | 管理员实操认证 | 安全专项实操（进阶） |
+| 前置 | 无 | 无 | 必须先持有效 CKA |
+| 题型 | 60 道选择题（含多选），无终端 | 15~20 道实操题，真实集群终端 | 实操题，真实集群终端 |
+| 时长 / 通过线 | 90 分钟 / 75% | 120 分钟 / 66% | 120 分钟 / 85% |
+| 复习量级 | 30~40 小时可全覆盖（概念+刷题） | 数十至上百小时集群实操 | 在 CKA 熟练度之上叠加安全 |
+| 允许资源 | 闭卷概念题（无资料可查） | 仅 kubernetes.io 域内文档 | 受限站点清单（以官方 FAQ 为准） |
+| 证书有效期 | 2 年（以官方为准） | 2 年 | 2 年 |
+
+由此推出三条顺序策略（针对"已在备考 CKA/CKS"的读者画像）：
+
+1. **CKA 优先，PCA 做调剂**。CKA 吃操作手感，搁置两个月手感就凉，重热成本高；PCA 是概念题且 Prometheus 生态变化慢于 K8s 本身，集中冲刺两周即可上场。把 PCA 插在 CKA 与 CKS 之间当"换脑科目"最划算
+2. **CKS 必须排在 CKA 之后**——这是硬性前置（需持有效 CKA 才能约考），且建议趁集群操作还热乎时接着考
+3. **知识互补而非重叠**：PCA 的 PromQL、告警语义、relabel 恰好是 CKS 监控/审计章节背后的原理层；先 PCA 后 CKS，做题时知其所以然
+
+预算提示：LF 常有 CKA+CKS bundle 与考试优惠季，PCA 一般含一次免费重考机会——价格与 retake 政策一律以报名页当前信息为准。
+
+## 7. 练习环境清单
+
+PCA 没有实操终端，但 PromQL 与告警语义**必须动手练**（5 节的原则）。可用环境从重到轻：
+
+| 环境 | 适合练什么 | 成本 / 局限 |
+| --- | --- | --- |
+| 自建 kubeadm 集群（本模块主线，`172.30.30.21` 那套 VM） | 全部考点：kube-prometheus-stack、ServiceMonitor、告警全链路、Grafana | 已有则零边际成本 |
+| Docker 单机三容器链路（04 文件实战演练） | 埋点、exposition 格式、抓取、基础 PromQL | 无 K8s SD 与 CRD |
+| 在线 playground：<https://play.promlabs.com/> | PromQL（内置 demo 数据集，免安装） | 指标名是 `demo_*` 前缀，需自行替换 |
+| killercoda 免费场景：<https://killercoda.com/> | 需要一次性 K8s 终端时（可自己装监控栈） | 环境不持久、有配额，可用场景随站点更新，以当前列表为准 |
+| 本地 Docker Desktop（Windows） | 随手验证单条 PromQL / exposition | 内存有限，跑不动完整监控栈 |
+
+一句原则：**考试没有终端，环境的唯一目的是把手感练进脑子**——每个查询先按 4.3 节四步法心算、再执行对照，环境只是判卷人。
+
+## 8. 考前 48 小时清单
 
 - 把五域各过一遍"一句话区分"表（4.1 节那张表自己扩写）
 - 重做 03/05 文件里所有自测题，不展开答案先口算
@@ -170,5 +207,7 @@ CKA 考操作流程，流程可以背成肌肉记忆；PCA 考概念辨析和 Pr
 ## 延伸阅读
 
 - PCA 官方页面（报名与考试政策）：<https://training.linuxfoundation.org/certification/prometheus-certified-associate-pca/>
+- CKA / CKS 官方页面（组合报考对比用）：<https://training.linuxfoundation.org/certification/certified-kubernetes-administrator-cka/>、<https://training.linuxfoundation.org/certification/certified-kubernetes-security-specialist/>
+- killercoda 免费练习场景：<https://killercoda.com/>
 - Prometheus 官方文档入口：<https://prometheus.io/docs/introduction/overview/>
 - 与考点重合度最高的三篇实践文档：<https://prometheus.io/docs/prometheus/latest/querying/functions/>、<https://prometheus.io/docs/practices/alerting/>、<https://prometheus.io/docs/practices/histograms/>

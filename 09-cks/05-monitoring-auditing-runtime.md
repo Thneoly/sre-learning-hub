@@ -376,6 +376,8 @@ sudo jq -c 'select(.objectRef.resource=="pods/exec") | {u:.user.username,ns:.obj
 kubectl delete pod probe; kubectl delete secret canary -n default
 ```
 
+配套练习：[labs/06-audit-policy](labs/06-audit-policy/task.md)（审计策略落地）与 [labs/07-falco-detection](labs/07-falco-detection/task.md)（Falco 检测链），分别是 Step1~2 与 Step2~4 的可判分版本。
+
 ## 常见坑
 
 | 症状 | 原因 | 解法 |

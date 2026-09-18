@@ -1,6 +1,6 @@
 # 02 · MySQL 备份恢复与主从复制
 
-> 模块：中间件-MySQL ｜ 建议时长：3.5 小时 ｜ 关联认证：—（CKA 备份思想可迁移：etcd snapshot 与本节"物理备份+binlog 点恢复"同构）
+> 模块：13-middleware/mysql ｜ 建议时长：3.5 小时 ｜ 关联认证：—（CKA 备份思想可迁移：etcd snapshot 与本节"物理备份+binlog 点恢复"同构）
 
 ## 学习目标
 

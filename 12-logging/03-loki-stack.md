@@ -151,6 +151,36 @@ groups:
           summary: "{{ $labels.app }} 错误日志速率超过 0.5 行/秒"
 ```
 
+**用日志产生告警：ruler 的规则放哪、谁来评、发给谁**。上面的规则文件由 Loki 的 ruler 组件周期性评估（与 Prometheus 规则引擎同构），闭环只有三件事：
+
+1. **规则文件的位置**：ruler 的规则按"租户/命名空间/组"三层组织，落在 `common.storage` 的 rules 目录（本文实战配置里的 `/loki/rules`）或对象存储，文件就是上面那种 Prometheus 格式的 YAML。本地目录的布局：
+
+```text
+/loki/rules/fake/          # fake = auth_enabled:false 时的伪租户名
+└── log-alerts.yml         # 一个"命名空间"一个文件，内含一个或多个 group
+```
+
+规则文件也可以走 API 管理（推荐，改完即生效，不用重启）：`POST /loki/api/v1/rules`，body 为规则 YAML；开多租户时请求要带 `X-Scope-OrgID` 头（第 4 章多租户一节）。
+
+2. **评估**：ruler 按 `evaluation_interval`（默认 1m）逐条跑 expr，查询路径与 querier 相同（先问 ingester 拿热数据、再查对象存储）——所以**规则里的 LogQL 必须便宜**：用标签收窄、加行过滤器，别在告警规则里跑大范围 `| json` 扫描，否则 ruler 会成为自己最大的查询客户。写规则前先在 Grafana Explore 里把查询试通。
+
+3. **对接 Alertmanager**：`alertmanager_url` 指过去即可，告警的 label/annotation/`for` 语义与 Prometheus 完全一致，路由、静默、值班升级全部复用 10-pca 学过的那套：
+
+```yaml
+# loki-config.yaml 片段（与本文实战演练的配置衔接）
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  rule_path: /tmp/ruler-scratch      # 评估期临时目录
+  rule_selector: {}                  # 不按 label 过滤，加载全部规则
+  alertmanager_url: http://alertmanager:9093
+  enable_api: true                   # 开放 /loki/api/v1/rules
+```
+
+另一条路是 **Grafana 统一告警**（在 Loki 数据源上建告警规则，存在 Grafana 自己的库里）：界面友好、不碰规则文件，但规则不随 Loki 的存储走、量大时受 Grafana 自身评估能力限制。经验法则：少量人肉维护的规则用 Grafana UI；规则要代码化管理（进 Git、CI 校验）或数量大了，用 ruler + Alertmanager。
+
 ## 4. 标签设计原则：低基数，再低基数
 
 Loki 的标签 = ES 的索引字段 + Prometheus 的 label 的合体约束，第 1 章的判定规则在这里是**硬约束**：

@@ -1,6 +1,6 @@
 # 01 · 三大信号与上下文传播
 
-> 模块：OpenTelemetry（06）｜ 建议时长：2 小时 ｜ 前置：00 章 ｜ 关联认证：—（无直接考点，PCA 进阶）
+> 模块：OpenTelemetry（11）｜ 建议时长：2 小时 ｜ 前置：00 章 ｜ 关联认证：—（无直接考点，PCA 进阶）
 
 ## 学习目标
 
@@ -285,6 +285,8 @@ python3 ~/span_fields_demo.py
 - 异常被记成 event（含栈），status 显式为 ERROR。
 
 4. 变换实验（理解采样标志）：把 `sampler=ALWAYS_ON` 改成 `ALWAYS_OFF` 再跑一次。预期：没有任何 span JSON 输出（采样器拒绝记录），且注入的 traceparent 末段变成 `-00`（sampled=0）。这就是"上游未采样时，下游也按约定不再记录"的机制源头。
+
+想在真实多服务环境里把这些字段对号入座（trace_id 跨服务一致、exception event、瀑布图里的 parent/child 层级），做 [labs/03-demo-fault-tracing](labs/03-demo-fault-tracing/task.md)（Astronomy Shop 精简子集，环境要求见 lab 开头说明）。
 
 ## 常见坑
 

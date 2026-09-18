@@ -1,6 +1,6 @@
 # Lab 01 · LLM 辅助排障实战演练
 
-> 难度：★★☆ ｜ 考点：CKA-故障排除 × AIOps 方法论 ｜ 前置：15 模块第 02 章 + 靶场 scripts/faults 可用 ｜ 预计 60~90 分钟
+> 难度：★★☆ ｜ 考点：CKA-故障排除 × AIOps 方法论 ｜ 前置：本模块（17）第 02 章 + 靶场 scripts/faults 可用 ｜ 预计 60~90 分钟
 
 ## 场景
 
@@ -26,7 +26,7 @@
 4. 把 AI 回复记入 `report.md`，对其每条建议执行验证：跑它给的只读命令（或等价命令），把命令与真实输出记入"验证证据"。
 5. 手工修复（禁止用 `--restore` 交作业），验证业务恢复（Pod Running / 解析成功 / VIP 可达）。
 6. 写复盘：时间线、根因（一句话 + 证据链）、影响、改进项。
-7. 知识沉淀：在本 lab 目录 `kb/` 下写一条 runbook 知识条目（含 front-matter：title/source/tags/last_reviewed），格式参照 15 模块第 03 章第 3 节，并在 `report.md` 复盘一节引用该条目路径。
+7. 知识沉淀：在本 lab 目录 `kb/` 下写一条 runbook 知识条目（含 front-matter：title/source/tags/last_reviewed），格式参照本模块 17/03 第 3 节，并在 `report.md` 复盘一节引用该条目路径。
 
 ## 验收标准
 
