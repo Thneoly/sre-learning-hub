@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Learning Hub
   text: 云原生 SRE 学习中心
-  tagline: 19 个模块 · 275 篇文档 · 76 套实测 lab——从 Linux 内核底座一路打到 AIOps，面向 CKA / CKS / PCA 三证的系统化自学路线。
+  tagline: 20 个模块 · 288 篇文档 · 76 套实测 lab——从 Linux 内核底座一路打到 AIOps，面向 CKA / CKS / PCA 三证的系统化自学路线。
   actions:
     - theme: brand
       text: 开始学习（29 周路线图）
@@ -19,7 +19,7 @@ hero:
 features:
   - icon: ☸️
     title: 云原生平台域
-    details: 以容器为中心的平台栈：从内核底座到数据面组件。覆盖 01-linux · 02-programming · 03-docker · 04-k8s · 05-cka · 09-cks · 13-middleware · 14-data-streaming · 16-cloud · 18-bigdata · 19-distributed。
+    details: 以容器为中心的平台栈：从内核底座到数据面组件。覆盖 01-linux · 02-programming · 03-docker · 04-k8s · 05-cka · 09-cks · 13-middleware · 14-data-streaming · 16-cloud · 18-bigdata · 19-distributed · 20-lifecycles（横向参考）。
     link: /04-k8s-fundamentals/01-why-kubernetes.html
     linkText: 从 Kubernetes 原理开始
   - icon: 🚀
@@ -45,7 +45,7 @@ features:
 
 - 系统学习：按 [学习路线图](/ROADMAP.html)（29 周 · 10 阶段 · 每阶段一个贯穿闭环）推进；每一章都建议配合对应 lab 动手。
 - 排障速查：出故障时先翻 [场景速查](/SCENARIOS.html)，按「症状 → 定位命令 → 对应章节」找到入口。
-- 顶部导航按**能力支柱**分组进入 19 个模块；每个模块的侧栏包含「章节」与「Labs」两组，lab 的**题目（task）与解答（solution）分开成页**，方便先做后对答案。
+- 顶部导航按**能力支柱**分组进入 20 个模块；每个模块的侧栏包含「章节」与「Labs」两组，lab 的**题目（task）与解答（solution）分开成页**，方便先做后对答案。
 
 ## Labs 需要练习集群
 
@@ -55,4 +55,4 @@ features:
 
 ## portal 是另一个入口
 
-仓库里的 `portal/index.html` 是一个**免服务器、免联网**的学习平台：19 模块进度追踪、内置题库测验、CKA 考试计时器、kubectl / vim / PromQL 速查。与本书站互补——系统阅读用这里，自测与进度管理用 portal。
+仓库里的 `portal/index.html` 是一个**免服务器、免联网**的学习平台：20 模块进度追踪、内置题库测验、CKA 考试计时器、kubectl / vim / PromQL 速查。与本书站互补——系统阅读用这里，自测与进度管理用 portal。

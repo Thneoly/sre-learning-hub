@@ -65,7 +65,7 @@
 - **现象**：Deployment YAML 有两处独立问题，修好第一处才暴露第二处（排障练习） → 先查：先 Events 定位镜像层故障，再排查第二处 → 详见：05-cka/labs/18-crashloop-triage/task.md
 - **现象**：Pod 不 Ready 但看不出原因，需要完整 DNS/Service 链路排查演练 → 先查：dnsutils 调试 Pod 逐层验证 Service 名/FQDN/CoreDNS → 详见：05-cka/labs/17-dns-debugging/task.md（速查见同目录 solution.md 的"DNS 故障速查"节）
 
-## 4 存储与中间件（PVC Pending / 主从延迟 / 哨兵切换 / 连接打满 / HDFS·YARN·Spark·Doris·ClickHouse·湖仓）
+## 4 存储与中间件（PVC Pending / 主从延迟 / 哨兵切换 / 连接打满 / HDFS·YARN·Spark·Doris·ClickHouse·湖仓·RabbitMQ）
 
 - **现象**：PVC 一直 Pending / 有 SC 也绑不上 → 先查：`kubectl get sc` + `describe pvc` 看 Events；storageClassName 的 `""` 与省略语义不同；WFFC 要先建 Pod → 详见：04-k8s-fundamentals/07-storage.md#常见坑
 - **现象**：Pod 卡 ContainerCreating 报 Multi-Attach error；Retain 的 PV 一直 Released；PVC 扩容报错 → 先查：RWO 卷未 detach（失联节点可强删 volumeattachment）；Released 需清 claimRef；SC 开 allowVolumeExpansion 且只升不降 → 详见：04-k8s-fundamentals/07-storage.md#常见坑
@@ -88,6 +88,14 @@
 - **现象**：MongoDB 两节点副本集挂一个，另一个不能写 → 先查：剩 1/2 不够多数派（防脑裂），至少 3 个投票成员 → 详见：13-middleware/mongodb/02-replicaset-and-sharding.md#常见坑
 - **现象**：MongoDB 慢/超时，不知从哪查起 → 先查：四类对号入座——个别接口慢（索引）/整体抬升（cache）/qw 堆积（tickets）/连接暴涨（连接风暴） → 详见：13-middleware/mongodb/03-operations-troubleshooting.md#3. 排障套路：四类问题对号入座
 - **现象**：MongoDB 一天多次无故切主（选举震荡）；连接数瞬间打满 → 先查：`rs.status()` 看心跳超时成因（网络/资源打满）；maxPoolSize 收敛与重连风暴 → 详见：13-middleware/mongodb/03-operations-troubleshooting.md#常见坑
+- **现象**：RabbitMQ 消息发出去了，下游说没收到，broker 无任何报错 → 先查：路由不到任何队列 = 静默丢弃（AMQP 生产者只投交换机）——排查 bindings；发布开 mandatory + Return 回调或配 alternate exchange，盯 `unroutable_dropped` 指标 → 详见：13-middleware/rabbitmq/01-amqp-model.md#常见坑
+- **现象**：RabbitMQ broker 重启后队列还在、消息没了 → 先查：只开了队列 durable，消息 delivery_mode=1——durable 队列 + persistent 消息两个开关缺一不可；要接近不丢用 quorum 队列 + confirm → 详见：13-middleware/rabbitmq/01-amqp-model.md#常见坑
+- **现象**：RabbitMQ 消费者内存暴涨、unacked 巨大，其余消费者吃不饱 → 先查：prefetch 未设置（默认无限），broker 把消息一口气推给先连上的——basic_qos 设 10~100 起步；慢任务另防 consumer_timeout（默认 30 分钟炸 channel） → 详见：13-middleware/rabbitmq/03-operations-troubleshooting.md#3.2 prefetch 失当与 unacked 堆积
+- **现象**：RabbitMQ 三节点集群挂一个节点，宿主在其上的队列还是丢消息 → 先查：集群只复制元数据、不复制 classic 队列消息——关键队列用 quorum 类型（Raft 多数派），`list_queues name type` 梳理存量 → 详见：13-middleware/rabbitmq/02-ha-and-clustering.md#1. 集群架构：什么被复制，什么没有
+- **现象**：RabbitMQ 网络分区愈合后元数据错乱要人工修；或升 4.0 后老（镜像）队列消失 → 先查：默认 ignore 分区策略的双写残留 + 镜像队列 4.0 整体移除——pause_minority + 奇数节点；存量镜像队列升级前迁 quorum → 详见：13-middleware/rabbitmq/02-ha-and-clustering.md#4. 网络分区：pause_minority 与朋友
+- **现象**：RabbitMQ DLX 配了但死信队列是空的 → 先查：死信保留原 routing key，DLX 上无匹配 binding 被静默丢弃——policy 加 dead-letter-routing-key 或补同 key 的 binding → 详见：13-middleware/rabbitmq/03-operations-troubleshooting.md#2.2 死信路由的坑：原 routing key 被保留
+- **现象**：RabbitMQ 延迟消息比设定晚很多才触发 → 先查：per-message TTL 只从队头过期——前面长 TTL 挡住后面短 TTL（队头阻塞）；改队列级 TTL 分档建队列或 delayed_message_exchange 插件 → 详见：13-middleware/rabbitmq/03-operations-troubleshooting.md#2.3 延迟队列：TTL + DLX 组合
+- **现象**：RabbitMQ broker 内存报警、全站发布超时（消费端正常） → 先查：积压顶到 vm_memory_high_watermark，alarm 阻断的是发布连接——恢复/扩容消费者、队列配 max-length + TTL、趋势告警打在水位线之前 → 详见：13-middleware/rabbitmq/03-operations-troubleshooting.md#1.3 水位告警：阻断的是发布端
 - **现象**：Kafka 消费组频繁 rebalance / broker 磁盘满写入失败 / under-replicated 副本掉线 → 先查：三大排障表按日志关键词对号（max.poll.interval 超时、手动 rm segment、fetch 追不上） → 详见：14-data-streaming/kafka/03-operations-and-performance.md#5. 三大高频故障排障表
 - **现象**：Kafka 大量 NotEnoughReplicasException 写入失败 → 先查：ISR 收缩到 min.insync.replicas 以下——先救 ISR，别调小 min.insync → 详见：14-data-streaming/kafka/02-replication-and-reliability.md#常见坑
 - **现象**：Flink checkpoint 一直 timeout/failed，反压面板全红找不到瓶颈 → 先查：反压让 barrier 走不动；找第一个 busy≈1000 的算子（受害者不背锅） → 详见：14-data-streaming/flink/02-deployment-and-exactly-once.md#6. 反压：原理与定位
@@ -312,12 +320,12 @@
 | 1 集群与控制面 | 18 |
 | 2 网络与 DNS | 17 |
 | 3 工作负载 | 14 |
-| 4 存储与中间件 | 72 |
+| 4 存储与中间件 | 80 |
 | 5 性能与资源 | 14 |
 | 6 交付流水线 | 32 |
 | 7 可观测 | 18 |
 | 8 安全 | 15 |
 | 9 分布式与共识 | 39 |
-| **合计** | **239** |
+| **合计** | **247** |
 
 其中标【靶场】（scripts/faults 可直接注入演练）的条目：12 条，与 FIXES.md 的 12 个故障一一对应。

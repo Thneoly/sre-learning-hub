@@ -1,4 +1,4 @@
-# Learning Hub — 云原生 SRE 学习中心（19 模块）
+# Learning Hub — 云原生 SRE 学习中心（20 模块）
 
 一套自包含的**学习材料 + 学习平台 + 练习平台**，专为以下情况设计：
 
@@ -14,7 +14,7 @@
 - 证书备考与三视图（学习顺序/能力支柱/场景索引）见 `ROADMAP.md`、`SCENARIOS.md`
 - 许可：代码 MIT，文档 CC BY-NC-SA 4.0（见 LICENSE）
 
-## 19 个模块
+## 20 个模块
 
 | # | 目录 | 内容 | 定位 |
 |---|---|---|---|
@@ -30,13 +30,14 @@
 | 10 | `10-pca/` | 7 章 + 2 题集 | PCA 备考：Prometheus 架构、PromQL(28%)、告警、Grafana |
 | 11 | `11-otel/` | 6 章 + 3 labs | OpenTelemetry(1.x 行业事实标准)：三信号、Collector、K8s 自动注入 |
 | 12 | `12-logging/` | 4 章 + 1 lab | 日志支柱：ELK（面试高频）+ Loki（云原生主流）+ K8s 日志 |
-| 13 | `13-middleware/` | 五件套（各 3 章 + lab） | nginx/MySQL/**PostgreSQL**/Redis/MongoDB：SRE 运维视角全覆盖 |
+| 13 | `13-middleware/` | 六件套（各 3 章 + lab） | nginx/MySQL/**PostgreSQL**/Redis/MongoDB/**RabbitMQ**：SRE 运维视角全覆盖 |
 | 14 | `14-data-streaming/` | Kafka 3 章 + Flink 2 章 + labs | 日志模型、ISR/KRaft、流处理、exactly-once、反压 |
 | 15 | `15-sre-methodology/` | 5 章 + 2 labs | **中级→高级分水岭**：SLO/错误预算、On-call、无责复盘、混沌工程 |
 | 16 | `16-cloud/` | 3 章 + 1 lab | 云平台：阿里云实操 + AWS 对照 + 认证路径 |
 | 17 | `17-aiops-llm/` | 4 章 + 1 lab | **差异化选修**：LLM 辅助排障、RAG 知识库、Agent skill、安全护栏 |
 | 18 | `18-bigdata/` | 9 章 + 5 labs | 大数据平台（运维专线岗画像）：HDFS/YARN/Hive 数仓/Spark/Doris·StarRocks/ZooKeeper/ClickHouse/**湖仓表格式深讲（Iceberg/Hudi/Paimon，含 Arrow）** |
 | 19 | `19-distributed/` | 12 章 + 3 labs | **分布式理论层**（面试深水区）：故障模型与时钟/一致性模型/共识与 Raft/分布式事务/分片再平衡/Gossip 与脑裂/排障方法论/经典不可能性/Paxos/CRDT/协调工具选型——每个概念映射到已学组件（etcd/Kafka/Redis/Flink） |
+| 20 | `20-lifecycles/` | 2 章 | **横向参考图鉴**：16 个组件的 ASCII 状态图 + 卡住场景——K8s 八类资源与 etcd/Kafka/Redis/MySQL/PostgreSQL/RabbitMQ/Flink 的状态机、RTO/RPO 一图对照 |
 
 ## 能力支柱视图（"我是谁 / 补哪块"的叙事层）
 
@@ -55,7 +56,7 @@
 
 ### 1. 学习平台（浏览器打开）
 
-双击 `portal/index.html`——无需服务器、无需联网。含：19 模块进度追踪（自动存本地）、内置题库测验、CKA 考试计时器、kubectl/vim/PromQL 速查。
+双击 `portal/index.html`——无需服务器、无需联网。含：20 模块进度追踪（自动存本地）、内置题库测验、CKA 考试计时器、kubectl/vim/PromQL 速查。
 （如需站内阅读 markdown，先在 portal/ 下运行 `build-content.ps1` 生成 content.js。）
 
 ### 2. 系统学习（按 ROADMAP.md 的阶段与闭环推进）

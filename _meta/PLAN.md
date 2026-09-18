@@ -1,4 +1,4 @@
-# learning-hub 文件清单（v2 · 19 模块版，验证以此为准）
+# learning-hub 文件清单（v2 · 20 模块版，验证以此为准）
 
 所有路径相对于 `D:\SRE\chat\learning-hub\`。标注 [手工] 的由主会话负责，[已生成] 表示 v1 已完成，其余由对应 owner 生成。
 
@@ -103,6 +103,10 @@ scripts/gen-skill-cards.mjs                  [cards·已生成：技能卡生成
 13-middleware/postgresql/02-replication-and-ha.md      [pg-mat·新补：流复制/逻辑复制/Patroni/pgbouncer]
 13-middleware/postgresql/03-tuning-troubleshooting.md  [pg-mat·新补：EXPLAIN/连接打满/bloat/备份/exporter]
 13-middleware/postgresql/labs/01-streaming-replication/{task.md,check.sh,solution.md}  [pg-lab·新补]
+13-middleware/rabbitmq/01-amqp-model.md      [rmq·新补：AMQP 四层模型/四种交换机/可靠性三道闸/与 Kafka·Redis pubsub 对比]
+13-middleware/rabbitmq/02-ha-and-clustering.md  [rmq·新补：集群复制边界/仲裁队列 vs 镜像队列/网络分区/Shovel·Federation/Cluster Operator]
+13-middleware/rabbitmq/03-operations-troubleshooting.md  [rmq·新补：Prometheus 指标/DLX 与延迟队列/四类高频故障/积压处置]
+13-middleware/rabbitmq/labs/01-rabbitmq-quickstart/{task.md,check.sh,solution.md}  [rmq-lab·新补]
 
 14-data-streaming/kafka（3章+lab）            [bd-kafka·已生成]
 14-data-streaming/flink（2章+lab）            [bd-flink·已生成]
@@ -156,6 +160,9 @@ scripts/gen-skill-cards.mjs                  [cards·已生成：技能卡生成
 19-distributed/labs/01-etcd-raft-observation/{task.md,check.sh,solution.md}      [dist-labs]
 19-distributed/labs/03-consul-service-discovery/{task.md,check.sh,solution.md}   [dist-c·新补]
 19-distributed/labs/02-distributed-lock-idempotency/{task.md,check.sh,solution.md} [dist-labs]
+
+20-lifecycles/01-k8s-resource-lifecycles.md      [lifecycle·新补：K8s 八类资源 ASCII 状态图鉴（Pod/Deployment/Service/PVC/Node/HPA/Job/kubeadm 证书）+ 卡住场景]
+20-lifecycles/02-data-component-lifecycles.md    [lifecycle·新补：etcd/Kafka/Redis/Sentinel/MySQL/PG·Patroni/RabbitMQ/Flink 八条状态机与 RTO/RPO 映射]
 
 scripts/README.md + lib/common.sh            [scripts-setup·已生成]
 scripts/labctl.sh                            [scripts-setup·已生成：练习平台 CLI（list/show/check/scores/solution/fault/drill/timer）]

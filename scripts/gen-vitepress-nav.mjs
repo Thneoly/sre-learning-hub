@@ -35,7 +35,7 @@ const MODULES = [
   { dir: '12-logging', title: '12 · 日志体系（ELK/Loki）', pillar: 'observability' },
   {
     dir: '13-middleware',
-    title: '13 · 中间件五件套',
+    title: '13 · 中间件六件套',
     pillar: 'platform',
     topics: [
       { dir: 'nginx', title: 'Nginx' },
@@ -43,6 +43,7 @@ const MODULES = [
       { dir: 'postgresql', title: 'PostgreSQL' },
       { dir: 'redis', title: 'Redis' },
       { dir: 'mongodb', title: 'MongoDB' },
+      { dir: 'rabbitmq', title: 'RabbitMQ' },
     ],
   },
   {
@@ -59,6 +60,7 @@ const MODULES = [
   { dir: '17-aiops-llm', title: '17 · AIOps 与 LLM', pillar: 'aiops' },
   { dir: '18-bigdata', title: '18 · 大数据体系', pillar: 'platform' },
   { dir: '19-distributed', title: '19 · 分布式理论', pillar: 'platform' },
+  { dir: '20-lifecycles', title: '20 · 生命周期图鉴', pillar: 'platform' },
 ]
 
 // ---------- 工具 ----------

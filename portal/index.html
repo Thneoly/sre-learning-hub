@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SRE 学习中心 · 19 模块学习平台</title>
+<title>SRE 学习中心 · 20 模块学习平台</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -488,8 +488,8 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ]
     },
     {
-      id: 'middleware', nav: '中间件', name: '中间件：Nginx / MySQL / PostgreSQL / Redis / MongoDB', dir: '13-middleware',
-      desc: 'Nginx 架构与排障、MySQL InnoDB 与复制、PostgreSQL MVCC 与 Patroni 高可用、Redis 数据结构与高可用缓存、MongoDB 副本集与分片，各按子目录组织。',
+      id: 'middleware', nav: '中间件', name: '中间件：Nginx / MySQL / PostgreSQL / Redis / MongoDB / RabbitMQ', dir: '13-middleware',
+      desc: 'Nginx 架构与排障、MySQL InnoDB 与复制、PostgreSQL MVCC 与 Patroni 高可用、Redis 数据结构与高可用缓存、MongoDB 副本集与分片、RabbitMQ AMQP 模型与仲裁队列，各按子目录组织。',
       chapters: [
         { f: 'nginx/01-architecture-and-process-model.md', t: 'Nginx 01 · 架构与进程模型' },
         { f: 'nginx/02-proxy-lb-and-core-config.md', t: 'Nginx 02 · 反向代理与负载均衡：核心配置' },
@@ -505,14 +505,18 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
         { f: 'redis/03-caching-patterns-troubleshooting.md', t: 'Redis 03 · 缓存模式与线上排障：穿透击穿雪崩、一致性与监控' },
         { f: 'mongodb/01-document-model-wiredtiger.md', t: 'MongoDB 01 · 文档模型与 WiredTiger 存储引擎' },
         { f: 'mongodb/02-replicaset-and-sharding.md', t: 'MongoDB 02 · 副本集与分片' },
-        { f: 'mongodb/03-operations-troubleshooting.md', t: 'MongoDB 03 · 运维与排障' }
+        { f: 'mongodb/03-operations-troubleshooting.md', t: 'MongoDB 03 · 运维与排障' },
+        { f: 'rabbitmq/01-amqp-model.md', t: 'RabbitMQ 01 · AMQP 模型：路由、确认与语义边界' },
+        { f: 'rabbitmq/02-ha-and-clustering.md', t: 'RabbitMQ 02 · 高可用与集群：仲裁队列、网络分区与跨机房复制' },
+        { f: 'rabbitmq/03-operations-troubleshooting.md', t: 'RabbitMQ 03 · 运维与排障：监控、死信/延迟队列、常见坑与积压处置' }
       ],
       labs: [
         { p: 'nginx/labs/01-reverse-proxy-ha', t: 'Nginx Lab 01 · 反向代理高可用：加权轮询、故障转移与 location 陷阱' },
         { p: 'mysql/labs/01-replication-rescue', t: 'MySQL Lab 01 · 主从复制搭建、断连追平与 binlog 误删恢复' },
         { p: 'postgresql/labs/01-streaming-replication', t: 'PostgreSQL Lab 01 · 流复制：物理备库、延迟观测与断连追平' },
         { p: 'redis/labs/01-sentinel-failover', t: 'Redis Lab 01 · 哨兵故障转移实战：一主二从三哨兵' },
-        { p: 'mongodb/labs/01-replicaset-deploy', t: 'MongoDB Lab 01 · 副本集部署、故障转移与断连追平' }
+        { p: 'mongodb/labs/01-replicaset-deploy', t: 'MongoDB Lab 01 · 副本集部署、故障转移与断连追平' },
+        { p: 'rabbitmq/labs/01-rabbitmq-quickstart', t: 'RabbitMQ Lab 01 · 上手与核心排障实验：从 CLI 拓扑到死信与监控' }
       ]
     },
     {
@@ -614,6 +618,15 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
         { p: 'labs/02-distributed-lock-idempotency', t: 'Lab 02 · 分布式锁的坑与幂等兜底：Redis 单实例实操' },
         { p: 'labs/03-consul-service-discovery', t: 'Lab 03 · Consul 服务发现与健康检测：注册、摘除、DNS 与一次杀 Leader' }
       ]
+    },
+    {
+      id: 'lifecycles', nav: '生命周期', name: '生命周期图鉴', dir: '20-lifecycles',
+      desc: '横向参考图鉴：K8s 八类资源与 etcd/Kafka/Redis/Sentinel/MySQL/PostgreSQL/RabbitMQ/Flink 的 ASCII 状态图 + 卡住场景——排障时先问"它现在停在哪、谁负责把它推走"。',
+      chapters: [
+        { f: '01-k8s-resource-lifecycles.md', t: '01 · K8s 资源生命周期图鉴：八张状态图一张网' },
+        { f: '02-data-component-lifecycles.md', t: '02 · 数据组件生命周期图鉴：8 条状态机' }
+      ],
+      labs: []
     }
   ];
 
@@ -865,7 +878,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     { h: '#/scenarios', t: '场景速查', src: 'SCENARIOS.md' },
     { h: '#/timer', t: '考试计时器' }
   ];
-  /* 学习阶段分组：侧栏按阶段组织 19 个模块；未列入分组的模块自动归入「其他」，避免漏项。 */
+  /* 学习阶段分组：侧栏按阶段组织 20 个模块；未列入分组的模块自动归入「其他」，避免漏项。 */
   var STAGES = [
     { cap: '地基', ids: ['linux', 'programming'] },
     { cap: '容器', ids: ['docker'] },
@@ -876,7 +889,8 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     { cap: '数据组件', ids: ['middleware', 'datastream', 'bigdata'] },
     { cap: '方法论+理论', ids: ['sre', 'distributed'] },
     { cap: '云', ids: ['cloud'] },
-    { cap: '差异化', ids: ['aiops'] }
+    { cap: '差异化', ids: ['aiops'] },
+    { cap: '参考', ids: ['lifecycles'] }
   ];
   function stageOf(id) {
     for (var a = 0; a < STAGES.length; a++) {
@@ -927,7 +941,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     return { done: done, total: total };
   }
   function buildSidebar() {
-    var h = '<div class="brand"><div class="t1">SRE 学习中心</div><div class="t2">19 个模块 · Linux 到分布式理论</div></div>';
+    var h = '<div class="brand"><div class="t1">SRE 学习中心</div><div class="t2">20 个模块 · Linux 到生命周期图鉴</div></div>';
     h += '<div class="nav-group"><div class="nav-cap">导航</div>';
     h += '<button class="nav-item" data-nav="#/overview">总览</button></div>';
     var staged = {};
@@ -1008,7 +1022,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       totalCh += MODULES[a].chapters.length;
       totalLab += MODULES[a].labs.length;
     }
-    var h = '<h1 class="pg">总览</h1><div class="sub">19 个模块按学习阶段推进：地基打底，容器与编排铺面，工程化与安全加深，可观测、数据组件（中间件、数据流、大数据）、方法论+理论（SRE 与分布式）、云与 AIOps 补全；CKA / CKS / PCA 三证逐个击破。逐项勾选自动保存进度。</div>';
+    var h = '<h1 class="pg">总览</h1><div class="sub">20 个模块按学习阶段推进：地基打底，容器与编排铺面，工程化与安全加深，可观测、数据组件（中间件、数据流、大数据）、方法论+理论（SRE 与分布式）、云与 AIOps 补全，生命周期图鉴穿插参考；CKA / CKS / PCA 三证逐个击破。逐项勾选自动保存进度。</div>';
 
     if (!hasContent()) {
       h += '<div class="hintbox"><b>内置阅读器尚未就绪：</b>未检测到同目录 content.js。运行 portal/build-content.ps1 生成（在 portal 目录执行 ';
@@ -1021,7 +1035,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     h += '<div class="pnum" style="margin-top:6px">共 ' + totalCh + ' 章教程 · ' + totalLab + ' 个 lab · 进度存于 localStorage（键 hub-progress）</div></div>';
 
     h += '<h2 class="sec">能力支柱视图</h2><div class="card">';
-    h += '<div class="list-note" style="padding:0 0 4px">同一套 19 个模块的另一种看法：编号 = 学习顺序，支柱 = 能力画像（与根目录 README.md 的「能力支柱视图」表一致）。支柱完成度 = 支柱内各模块章节 + lab 勾选的汇总。</div>';
+    h += '<div class="list-note" style="padding:0 0 4px">同一套 20 个模块的另一种看法：编号 = 学习顺序，支柱 = 能力画像（与根目录 README.md 的「能力支柱视图」表一致；20-lifecycles 为横向参考，不占支柱）。支柱完成度 = 支柱内各模块章节 + lab 勾选的汇总。</div>';
     for (var p0 = 0; p0 < PILLARS.length; p0++) {
       var pl = PILLARS[p0];
       h += '<div class="pillar-row">';
@@ -1154,7 +1168,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       body += '<div class="card"><h3>生成 content.js</h3>';
       body += '<p>在 <code>portal</code> 目录执行（Windows PowerShell 5.1 即可）：</p>';
       body += codeBlock('powershell · [本地Windows]', 'cd <learning-hub>/portal\npowershell -ExecutionPolicy Bypass -File ./build-content.ps1');
-      body += '<p>脚本会递归收集 learning-hub 根目录下全部 19 个模块目录（01-linux 至 19-distributed）的所有 .md（含 labs 的 task.md 与 solution.md，以及 13-middleware / 14-data-streaming 的子目录），并打包根目录的 SCENARIOS.md / README.md / ROADMAP.md，生成同目录 content.js（键为相对 learning-hub 根的正斜杠路径）。生成后回到本页刷新即可。</p></div>';
+      body += '<p>脚本会递归收集 learning-hub 根目录下全部 20 个模块目录（01-linux 至 20-lifecycles）的所有 .md（含 labs 的 task.md 与 solution.md，以及 13-middleware / 14-data-streaming 的子目录），并打包根目录的 SCENARIOS.md / README.md / ROADMAP.md，生成同目录 content.js（键为相对 learning-hub 根的正斜杠路径）。生成后回到本页刷新即可。</p></div>';
     }
     document.getElementById('page').innerHTML = h + '<div class="card reader-card">' + body + '</div>';
   }
@@ -1175,15 +1189,17 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
     logging: '日志 · ELK 与 Loki',
     middleware: '中间件 · Nginx / MySQL / Redis / MongoDB',
     pg: 'PostgreSQL · MVCC 与高可用',
+    rabbitmq: 'RabbitMQ · AMQP 与高可用',
     datastream: '数据流 · Kafka / Flink',
     sre: 'SRE · 方法论与实践',
     cloud: '云计算 · 阿里云与 AWS',
     aiops: 'AIOps · LLM 辅助运维',
     bigdata: '大数据 · HDFS / YARN / Spark / Doris / 湖仓',
     clickhouse: 'ClickHouse · 列存与分布式表',
-    distributed: '分布式 · 理论与共识'
+    distributed: '分布式 · 理论与共识',
+    lifecycles: '生命周期 · 全组件状态图'
   };
-  var QUIZ_BANK_ORDER = ['pca', 'cka', 'cks', 'basics', 'linux', 'programming', 'celery', 'cicd', 'otel', 'logging', 'middleware', 'pg', 'datastream', 'sre', 'cloud', 'aiops', 'bigdata', 'clickhouse', 'distributed'];
+  var QUIZ_BANK_ORDER = ['pca', 'cka', 'cks', 'basics', 'linux', 'programming', 'celery', 'cicd', 'otel', 'logging', 'middleware', 'pg', 'rabbitmq', 'datastream', 'sre', 'cloud', 'aiops', 'bigdata', 'clickhouse', 'distributed', 'lifecycles'];
   var quizState = { bank: null, idx: 0, answers: [], finished: false };
 
   function bankName(id) {
@@ -1789,7 +1805,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
   }
 
   /* ================= 场景速查 =================
-     数据逐条转录自 learning-hub 根目录 SCENARIOS.md（239 条，其中 12 条标【靶场】）。
+     数据逐条转录自 learning-hub 根目录 SCENARIOS.md（247 条，其中 12 条标【靶场】）。
      每条数组：[0]=现象，[1]=先查，[2]=详见，[3]=1 表示靶场条目。
      分类默认收起，点开时才渲染条目，避免一次挂 239 条拖慢页面。 */
   var SCN_CATS = [
@@ -1848,7 +1864,7 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ['Deployment YAML 有两处独立问题，修好第一处才暴露第二处（排障练习）', '先 Events 定位镜像层故障，再排查第二处', '05-cka/labs/18-crashloop-triage/task.md'],
       ['Pod 不 Ready 但看不出原因，需要完整 DNS/Service 链路排查演练', 'dnsutils 调试 Pod 逐层验证 Service 名/FQDN/CoreDNS', '05-cka/labs/17-dns-debugging/task.md（速查见同目录 solution.md 的"DNS 故障速查"节）']
     ] },
-    { t: '4 存储与中间件', sub: 'PVC Pending / 主从延迟 / 哨兵切换 / 连接打满 / HDFS·YARN·Spark·Doris·ClickHouse·湖仓', items: [
+    { t: '4 存储与中间件', sub: 'PVC Pending / 主从延迟 / 哨兵切换 / 连接打满 / HDFS·YARN·Spark·Doris·ClickHouse·湖仓·RabbitMQ', items: [
       ['PVC 一直 Pending / 有 SC 也绑不上', '`kubectl get sc` + `describe pvc` 看 Events；storageClassName 的 `""` 与省略语义不同；WFFC 要先建 Pod', '04-k8s-fundamentals/07-storage.md#常见坑'],
       ['Pod 卡 ContainerCreating 报 Multi-Attach error；Retain 的 PV 一直 Released；PVC 扩容报错', 'RWO 卷未 detach（失联节点可强删 volumeattachment）；Released 需清 claimRef；SC 开 allowVolumeExpansion 且只升不降', '04-k8s-fundamentals/07-storage.md#常见坑'],
       ['MySQL 报 1040 Too many connections、CPU 100% 或 metadata lock 排队', '`SHOW PROCESSLIST` 分型（连接池泄漏/DNS 反解析/慢 SQL 并发/DDL 阻塞），先留证据再 KILL', '13-middleware/mysql/03-tuning-troubleshooting.md#4. 高频故障排障手册（连接打满）'],
@@ -1870,6 +1886,14 @@ h2.sec{font-size:18px;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px so
       ['MongoDB 两节点副本集挂一个，另一个不能写', '剩 1/2 不够多数派（防脑裂），至少 3 个投票成员', '13-middleware/mongodb/02-replicaset-and-sharding.md#常见坑'],
       ['MongoDB 慢/超时，不知从哪查起', '四类对号入座——个别接口慢（索引）/整体抬升（cache）/qw 堆积（tickets）/连接暴涨（连接风暴）', '13-middleware/mongodb/03-operations-troubleshooting.md#3. 排障套路：四类问题对号入座'],
       ['MongoDB 一天多次无故切主（选举震荡）；连接数瞬间打满', '`rs.status()` 看心跳超时成因（网络/资源打满）；maxPoolSize 收敛与重连风暴', '13-middleware/mongodb/03-operations-troubleshooting.md#常见坑'],
+      ['RabbitMQ 消息发出去了，下游说没收到，broker 无任何报错', '路由不到任何队列 = 静默丢弃（AMQP 生产者只投交换机）——排查 bindings；发布开 mandatory + Return 回调或配 alternate exchange，盯 `unroutable_dropped` 指标', '13-middleware/rabbitmq/01-amqp-model.md#常见坑'],
+      ['RabbitMQ broker 重启后队列还在、消息没了', '只开了队列 durable，消息 delivery_mode=1——durable 队列 + persistent 消息两个开关缺一不可；要接近不丢用 quorum 队列 + confirm', '13-middleware/rabbitmq/01-amqp-model.md#常见坑'],
+      ['RabbitMQ 消费者内存暴涨、unacked 巨大，其余消费者吃不饱', 'prefetch 未设置（默认无限），broker 把消息一口气推给先连上的——basic_qos 设 10~100 起步；慢任务另防 consumer_timeout（默认 30 分钟炸 channel）', '13-middleware/rabbitmq/03-operations-troubleshooting.md#3.2 prefetch 失当与 unacked 堆积'],
+      ['RabbitMQ 三节点集群挂一个节点，宿主在其上的队列还是丢消息', '集群只复制元数据、不复制 classic 队列消息——关键队列用 quorum 类型（Raft 多数派），`list_queues name type` 梳理存量', '13-middleware/rabbitmq/02-ha-and-clustering.md#1. 集群架构：什么被复制，什么没有'],
+      ['RabbitMQ 网络分区愈合后元数据错乱要人工修；或升 4.0 后老（镜像）队列消失', '默认 ignore 分区策略的双写残留 + 镜像队列 4.0 整体移除——pause_minority + 奇数节点；存量镜像队列升级前迁 quorum', '13-middleware/rabbitmq/02-ha-and-clustering.md#4. 网络分区：pause_minority 与朋友'],
+      ['RabbitMQ DLX 配了但死信队列是空的', '死信保留原 routing key，DLX 上无匹配 binding 被静默丢弃——policy 加 dead-letter-routing-key 或补同 key 的 binding', '13-middleware/rabbitmq/03-operations-troubleshooting.md#2.2 死信路由的坑：原 routing key 被保留'],
+      ['RabbitMQ 延迟消息比设定晚很多才触发', 'per-message TTL 只从队头过期——前面长 TTL 挡住后面短 TTL（队头阻塞）；改队列级 TTL 分档建队列或 delayed_message_exchange 插件', '13-middleware/rabbitmq/03-operations-troubleshooting.md#2.3 延迟队列：TTL + DLX 组合'],
+      ['RabbitMQ broker 内存报警、全站发布超时（消费端正常）', '积压顶到 vm_memory_high_watermark，alarm 阻断的是发布连接——恢复/扩容消费者、队列配 max-length + TTL、趋势告警打在水位线之前', '13-middleware/rabbitmq/03-operations-troubleshooting.md#1.3 水位告警：阻断的是发布端'],
       ['Kafka 消费组频繁 rebalance / broker 磁盘满写入失败 / under-replicated 副本掉线', '三大排障表按日志关键词对号（max.poll.interval 超时、手动 rm segment、fetch 追不上）', '14-data-streaming/kafka/03-operations-and-performance.md#5. 三大高频故障排障表'],
       ['Kafka 大量 NotEnoughReplicasException 写入失败', 'ISR 收缩到 min.insync.replicas 以下——先救 ISR，别调小 min.insync', '14-data-streaming/kafka/02-replication-and-reliability.md#常见坑'],
       ['Flink checkpoint 一直 timeout/failed，反压面板全红找不到瓶颈', '反压让 barrier 走不动；找第一个 busy≈1000 的算子（受害者不背锅）', '14-data-streaming/flink/02-deployment-and-exactly-once.md#6. 反压：原理与定位'],

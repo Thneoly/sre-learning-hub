@@ -18,6 +18,7 @@
 阶段 7  方法论+理论 周 24-27  15-sre-methodology + 19-distributed（分布式理论是方法论的技术底座，大厂终面深水区）
 阶段 8  云         周 28     16-cloud
 阶段 9  差异化     周 29     17-aiops-llm（+补 02/05 的 Go 选学）
+阶段 R  参考（穿插使用）      20-lifecycles——全组件生命周期图鉴
 ```
 
 ## 每周计划与闭环
@@ -90,7 +91,7 @@
 | 周 | 材料 | 里程碑 |
 |---|---|---|
 | 20 | `13-middleware/nginx` + `mysql` + 两个 lab | 独立定位 502/504；主从搭建 |
-| 21 | `13-middleware/redis` + `mongodb` + 两个 lab | 讲清哨兵 failover 与副本集选举 |
+| 21 | `13-middleware/redis` + `mongodb` + 两个 lab（`rabbitmq` 3 章 + lab 选学，六件套补位） | 讲清哨兵 failover 与副本集选举 |
 | 22 | `14-data-streaming/kafka` + `flink` + labs | 解释 ISR/KRaft；定位一次反压 |
 | 23 | `18-bigdata/00-03`（全景/HDFS/YARN/Hive）+ labs 01 | 讲清副本放置与 safemode；伪分布式 HDFS 跑通 |
 

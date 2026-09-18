@@ -9,7 +9,7 @@
 //      版式 A：问题在 <summary> 里，答案在正文；
 //      版式 B：问题是 <details> 前的普通文本行，<summary> 为"答案"）
 //   b) 根目录 SCENARIOS.md 的场景条目（现象 → 先查 → 详见）
-//   c) portal/quiz-data.js 的 window.QUIZ_DATA（19 库 320 题）
+//   c) portal/quiz-data.js 的 window.QUIZ_DATA（21 库 338 题）
 //
 // 用法（在仓库任意位置）：node scripts/gen-skill-cards.mjs [--root <learning-hub 根目录>]
 // 可重复运行：全部输出来自源文件即时解析，无中间状态。
@@ -246,14 +246,14 @@ const QUIZ_MODULE = {
   pca: '10-pca', cka: '05-cka', cks: '09-cks', basics: '04-k8s-fundamentals',
   linux: '01-linux', programming: '02-programming', celery: '02-programming',
   cicd: '06-ci-cd', otel: '11-otel', logging: '12-logging',
-  middleware: '13-middleware', pg: '13-middleware',
+  middleware: '13-middleware', pg: '13-middleware', rabbitmq: '13-middleware',
   datastream: '14-data-streaming', sre: '15-sre-methodology', cloud: '16-cloud',
   aiops: '17-aiops-llm', bigdata: '18-bigdata', clickhouse: '18-bigdata',
-  distributed: '19-distributed'
+  distributed: '19-distributed', lifecycles: '20-lifecycles'
 };
 const QUIZ_ORDER = ['pca', 'cka', 'cks', 'basics', 'linux', 'programming', 'celery', 'cicd',
-  'otel', 'logging', 'middleware', 'pg', 'datastream', 'sre', 'cloud', 'aiops',
-  'bigdata', 'clickhouse', 'distributed'];
+  'otel', 'logging', 'middleware', 'pg', 'rabbitmq', 'datastream', 'sre', 'cloud', 'aiops',
+  'bigdata', 'clickhouse', 'distributed', 'lifecycles'];
 
 function loadQuizData() {
   const p = path.join(ROOT, 'portal', 'quiz-data.js');

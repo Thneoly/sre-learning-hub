@@ -1,8 +1,9 @@
 // quiz-data.js · 学习中心自测题库
 // 结构：window.QUIZ_DATA = { pca: [...], cka: [...], cks: [...], basics: [...],
 //   linux: [...], programming: [...], celery: [...], cicd: [...], otel: [...],
-//   logging: [...], middleware: [...], pg: [...], datastream: [...], sre: [...],
-//   cloud: [...], aiops: [...], bigdata: [...], clickhouse: [...], distributed: [...] }
+//   logging: [...], middleware: [...], pg: [...], rabbitmq: [...], datastream: [...],
+//   sre: [...], cloud: [...], aiops: [...], bigdata: [...], clickhouse: [...],
+//   distributed: [...], lifecycles: [...] }
 // 每题对象：q(题干) / options(四选项) / answer(正确索引 0-3) / explain(解析)
 // PCA 对齐五域权重：可观测概念 4 题、Prometheus 基础 8 题、PromQL 13 题、
 // 插桩与 Exporter 6 题、架构与运维 9 题；CKA/CKS 按官方大纲五域分布。
@@ -10,12 +11,17 @@
 // programming 12 题、celery 8 题、cicd 28 题、otel 12 题、logging 11 题、
 // middleware 10 题、pg 12 题（MVCC 双实现 2 / work_mem 与缓存 2 / 复制槽与同步复制 2 /
 // 逻辑复制 1 / Patroni 脑裂防护 1 / pgbouncer 1 / EXPLAIN 1 / vacuum 与 bloat 1 / 连接打满 1）、
+// rabbitmq 10 题（AMQP 四层与交换机 3 / 可靠性三道闸 2 / 仲裁队列 vs 镜像 1 /
+// prefetch 与 consumer_timeout 1 / 死信与 TTL 1 / metrics 与水位告警 2）、
 // datastream 10 题、sre 10 题、cloud 10 题、aiops 10 题、bigdata 20 题（HDFS 4 / YARN 3 /
 // Hive 2 / Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓表格式 5）、clickhouse 12 题（列存三因子 2 /
 // MergeTree 四引擎与排序键 3 / 主键非索引与跳数索引 2 / 双表架构 1 / 副本与 ZK 2 /
 // too many parts 1 / 对比 Doris 1）、distributed 30 题（CAP 与一致性 3 /
 // 共识与 Raft 4 / 分布式事务与幂等 3 / 分片再平衡 2 / Gossip 故障检测与脑裂防护 3 /
-// 经典不可能性与算法 4 / Paxos 深潜 3 / CRDT 与自动收敛 3 / 协调服务三件套 5）。
+// 经典不可能性与算法 4 / Paxos 深潜 3 / CRDT 与自动收敛 3 / 协调服务三件套 5）、
+// lifecycles 8 题（K8s 资源状态机 3：Pod Pending / HPA 缩容窗口 / PVC Released；
+// 组件状态机 5：etcd 选举超时 / Sentinel 时间线 / Kafka ISR / Flink checkpoint 语义 /
+// RabbitMQ 死信路径）。
 
 window.QUIZ_DATA = {
 
@@ -2528,6 +2534,121 @@ window.QUIZ_DATA = {
     }
   ],
 
+  // ========== RabbitMQ：AMQP / 仲裁队列 / 运维排障（10 题，按 13-middleware/rabbitmq 三章命题）==========
+
+  rabbitmq: [
+    {
+      "q": "AMQP 0-9-1 模型里，生产者发布的消息先到哪一层？由什么决定进哪条队列？",
+      "options": [
+        "直接投给目标队列，routing key 就是队列名",
+        "投给交换机（Exchange）；消息进哪条（甚至哪几条）队列由交换机类型 + binding 规则决定，路由不到任何队列 = 静默丢弃",
+        "由 broker 按 key 哈希进分区，消费者从分区拉取",
+        "先进死信队列，由 DLX 路由后再转业务队列"
+      ],
+      "answer": 1,
+      "explain": "AMQP 最核心的设计决定：生产者永远不把消息投给队列，只投给交换机——换路由规则不用改生产者代码。路由不到任何队列时 broker 不报错、不留痕，是『消息莫名丢了』的头号根因（防护：mandatory + basic.return，或 alternate exchange）。默认交换机（名字为空的 direct、binding key 自动等于队列名）是唯一看起来像直投的例外。"
+    },
+    {
+      "q": "要把一份『订单创建』事件同时投给审计、通知、业务三个队列，且完全不看路由键，应选哪种交换机？",
+      "options": [
+        "direct——按 routing key 完全相等匹配",
+        "topic——按点分单词通配符匹配",
+        "fanout——广播到所有绑定队列，完全忽略 routing key",
+        "headers——按消息 header 键值对匹配"
+      ],
+      "answer": 2,
+      "explain": "fanout 广播到所有绑定队列，binding 上的 key 形同虚设，正适合『一份事件多方订阅』。direct 要求完全相等（点对点分发）；topic 是业务上最常用的按主题订阅（*.pay、order.#）；headers 只看 header 键值对、性能最差，多见于遗留系统。"
+    },
+    {
+      "q": "topic 交换机上队列绑定了 `order.*`。下列 routing key 哪个能投进这条队列？",
+      "options": [
+        "order.pay.v2",
+        "order",
+        "order.pay",
+        "user.pay"
+      ],
+      "answer": 2,
+      "explain": "topic 通配符按点分单词匹配：`*` 恰好吃掉一个词，`#` 吃零到多个词。order.pay = order+pay 两个词，`order.*` ✓；order.pay.v2 是三个词，要收它得绑 `order.#`；order 只有一个词，`*` 不匹配零个词（`#` 可以）；user.pay 首词就对不上。两个高频错误：`order.*` 收不到 `order.pay.v2`、也收不到 `order`。"
+    },
+    {
+      "q": "RabbitMQ broker 重启后『队列还在、消息没了』，最可能的原因是？",
+      "options": [
+        "队列没有声明 durable",
+        "队列声明了 durable，但消息发布时 delivery_mode=1（transient）——durable 只保证队列定义幸存，消息本身必须 persistent 才落盘",
+        "没有开 publisher confirm",
+        "prefetch 设置过大"
+      ],
+      "answer": 1,
+      "explain": "持久化两个开关缺一不可：durable=true 保队列定义、delivery_mode=2（persistent）保消息落盘。但两个都开也不等于绝对不丢：classic 队列是异步刷盘，broker 断电仍可能丢最近一段——要接近不丢用仲裁队列（confirm 等的是多数派落盘）+ 消费端幂等。confirm 与 prefetch 是另外两个维度的问题。"
+    },
+    {
+      "q": "关于 publisher confirm 与 mandatory 标志的关系，正确的是？",
+      "options": [
+        "二者等价，开一个就够，另一个多余",
+        "两者正交：confirm 回答『broker 是否收到（并按消息属性落盘）』，mandatory 回答『是否路由到了至少一条队列』——只开 confirm 时，路由失败的消息照样无声消失（broker 确实收到了，照样回 confirm）",
+        "mandatory 是 confirm 的同步版本，语义更可靠，应优先使用",
+        "两者都必须配合 AMQP 事务（tx.select/commit）才生效"
+      ],
+      "answer": 1,
+      "explain": "confirm 是异步回执（durable 队列等落盘、quorum 队列等多数派落盘），mandatory 只管路由、失败经 basic.return 退回——生产端闭环 = 两者都开。AMQP 事务同步阻塞、吞吐差，confirm 就是为替代它而生的，新代码不要再碰。"
+    },
+    {
+      "q": "官方为什么废弃经典镜像队列（CMQ）、用仲裁队列（quorum queue）重写消息层高可用？",
+      "options": [
+        "镜像队列太占内存，仲裁队列把消息全放内存更快",
+        "仲裁队列把队列实现成 Raft 复制日志：写入多数派落盘才算成功、与 confirm 联动（回执=多数派已落盘）；镜像队列是自研主从同步、无严格承诺——未同步的 mirror 提升为新 master 就丢数据，分区行为难以推理，4.0 已整体移除",
+        "镜像队列需要商业许可，仲裁队列是开源免费的替代",
+        "仲裁队列用异步复制替换了同步复制，用一致性换吞吐"
+      ],
+      "answer": 1,
+      "explain": "仲裁队列借用共识协议拿到可证明的安全性：多数派落盘才确认、至多一个 leader、失多数派宁可拒写（运维语义与 etcd/Kafka ISR 同构）。代价是每写一次多数派 fsync，吞吐明显低于 classic（与 Kafka acks=all 同款取舍），必须 SSD、留同机房；跨机房走 Shovel/Federation（逻辑复制、RPO 不为零，不能替代同机房 quorum）。"
+    },
+    {
+      "q": "RabbitMQ 是推（push）模型，prefetch（basic.qos）的作用是？",
+      "options": [
+        "限制生产者每秒能发布的消息数",
+        "限制单个消费者 unacked 消息的上限，打满即暂停推送——这是推模型的显式背压；不设（默认无限）时 broker 把整个队列推给先连上的消费者，快消费者囤死、慢消费者压爆",
+        "限制单条消息的最大字节数",
+        "必须等于消费者实例数，否则消息会丢失"
+      ],
+      "answer": 1,
+      "explain": "经验值 10~100 起步、处理越慢设越小。另一个隐形杀手是 consumer_timeout（3.8.15+ 默认 30 分钟）：unacked 持有超过它，broker 直接关闭信道（PRECONDITION_FAILED）并全部重投——长任务要么拆分要么显式调参。另记：purge_queue 只清 ready，动不了 unacked，持有者断开后还会重投回队列。"
+    },
+    {
+      "q": "关于 RabbitMQ 死信（DLX）路径，正确的是？",
+      "options": [
+        "死信队列是一种特殊队列类型，死信消息会自动进入它",
+        "死信触发条件有四种：reject/nack 且 requeue=false、消息 TTL 过期、队列超 max-length 时 drop-head 丢弃的队头、quorum 投递超 x-delivery-limit；死信按原 routing key 重新发布到 DLX，若 DLX 上无匹配 binding 会被静默丢弃",
+        "消费者拒绝的消息一律进死信队列，与 requeue 标志无关",
+        "死信只能通过队列参数（arguments）配置，policy 配不了"
+      ],
+      "answer": 1,
+      "explain": "DLX 不过是『别的队列指向的普通交换机』，生产推荐用 policy 配 dead-letter-exchange（免重新声明队列）。死信消息带 x-death header（原因/次数/原队列），排障能直接回答『为什么死、死了几次』。没配 dead-letter-routing-key 时死信沿用原 key——DLX 上没同 key 的 binding 就静默丢弃，这是『DLX 配了但死信队列是空的』头号原因。"
+    },
+    {
+      "q": "rabbitmq_prometheus 指标有了，却画不出按队列的曲线、也写不了按队列的告警，最可能是因为？",
+      "options": [
+        "Prometheus 版本太老，不识别 rabbitmq_ 前缀",
+        "默认 /metrics 端点的队列指标是聚合值、没有 queue 标签（控制时间序列基数）——要拿到带 queue 标签的序列必须抓 /metrics/per-object；K8s 里 PodMonitor 还要逐 Pod 抓 headless Service 背后的 15692，漏一个节点就有盲区",
+        "没有启用 rabbitmq_management 插件",
+        "队列名里含有中文，标签无法解析"
+      ],
+      "answer": 1,
+      "explain": "『指标有了但画不出图』的两个抓取细节：per-object 端点与逐 Pod 抓取。指标名还随版本增减（3.13 实测磁盘指标是 rabbitmq_disk_space_available_bytes，没有 rabbitmq_disk_free_bytes 这个名），落地前先 curl /metrics 核对实际输出。连接泄漏告警则用 connections_opened/closed 的 increase 差值。"
+    },
+    {
+      "q": "RabbitMQ 触发内存水位告警（vm_memory_high_watermark）后，典型故障形态是？",
+      "options": [
+        "所有连接被断开，消费与发布同时失败",
+        "broker 主动删除最老的消息释放内存",
+        "发布连接被阻断（state=blocked）、生产端业务全部超时；消费不受影响——阻断发布、放行消费是让水位回落的最快路径，把『broker OOM 崩溃』降级为『发布端超时』",
+        "集群自动切换到备用节点继续服务"
+      ],
+      "answer": 2,
+      "explain": "积压顶到水位的故障形态是『全站发布超时』而不是 broker 挂——所以这类故障常先从生产端业务报错暴露，要配 rabbitmq_alarms_memory_used_watermark==1 的前置告警。防线按优先级：NoConsumer 告警（消费者归零比积压更急）、max-length + overflow、message-ttl、趋势告警打在水位线之前。积压处置口诀：先看 consumers 再看 ready；恢复消费优先于清理消息；purge 之前先归档。"
+    }
+  ],
+
   // ========== 数据流：Kafka / Flink（10 题）==========
 
   datastream: [
@@ -3731,11 +3852,104 @@ window.QUIZ_DATA = {
       "answer": 3,
       "explain": "检测方的位置决定侵入性：Consul 的 HTTP/TCP 检查是 agent 替你去探、应用一行不用改；etcd lease 与 Nacos 心跳都是“应用必须自己报”。三家的到期判定都由服务端/agent 本地计时，不跨节点比墙钟（“租约要服务端统一计时”的教训被普遍吸收）。“发布重启窗口内 keepalive 停止导致发布即误摘”是 etcd/Nacos 模式共同的经典坑：摘除阈值 > 发布耗时，或发布流水线先反注册再停进程。摘除延迟预算 = 检查间隔×失败次数 + 服务端传播 + 客户端缓存 TTL——DNS 姿势的 TTL 最容易被漏算。"
     }
+  ],
+
+  // ========== 生命周期图鉴（8 题，按 20-lifecycles 两章的状态机与计时器命题）==========
+
+  lifecycles: [
+    {
+      "q": "新 Pod 一直 Pending，`kubectl describe pod` 的 Events 只有 `FailedScheduling ... Insufficient cpu`，节点 Ready、组件正常。谁负责把它推出 Pending？",
+      "options": [
+        "节点上的 kubelet——重启 kubelet 就能恢复",
+        "kube-scheduler 会持续重试绑定，但资源不释放就永远出不去（不是终态死局，却没人推就走不动）——改资源 requests、清掉占用大户或加节点才有出路",
+        "HPA 会自动给这个 Pod 扩副本解决",
+        "删掉 Pod 重建即可，新 Pod 会调度到别的节点"
+      ],
+      "answer": 1,
+      "explain": "Pending 的推进者是 kube-scheduler：Insufficient cpu、污点不容忍、亲和无解、PVC 未绑定都停在 FailedScheduling，第一现场就是 describe 的 Events。对照记忆：CrashLoopBackOff / ImagePullBackOff 是 kubelet 的自愈环（会自己重试），要做的只是趁退避间隙取证（logs --previous、Events）；Succeeded/Failed 才是全图唯一没有出箭头的终态。"
+    },
+    {
+      "q": "压测停了、指标已回落到目标以下，HPA 却迟迟不缩容。为什么？",
+      "options": [
+        "HPA 控制器坏了，删了重建 HPA 即可",
+        "缩容必须熬满稳定窗口（默认 300s）且只认窗口内最保守（最小）的建议值——负载反复抖动还会一直续期窗口；这是防打摆的设计，不是 bug",
+        "metrics-server 的缓存要 15 分钟才刷新",
+        "Deployment 的 minReplicas 设得太高"
+      ],
+      "answer": 1,
+      "explain": "HPA 每 15s 一圈、±10% 容差内不动。不对称是有意的：扩容路径上没有等待框（快是故意的），缩容必经 300s 窗口（慢也是故意的）。另一个经典：TARGETS 显示 <unknown> 是指标链路断了（metrics-server 没装好 / Pod 没定义 requests / 聚合 API 不通），HPA 对象本身没坏，删了重建也没用；手动 kubectl scale 改的 replicas 会被下一圈重算覆盖——两条管理路径别混用。"
+    },
+    {
+      "q": "删除 PVC 后，PV 长期停在 Released（reclaimPolicy=Retain）。想让它重新被使用，正确做法是？",
+      "options": [
+        "等 5 分钟，控制器会自动把它改回 Available",
+        "这是设计出的死胡同：管理员清掉 PV 的 claimRef，它才会回 Available、可被新 PVC 绑定（此前对象与数据都保留）",
+        "把 reclaimPolicy 改成 Delete，PV 就回 Available",
+        "重启 kube-controller-manager"
+      ],
+      "answer": 1,
+      "explain": "Retain 的语义就是等人工回收：PV 与数据都保留，清 claimRef 是唯一的出箭头（画在人身上，没有控制器帮你复用）。对照 Delete 分岔：provisioner 直接删后端卷和 PV 对象，单行道不可逆——生产删 PVC 前可先在线把策略改成 Retain 兜底。PVC Pending 侧的两大主因则是 storageClassName 不匹配（\"\" 与省略语义不同）和 WFFC 要等第一个 Pod。"
+    },
+    {
+      "q": "把 etcd 的 election-timeout 从 1000ms 调大到 5000ms，『脑旋消失了但主故障时写中断变长』。这笔账的本质是？",
+      "options": [
+        "调大只有好处：既抗抖又加快恢复",
+        "调大只增加故障确认时间，不影响别的",
+        "election-timeout × 2 ≈ Leader 故障后写中断的上限：调小恢复快（RTO 短）但磁盘一抖就误切（误判率高）；调大抗抖但 RTO 变长——两个代价不能同时消除，因为超时模型里『慢』和『死』无法区分",
+        "该参数只影响读请求，与写无关"
+      ],
+      "answer": 2,
+      "explain": "『慢与死不可分』是故障检测的物理极限。脑旋的头号元凶是 WAL fsync 慢——先给 etcd 独占低延迟盘，再谈调超时。配套记忆：失 quorum 时写与 linearizable 读全超时，但 serializable 读仍可从单成员出（K8s apiserver 读走本地缓存，所以『kubectl get 正常但 apply 全超时』先数存活成员）。"
+    },
+    {
+      "q": "Redis Sentinel 里，单个哨兵对主库 ping 超时标了 SDOWN 之后，还要发生什么才会真正执行故障转移？",
+      "options": [
+        "SDOWN 就等于下线，直接开始切换",
+        "先凑足 ≥ quorum 个哨兵也标 SDOWN（客观下线 ODOWN），再在哨兵内部以过半总数（≠ quorum）选出 leader 哨兵执行，最后按 replica-priority → offset → runid 挑从库升主",
+        "由所有从库投票选出新主库",
+        "客户端 SDK 检测到 SDOWN 后自动触发切换"
+      ],
+      "answer": 1,
+      "explain": "两个『多数』各挡一类误判：quorum 管认定（凑不齐就永远不认定）、哨兵总数过半管执行（三哨兵挂俩谁也不敢动——这是防脑裂，不是故障）。down-after-milliseconds 是故障发现延迟的下限，加选举与升从耗时 ≈ Redis 侧 failover RTO；把 quorum 调成 1 省不了 RTO，只会换来单哨兵网络抖动就切主的误杀。旧主回归后被降级为新主的从库，不是回到『正常』。"
+    },
+    {
+      "q": "Kafka 大量 `NotEnoughReplicasException` 写入失败，正确的处置顺序是？",
+      "options": [
+        "立即把 min.insync.replicas 调小到 1，先恢复写入再说",
+        "先救 ISR：修 broker/磁盘/网络，让掉队副本在 replica.lag.time.max.ms 内追齐 Leader LEO 重新入 ISR；别用调小 min.insync 的方式拿一致性换可用性",
+        "打开 unclean.leader.election.enable，让 OSR 副本直接上位",
+        "重启整个 Kafka 集群"
+      ],
+      "answer": 1,
+      "explain": "副本在 replica.lag.time.max.ms（默认 30s）内没追齐 Leader LEO 就被踢出 ISR；ISR 收缩到 min.insync.replicas 以下时 acks=all 的写入被拒——先救副本再谈别的。unclean 开关本质是 RPO 开关（false = 拒服务保数据）。消费组侧的平行状态机是 rebalance：成员进出、session 与 max.poll.interval 超时都会触发全组暂停消费。"
+    },
+    {
+      "q": "Flink 作业从 last checkpoint 恢复时，checkpoint 之后到故障点之间的输入数据会怎样？端到端 exactly-once 靠什么实现？",
+      "options": [
+        "丢失——source 直接跳到最新 offset 继续消费",
+        "source 把 offset 回拨到 checkpoint 记录的位置，这段数据被重放——状态正确但下游会看到重复；端到端 exactly-once 靠 sink 侧两阶段提交（以 checkpointId 为锚）把重复吸收掉，sink 不配合就是 at-least-once，业务必须幂等",
+        "broker 自动去重，下游不会看到重复",
+        "这段数据写入死信 topic 等人工处理"
+      ],
+      "answer": 1,
+      "explain": "checkpoint 间隔 = 故障时的重放窗口（那段重复数据的量），checkpoint 成功耗时 + 重放耗时 = 作业级 RTO。常卡场景：反压让 barrier 走不动 → checkpoint timeout，找第一个 busy≈1000ms/s 的算子（受害者不背锅）；savepoint 只对运行中的作业有效（FAILED 的作业做不了 savepoint）；算子固定 .uid() 决定状态能否映射回去。"
+    },
+    {
+      "q": "一条消息被消费者 `basic.reject` 且 requeue=false，但源队列没配 DLX。这条消息的下场是？",
+      "options": [
+        "回到队头等待下次投递",
+        "直接丢弃——没配 DLX 的死信无处可去；就算配了 DLX，死信也按原 routing key 重新发布，DLX 上无匹配 binding 同样静默丢弃",
+        "自动转入名为 amq.dead 的内置死信队列",
+        "冻结在队列里等人工 ack"
+      ],
+      "answer": 1,
+      "explain": "死信四触发：reject/nack 且 requeue=false、TTL 过期、超 max-length 时 drop-head 丢掉的队头、quorum 投递超 x-delivery-limit。可靠性是三道闸的组合：confirm 保发布段、持久化保 broker 段、ack 保消费段——少开任何一道，RPO 就漏在那一节。requeue=true 没有『重试几次』概念，毒消息会无限循环，正确姿势是 x-delivery-limit + DLX 兜底 + 业务幂等。"
+    }
   ]
 };
 
-// 共 320 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
-// celery 8 + cicd 28 + otel 12 + logging 11 + middleware 10 + pg 12 +
+// 共 338 题（pca 40 + cka 30 + cks 20 + basics 20 + linux 15 + programming 12 +
+// celery 8 + cicd 28 + otel 12 + logging 11 + middleware 10 + pg 12 + rabbitmq 10 +
 // datastream/sre/cloud/aiops 各 10 +
 // bigdata 20（HDFS 4 / YARN 3 / Hive 2 / Spark 3 / Doris 2 / ZooKeeper 1 / 湖仓 5）+
-// clickhouse 12 + distributed 30）
+// clickhouse 12 + distributed 30 + lifecycles 8）

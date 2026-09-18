@@ -16,7 +16,7 @@ kubectl get pods -n flink-operator -w
 # 预期 1~2 分钟后: flink-kubernetes-operator-xxxxxxx-xxxxx   1/1   Running
 ```
 
-为什么先装 operator：它提供 `FlinkDeployment` / `FlinkSessionCluster` 两个 CRD 和一个控制器，后面"集群拉起、配置注入、savepoint 升级"全部声明式完成。验证：`kubectl get crd | grep flink.apache.org` 应列出 CRD。版本 1.13.0 是写作时的最新稳定版，以官方文档为准。
+为什么先装 operator：它提供 `FlinkDeployment` / `FlinkSessionJob` / `FlinkStateSnapshot` 等 CRD 和一个控制器，后面"集群拉起、配置注入、savepoint 升级"全部声明式完成。验证：`kubectl get crd | grep flink.apache.org` 应列出 CRD。版本 1.13.0 是写作时的最新稳定版，以官方文档为准。
 
 ## 第 2 步：准备状态目录
 
@@ -35,7 +35,7 @@ sudo chown -R 9999:9999 /var/flink-state
 kubectl create namespace flink-lab
 ```
 
-先补作业侧 RBAC：operator 默认用名为 `flink` 的 ServiceAccount 跑 FlinkDeployment，而 helm 只为 `flink-operator` namespace 里的 operator 自己建了权限，**作业 namespace 必须自建 SA + RoleBinding**（绑到 operator 的 ClusterRole `flink-operator`）。缺这一步 JobManager 会在 watch TaskManager Pod 时收到 403 Forbidden 然后退出，容器反复重启。
+先补作业侧 RBAC：不写 `spec.serviceAccount` 时，FlinkDeployment 用作业 namespace 里名为 `default` 的 SA 跑（Flink 的 `kubernetes.jobmanager.service-account` 默认值就是 default），它同样没有任何权限；helm 给 operator 自己建的是集群级 ClusterRole + ClusterRoleBinding（watch 全命名空间），但作业用的 SA 从头到尾没有绑定。所以**作业 namespace 必须自建 SA + RoleBinding**（绑到 operator 的 ClusterRole `flink-operator`），并在 CR 里显式写 `serviceAccount: flink`（本页 YAML 已写好）。缺这一步 JobManager 会在 watch TaskManager Pod 时收到 403 Forbidden，然后以退出码 239 反复重启。
 
 ```bash
 # [master]
@@ -190,7 +190,8 @@ spec:
   job:
     jarURI: local:///opt/flink/examples/streaming/SocketWindowWordCount.jar
     entryClass: org.apache.flink.streaming.examples.socket.SocketWindowWordCount
-    args: ["--hostname", "wordsrv", "--port", "9000", "--window", "10", "--slide", "10"]
+    # 这个示例 jar 只认 --hostname/--port；窗口硬编码 5 秒滚动，--window/--slide 会被静默忽略
+    args: ["--hostname", "wordsrv", "--port", "9000"]
     parallelism: 2
     upgradeMode: savepoint
 EOF
@@ -222,12 +223,12 @@ curl -s http://localhost:8081/taskmanagers | grep -o '"id":"[^"]*"' | head -2
 
 JOB_ID=$(curl -s http://localhost:8081/jobs/overview | grep -o '"jid":"[0-9a-f]*"' | head -1 | cut -d'"' -f4)
 curl -s http://localhost:8081/jobs/$JOB_ID/checkpoints | grep -o '"counts":{[^}]*}'
-# 预期（每 10s 增长）: "counts":{"restored":0,"completed":7,"total":0,"failed":0}
+# 预期（每 10s 增长）: "counts":{"restored":0,"total":7,"in_progress":0,"completed":7,"failed":0}
 
-# 窗口结果在 TaskManager stdout（print sink）
+# 窗口结果在 TaskManager stdout（print sink 并行度为 1，两个 TM 只有一个有输出，抓不到就换另一个）
 kubectl -n flink-lab get pods
 kubectl -n flink-lab logs $(kubectl -n flink-lab get pods -o name | grep taskmanager | head -1) --tail=8
-# 预期: (hello,131) / (flink,129) / (word3,17) 之类，每 10 秒集中一批
+# 预期: hello : 131 / flink : 129 / word3 : 17 之类，每 5 秒集中一批（窗口硬编码 5 秒滚动）
 ```
 
 浏览器开 `http://localhost:8081` 能看到同一信息（Running Jobs、作业 DAG、Checkpoint 统计曲线）。
@@ -301,7 +302,7 @@ savepoint 由 TaskManager 执行写入挂载的 hostPath；`FlinkStateSnapshot` 
 
 ## 第 8 步：从 savepoint 恢复并把并行度改为 1
 
-恢复字段用 `spec.job.initialSavepointPath`（旧文档里的 `fromSavepoint` 在 1.13 的 CRD 里已不存在，apply/patch 时会被"unknown field"警告后**静默丢弃**，作业照常按无状态启动）。另外示例 jar 没给算子显式 `.uid()`，2→1 缩并行后算子 ID 对不上，会报 `Cannot map checkpoint/savepoint state ... operator is not available in the new program`——加 `execution.savepoint.ignore-unclaimed-state: "true"` 允许跳过映射不上的算子状态（等价于 CLI 的 `--allowNonRestoredState`；真实业务该给算子设 uid 而不是靠这个开关）。
+恢复字段用 `spec.job.initialSavepointPath`（注意字段名：没有 `fromSavepoint` 这种写法，字段写错时会被"unknown field"警告后**静默丢弃**，作业照常按无状态启动，apply 完记得核对）。另外示例 jar 没给算子显式 `.uid()`，2→1 缩并行后算子 ID 对不上，会报 `Cannot map checkpoint/savepoint state ... operator is not available in the new program`——加 `execution.savepoint.ignore-unclaimed-state: "true"` 允许跳过映射不上的算子状态（等价于 CLI 的 `--allowNonRestoredState`；真实业务该给算子设 uid 而不是靠这个开关）。
 
 一次性把并行度和恢复源 patch 进去：
 
