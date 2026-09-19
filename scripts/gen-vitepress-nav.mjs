@@ -165,6 +165,76 @@ const firstLink = (items) => {
   return null
 }
 
+// ---------- frontmatter 预检（fail-fast，防止单篇文章炸掉整站构建） ----------
+// 背景：本站 srcDir='..'（仓库根），tools/juejin/out/ 下的博客文章也在 VitePress
+// 构建范围内，frontmatter 若为非法 YAML（如标题含未包裹的 ASCII 引号），
+// vitepress 会在构建中期才抛一条难定位的错。这里在生成导航前先扫全库 .md，
+// 有问题直接退出并指出文件与原因。js-yaml 缺失时退化为启发式检查（引号闭合 + Tab）。
+
+const SKIP_DIRS = new Set(['node_modules', '.git', '.vitepress', 'dist', 'dist-cn'])
+const walkMd = (dir) => {
+  const out = []
+  for (const ent of readdirSync(dir, { withFileTypes: true })) {
+    if (ent.name.startsWith('.') || SKIP_DIRS.has(ent.name)) continue
+    const p = join(dir, ent.name)
+    if (ent.isDirectory()) out.push(...walkMd(p))
+    else if (ent.name.endsWith('.md')) out.push(p)
+  }
+  return out
+}
+
+/** frontmatter 块原文；无闭合块返回 null（vitepress 视为普通文本，不校验） */
+const frontmatterOf = (text) => {
+  const m = text.replace(/^﻿/, '').match(/^---\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)/)
+  return m ? m[1] : null
+}
+
+/** 无 js-yaml 时的兜底：值以引号开头必须同行成对闭合；禁 Tab 缩进 */
+const heuristicCheck = (fm, file) => {
+  const errs = []
+  fm.split(/\r?\n/).forEach((line, i) => {
+    if (line.includes('\t')) errs.push(`${file}: frontmatter 第 ${i + 1} 行含 Tab 缩进`)
+    const kv = line.match(/^([A-Za-z_][\w-]*):\s*(.+?)\s*$/)
+    if (kv && (kv[2].startsWith('"') || kv[2].startsWith("'")) && (kv[2].length < 2 || !kv[2].endsWith(kv[2][0]))) {
+      errs.push(`${file}: frontmatter 第 ${i + 1} 行「${kv[1]}」的值以 ${kv[2][0]} 开头但未闭合（标题含引号时请把整段值包进单引号）`)
+    }
+  })
+  return errs
+}
+
+const preflight = async () => {
+  const files = walkMd(ROOT)
+  const errs = []
+  let yamlLoad = null
+  try {
+    yamlLoad = (await import('js-yaml')).load
+  } catch {
+    /* 未安装依赖时走兜底校验 */
+  }
+  for (const f of files) {
+    const rel = toPosix(f.slice(ROOT.length))
+    const fm = frontmatterOf(readFileSync(f, 'utf8'))
+    if (!fm) continue
+    if (yamlLoad) {
+      try {
+        yamlLoad(fm)
+      } catch (e) {
+        errs.push(`${rel}: ${String(e.message || '').split('\n')[0]}`)
+      }
+    } else {
+      errs.push(...heuristicCheck(fm, rel))
+    }
+  }
+  if (errs.length) {
+    console.error(`[gen-vitepress-nav] ✖ frontmatter 预检发现 ${errs.length} 处非法 YAML（vitepress 构建会失败）：`)
+    for (const e of errs) console.error('  - ' + e)
+    process.exit(1)
+  }
+  console.log(`[gen-vitepress-nav] frontmatter 预检通过（${files.length} 个 .md${yamlLoad ? '' : '，js-yaml 未安装，启发式模式'}）`)
+}
+
+await preflight()
+
 // ---------- 生成 ----------
 
 const sidebar = {

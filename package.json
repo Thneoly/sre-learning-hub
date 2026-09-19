@@ -9,6 +9,7 @@
     "docs:preview": "vitepress preview docs"
   },
   "devDependencies": {
+    "js-yaml": "^5.4.2",
     "vitepress": "^1.6.4"
   }
 }
