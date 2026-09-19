@@ -33,7 +33,7 @@ public/quiz.html                             [quiz·已生成：书站在线测�
 public/quiz-data.js                          [构建产物：gen-vitepress-nav.mjs 从 portal/quiz-data.js 拷贝的书站副本，gitignore 排除、勿手改]
 scripts/verify-scenarios.js                  [手工：SCENARIOS.md 分类计数/路径/锚点与 portal SCN_CATS 对账校验器]
 
-tools/juejin/（目录级：column-map.json + out/）   [手工：掘金专栏发布工具与产物——column-map.json 为专栏↔slug 映射；out/ 下 18 篇文章 md + 2 个 .meta.md + 4 张 png；.juejin.env（cookie）gitignore 排除、不入库]
+tools/juejin/（目录级：column-map.json + out/）   [手工：掘金专栏发布工具与产物——column-map.json 为专栏↔slug 映射；out/ 下 26 篇文章 md + 2 个 .meta.md + 4 张 png；.juejin.env（cookie）gitignore 排除、不入库]
 
 01-linux/01-boot-and-systemd.md              [linux-materials]
 01-linux/02-filesystem-and-io.md             [linux-materials]

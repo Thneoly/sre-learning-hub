@@ -1,6 +1,48 @@
 {
-  "云原生踩坑实录": { "column_id": "7686472562230312970", "slugs": ["01-cks-lab-apiserver-paralysis", "02-tcp-tw-reuse-misconception", "03-kubectl-token-overridden-by-cert", "04-slo-burn-rate", "05-flink-container-name", "06-strimzi-scale-ds-404"] },
-  "K8s 深入理解": { "column_id": "7686346277555683378", "slugs": ["07-pod-creation-8steps", "08-service-iptables", "09-scheduler-pending", "10-etcd-control-plane"] },
-  "分布式不难懂": { "column_id": "7686341072617242662", "slugs": ["11-raft-kill-leader", "12-consistent-hash-why-not"] },
-  "SRE 转型路线": { "column_id": "7686346277555716146", "slugs": [] }
+  "云原生踩坑实录": {
+    "column_id": "7686472562230312970",
+    "slugs": [
+      "01-cks-lab-apiserver-paralysis",
+      "02-tcp-tw-reuse-misconception",
+      "03-kubectl-token-overridden-by-cert",
+      "04-slo-burn-rate",
+      "05-flink-container-name",
+      "06-strimzi-scale-ds-404",
+      "16-mq-selection",
+      "17-celery-production-pitfalls",
+      "18-rabbitmq-ops-guide",
+      "19-oomkill-137-memory-traps",
+      "25-dns-resolver-traps",
+      "26-etcd-disk-full-outage"
+    ]
+  },
+  "K8s 深入理解": {
+    "column_id": "7686346277555683378",
+    "slugs": [
+      "07-pod-creation-8steps",
+      "08-service-iptables",
+      "09-scheduler-pending",
+      "10-etcd-control-plane",
+      "20-pdb-drain-node-maintenance",
+      "24-crd-controller-extension-model"
+    ]
+  },
+  "分布式不难懂": {
+    "column_id": "7686341072617242662",
+    "slugs": [
+      "11-raft-kill-leader",
+      "12-consistent-hash-why-not",
+      "21-redis-distributed-lock-redlock"
+    ]
+  },
+  "SRE 转型路线": {
+    "column_id": "7686346277555716146",
+    "slugs": [
+      "15-dora-metrics",
+      "14-script-watershed",
+      "13-jd-research",
+      "22-capacity-planning-knee",
+      "23-rto-rpo-restore-drill"
+    ]
+  }
 }
