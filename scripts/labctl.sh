@@ -18,7 +18,6 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LABCTL_HOME="${LABCTL_HOME:-$HOME/.labctl}"
 SCORES_FILE="$LABCTL_HOME/scores.tsv"
 SUDO_PASS="${LABCTL_SUDO_PASS:-123}"          # sudo 密码（可用环境变量覆盖）
-SOLUTION_HEAD="${LABCTL_SOLUTION_HEAD:-80}"   # solution 防剧透行数
 DRILL_MINUTES="${LABCTL_DRILL_MINUTES:-15}"   # 抽卡默认限时（分钟）
 FAULTS_DIR="$ROOT/scripts/faults"
 SCENARIOS_MD="$ROOT/SCENARIOS.md"
@@ -339,9 +338,12 @@ cmd_solution() {
   printf '确认要看答案? [y/N] '
   local a; read -r a
   case "$a" in y|Y|yes|是) ;; *) info "已取消（保持悬念也是练习的一部分）"; return 0 ;; esac
-  printf '\n%s%s（防剧透：仅前 %s 行，完整见 %s）%s\n\n' "$C_DIM" "" "$SOLUTION_HEAD" "$sol" "$C_RST"
-  head -"$SOLUTION_HEAD" "$sol"
-  printf '%s…… %s（后面还有 %d 行）%s\n' "$C_DIM" "" "$(( $(wc -l < "$sol") - SOLUTION_HEAD ))" "$C_RST"
+  if [ -t 1 ] && [ -z "${LABCTL_NOPAGER:-}" ] && command -v less >/dev/null \
+     && [ "$(wc -l < "$sol")" -gt 60 ]; then
+    less -R "$sol"
+  else
+    cat "$sol"
+  fi
 }
 
 # ---------------------------------------------------------------- faults --
@@ -493,7 +495,7 @@ ${C_B}用法${C_RST}：labctl <子命令> [参数]
   ${C_CYA}hint${C_RST} <lab> [编号]          展开该 lab 第 N 条提示（不带编号=列出全部提示摘要）
   ${C_CYA}check${C_RST} <lab>               运行该 lab 的 check.sh（需 root 的自动 sudo），捕获 SCORE: X/Y 记分
   ${C_CYA}scores${C_RST} [模块]             记分板：每 lab 最佳成绩 / 尝试次数 / 最近时间 + 汇总
-  ${C_CYA}solution${C_RST} <lab>            确认后展示 solution.md 前 $SOLUTION_HEAD 行（防剧透）
+  ${C_CYA}solution${C_RST} <lab>            确认后展示完整 solution.md（交互终端用 less 分页）
   ${C_CYA}fault${C_RST} [名|random]         列出/执行故障注入脚本；random 随机抽一个（3 秒倒计时）
   ${C_CYA}fault restore${C_RST} <名|all>    恢复指定/全部故障
   ${C_CYA}drill${C_RST}                     靶场抽卡：随机一条【靶场】现象 + ${DRILL_MINUTES} 分钟限时提示（不阻塞）
@@ -510,7 +512,7 @@ ${C_B}示例${C_RST}：
   labctl show 11                  # 读题（RBAC Role 与 RoleBinding）
   labctl check 05:11              # 做完判分，写入 ~/.labctl/scores.tsv
   labctl scores                   # 记分板（完成数/总数、平均得分率）
-  labctl solution 11              # 卡住了？确认后看前 $SOLUTION_HEAD 行答案
+  labctl solution 11              # 卡住了？确认后看完整答案
   labctl fault random             # 随机注入一个故障（先打 VM 快照更稳）
   labctl fault restore all        # 全部恢复，kubectl get nodes 验证
   labctl drill                    # 抽一条【靶场】现象，限时排障
