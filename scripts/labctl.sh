@@ -185,6 +185,53 @@ cmd_list() {
   info "开始一个 lab：labctl show <编号>（如 labctl show 11），完成后 labctl check <编号>"
 }
 
+# <details> 提示块折叠为一行摘要（与网页端折叠行为一致），内容用 labctl hint 展开
+fold_details() { # $1=task.md $2=lab id（用于拼展开命令）
+  awk -v labid="$2" -v dim="$C_DIM" -v rst="$C_RST" '
+    BEGIN { inb = 0; n = 0 }
+    inb { if ($0 ~ /<\/details>/) inb = 0; next }
+    /<details>/ {
+      n++
+      s = $0; sub(/.*<summary>/, "", s); sub(/<\/summary>.*/, "", s)
+      sub(/^提示[ ]*[0-9]+[:：][ ]*/, "", s)
+      printf "  %s▸ 提示 %d（已折叠）：%s%s    %s→ 展开: labctl hint %s %d%s\n", dim, n, s, rst, dim, labid, n, rst
+      if ($0 !~ /<\/details>/) inb = 1
+      next
+    }
+    { print }
+  ' "$1"
+}
+
+cmd_hint() {
+  [ "${1:-}" = "" ] && die "用法：labctl hint <lab> [编号]（不带编号=列出该 lab 全部提示摘要）"
+  local ids id n t
+  ids="$(resolve_lab "$1")"; rc=$?
+  [ $rc -eq 1 ] && { err "未找到 lab '$1'，可能想找："; suggest_labs "$1" | sed 's/^/  /'; exit 1; }
+  [ $rc -eq 2 ] && { err "'$1' 匹配到多个 lab，请指定其一："; echo "$ids" | sed 's/^/  /'; exit 1; }
+  id="$ids"
+  t="$(lab_task "$id")"
+  [ -f "$t" ] || die "缺少 task.md：$t"
+  n="${2:-0}"
+  awk -v want="$n" -v cya="$C_CYA" -v rst="$C_RST" '
+    BEGIN { mode = 0; idx = 0; listonly = (want == 0) }
+    /<details>/ {
+      idx++
+      s = $0; sub(/.*<summary>/, "", s); sub(/<\/summary>.*/, "", s)
+      sub(/^提示[ ]*[0-9]+[:：][ ]*/, "", s)
+      if (listonly) { printf "  提示 %d：%s\n", idx, s; mode = "skip"; next }
+      if (idx == want) {
+        printf "%s提示 %d：%s%s\n", cya, idx, s, rst
+        rest = $0; sub(/.*<\/summary>/, "", rest); gsub(/<\/details>.*/, "", rest)
+        if (rest ~ /[^ \t]/) print rest
+        mode = "print"; next
+      }
+      mode = "skip"; next
+    }
+    mode == "print" { if ($0 ~ /<\/details>/) { mode = 0; next } print; next }
+    mode == "skip"  { if ($0 ~ /<\/details>/) mode = 0; next }
+  ' "$t"
+}
+
 cmd_show() {
   [ "${1:-}" = "" ] && die "用法：labctl show <lab>（编号 / 名字 / 路径）"
   local ids id
@@ -197,9 +244,9 @@ cmd_show() {
   printf '%s%s —— 题目%s\n' "$C_B$C_MAG" "$id" "$C_RST"
   if [ -t 1 ] && [ -z "${LABCTL_NOPAGER:-}" ] && command -v less >/dev/null \
      && [ "$(wc -l < "$t")" -gt 60 ]; then
-    less -R "$t"
+    fold_details "$t" "$id" | less -R
   else
-    cat "$t"
+    fold_details "$t" "$id"
   fi
 }
 
@@ -442,7 +489,8 @@ ${C_B}labctl${C_RST} v$LABCTL_VERSION —— learning-hub 练习平台 CLI
 ${C_B}用法${C_RST}：labctl <子命令> [参数]
 
   ${C_CYA}list${C_RST} [模块号|模块目录名]   列出全部/单模块 lab（编号、名称、难度、完成状态与最佳得分）
-  ${C_CYA}show${C_RST} <lab>                查看 lab 题目 task.md（交互终端自动用 less 分页）
+  ${C_CYA}show${C_RST} <lab>                查看 lab 题目 task.md（<details> 提示自动折叠为摘要，防剧透）
+  ${C_CYA}hint${C_RST} <lab> [编号]          展开该 lab 第 N 条提示（不带编号=列出全部提示摘要）
   ${C_CYA}check${C_RST} <lab>               运行该 lab 的 check.sh（需 root 的自动 sudo），捕获 SCORE: X/Y 记分
   ${C_CYA}scores${C_RST} [模块]             记分板：每 lab 最佳成绩 / 尝试次数 / 最近时间 + 汇总
   ${C_CYA}solution${C_RST} <lab>            确认后展示 solution.md 前 $SOLUTION_HEAD 行（防剧透）
@@ -481,6 +529,7 @@ main() {
     -V|--version)      echo "labctl $LABCTL_VERSION"; exit 0 ;;
     list)              shift; cmd_list "$@" ;;
     show)              shift; cmd_show "$@" ;;
+    hint)              shift; cmd_hint "$@" ;;
     check)             shift; cmd_check "$@" ;;
     scores)            shift; cmd_scores "$@" ;;
     solution)          shift; cmd_solution "$@" ;;
