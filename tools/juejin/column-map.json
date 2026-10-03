@@ -13,7 +13,10 @@
       "18-rabbitmq-ops-guide",
       "19-oomkill-137-memory-traps",
       "25-dns-resolver-traps",
-      "26-etcd-disk-full-outage"
+      "26-etcd-disk-full-outage",
+      "27-kafka-rebalance-storm",
+      "28-mysql-replication-lag-blindspot",
+      "29-networkpolicy-false-safety"
     ]
   },
   "K8s 深入理解": {
@@ -24,7 +27,9 @@
       "09-scheduler-pending",
       "10-etcd-control-plane",
       "20-pdb-drain-node-maintenance",
-      "24-crd-controller-extension-model"
+      "24-crd-controller-extension-model",
+      "30-hpa-why-slow",
+      "31-node-notready-verdict-chain"
     ]
   },
   "分布式不难懂": {
@@ -32,7 +37,9 @@
     "slugs": [
       "11-raft-kill-leader",
       "12-consistent-hash-why-not",
-      "21-redis-distributed-lock-redlock"
+      "21-redis-distributed-lock-redlock",
+      "32-distributed-transactions-saga",
+      "33-consistency-models-spectrum"
     ]
   },
   "SRE 转型路线": {
@@ -42,7 +49,8 @@
       "14-script-watershed",
       "13-jd-research",
       "22-capacity-planning-knee",
-      "23-rto-rpo-restore-drill"
+      "23-rto-rpo-restore-drill",
+      "34-llm-oncall-runbook"
     ]
   }
 }
