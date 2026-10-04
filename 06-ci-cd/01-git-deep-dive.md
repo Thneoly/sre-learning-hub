@@ -203,7 +203,7 @@ git reset --hard HEAD@{1}                 # 回到 reset 之前的那次提交
 git log --oneline                         # 提交回来了
 ```
 
-- 只要对象还活着（被 reflog 引用），GC 就不会删它，默认保留 90 天
+- 只要对象还被 reflog 引用着，GC 就不会删它；保留期分两档：仍可达的条目默认 90 天（`gc.reflogExpire`），已不可达的条目默认只有 30 天（`gc.reflogExpireUnreachable`）——reset --hard 丢掉的提交正属后者，黄金救援期比想象短
 - rebase 改写历史后想整段退回：`git reflog` 找 rebase 开始前的位置，`git reset --hard <hash>`
 - 连 reflog 都没有的"孤儿对象"：`git fsck --lost-found` 还能扫出 dangling commit
 - 兜底心态：Git 中几乎没有真正"立刻丢失"的数据，慌的时候先 `git reflog`，别乱敲 reset
@@ -376,7 +376,7 @@ stash 本质是 refs/stash 指向的一串 commit（工作区与暂存区各一�
 
 <details><summary>5. 为什么说"Git 几乎不会真正丢数据"？从对象库与 GC 角度解释 reflog 的作用。</summary>
 
-reset/rebase/branch -D 只是把 ref 指到别处，原 commit 对象仍在 `.git/objects`。GC（`git gc`，默认自动触发）只回收"不可达"对象，而 reflog 把 HEAD 与各 ref 的历史位置都登记为可达根，默认保留 90 天。所以 `git reflog` → `git reset --hard <hash>` 能救回绝大多数"手滑"；真正危险的是 `git gc --prune=now --aggressive` 或仓库损坏这类物理删除。
+reset/rebase/branch -D 只是把 ref 指到别处，原 commit 对象仍在 `.git/objects`。GC（`git gc`，默认自动触发）只回收"不可达"对象，而 reflog 把 HEAD 与各 ref 的历史位置都登记着挡住回收，保留期分两档：可达条目默认 90 天、不可达条目默认 30 天（被丢弃的提交属后者，`gc.reflogExpire` / `gc.reflogExpireUnreachable`）。所以 `git reflog` → `git reset --hard <hash>` 能救回绝大多数"手滑"；要物理删掉未过期对象得两步走：`git reflog expire --expire=now --all` 先清空引用史，再 `git gc --prune=now`（GitHub 官方敏感数据移除流程即此）——单跑 gc 只按 90/30 天规则清过期条目，删不掉刚丢的提交。仓库损坏则是另一类物理丢失。
 </details>
 
 ## 延伸阅读

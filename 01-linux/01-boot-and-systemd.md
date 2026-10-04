@@ -210,7 +210,7 @@ timer 的写法（systemd 替代 cron 的形态）记个套路即可：`demo-rep
 
 ### 2.5 时间同步：chrony
 
-timer 依赖墙钟，而墙钟本身会漂——虚机尤其（宿主调度抖动，一天漂出几秒很常见）。对这台 kubeadm 节点，时间不是装饰而是地基：`journalctl --since` 跨节点对表、TLS 证书的 NotBefore/NotAfter 校验、kubelet 客户端证书的续期判断、etcd 的租约到期与选举超时，全部踩在时钟上。Ubuntu Server 默认装的 chrony 比 ntpd 更适合虚机：启动初期允许快速对表，间歇联网也能追回来。
+timer 依赖墙钟，而墙钟本身会漂——虚机尤其（宿主调度抖动，一天漂出几秒很常见）。对这台 kubeadm 节点，时间不是装饰而是地基：`journalctl --since` 跨节点对表、TLS 证书的 NotBefore/NotAfter 校验、kubelet 客户端证书的续期判断、etcd 的租约到期与选举超时，全部踩在时钟上。Ubuntu 默认的 systemd-timesyncd 只做基本对时，生产惯例是改装 chrony（`apt install chrony`，安装时自动接管并停用 timesyncd）；chrony 比 ntpd 更适合虚机：启动初期允许快速对表，间歇联网也能追回来。
 
 ```bash
 # [任意节点]

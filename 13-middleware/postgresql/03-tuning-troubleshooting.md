@@ -161,7 +161,8 @@ SELECT relname, n_live_tup, n_dead_tup,
        round(100.0*n_dead_tup/nullif(n_live_tup,0),1) AS dead_pct,
        last_autovacuum, pg_size_pretty(pg_total_relation_size(relid)) AS size
 FROM pg_stat_user_tables ORDER BY n_dead_tup DESC LIMIT 10;
--- dead_pct 持续 >20% 且 last_autovacuum 很久没动 = 有阻碍者或 worker 不够
+-- dead_pct 持续 >20% 分两种：last_autovacuum 在刷新但死元组不降 = 有阻碍者（长事务/废弃复制槽 pin 住 xmin）；
+--                          last_autovacuum 很久没动 = 未触发阈值或 worker 不够用
 -- 精确测量(含页内空洞)用 pgstattuple 扩展
 ```
 

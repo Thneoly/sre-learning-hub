@@ -24,7 +24,11 @@
       "44-kafka-acks-reliability",
       "51-cpu-throttling-cfs",
       "52-otel-collector-tail-sampling",
-      "53-elk-vs-loki-selection"
+      "53-elk-vs-loki-selection",
+      "59-git-reflog-rescue",
+      "60-terraform-vs-ansible",
+      "65-postgres-mvcc-vacuum-bloat",
+      "66-prometheus-remote-write-storage"
     ]
   },
   "K8s 深入理解": {
@@ -57,7 +61,9 @@
       "40-failure-detection-swim",
       "47-paxos-why-hard",
       "48-zk-etcd-consul-coordination",
-      "56-sharding-rebalance-live"
+      "56-sharding-rebalance-live",
+      "61-crdt-convergence",
+      "62-kafka-kraft-metadata"
     ]
   },
   "SRE 转型路线": {
@@ -74,7 +80,9 @@
       "49-cka-two-months-plan",
       "50-linux-60s-triage",
       "57-chaos-engineering-design",
-      "58-private-llm-deployment"
+      "58-private-llm-deployment",
+      "63-chrony-ntp-clock-skew",
+      "64-linux-users-and-permissions"
     ]
   }
 }

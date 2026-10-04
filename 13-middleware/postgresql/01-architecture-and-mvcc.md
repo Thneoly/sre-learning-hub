@@ -152,9 +152,10 @@ xid 是 32 位无符号整数，约 42 亿个，比较采用模运算：任何�
 -- [任意节点] 监控两张口径
 SELECT datname, age(datfrozenxid) FROM pg_database
 ORDER BY 2 DESC;                 -- 库级：最老的未冻结 xid 距今多少
-SELECT relname, age(relfrozenxid), n_live_tup, n_dead_tup
-FROM pg_stat_user_tables
+SELECT c.relname, age(c.relfrozenxid), s.n_live_tup, s.n_dead_tup
+FROM pg_class c JOIN pg_stat_user_tables s ON s.relid = c.oid
 ORDER BY 2 DESC LIMIT 10;        -- 表级：age 超过 1.5 亿就该警惕
+                                -- 注意 relfrozenxid 在 pg_class，统计列在 pg_stat_user_tables，必须 join
 -- age() 返回的就是"距离回卷还剩多少"的消耗量，是 exporter 必配指标（第 3 章）
 ```
 

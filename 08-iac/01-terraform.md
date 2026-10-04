@@ -345,7 +345,7 @@ terraform apply -auto-approve             # 收编：重新写回，回到一致
 
 # —— 变量实验 ——
 terraform apply -auto-approve -var env_name=prod
-ls out/                                   # env-prod.yaml 与 env-test.yaml 并存（两次资源）
+ls out/                                   # 只有 env-prod.yaml：filename 是 ForceNew，替换 = 先删旧文件再写新（同资源地址 local_file.env_cfg，不是两个资源）
 
 terraform destroy -auto-approve           # 全部回收
 ```

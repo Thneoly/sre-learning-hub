@@ -19,7 +19,7 @@
 | 文件 | 存什么 | 运维要点 |
 |---|---|---|
 | `/etc/passwd` | name:x:uid:gid:GECOS:home:shell | uid 0 就是 root，改名字不改身份；nologin shell 挡交互登录 |
-| `/etc/shadow` | 密码哈希与过期策略 | 仅 root 可读，所以改密码需要特权 |
+| `/etc/shadow` | 密码哈希与过期策略 | root 及 shadow 组可读（0640 root:shadow），所以改密码需要特权 |
 | `/etc/group` | gid 到组名、附加成员 | `id` 看到的 groups 是主组+附加组全集 |
 
 ```bash
@@ -153,7 +153,7 @@ sudo setcap 'cap_net_bind_service=+ep' /usr/bin/some-server
 sudo setcap -r /usr/bin/some-server        # 清除，恢复默认
 ```
 
-`capsh` 还能做"先试后买"：`sudo capsh --drop=cap_net_raw -- -c 'ping -c1 127.0.0.1'`——注意如果 ping 带 file capability，这条常常**仍然成功**：进程的 bounding set 没被裁，exec 时又从文件拿回了钥匙。想真裁死要把 bounding 一起裁，这正是容器 `--cap-drop` 的实现层。
+`capsh` 还能做"先试后买"：`sudo capsh --drop=cap_net_raw -- -c 'ping -c1 127.0.0.1'`——注意如果 ping 带 file capability，这条常常**仍然成功**，但原因不是没裁到：`--drop` 裁的恰恰就是 bounding set（裁它要 CAP_SETPCAP，所以命令带了 sudo）；ping 还能通，多半是走了 `ping_group_range` 放开的 ping socket，那条路本就不吃 CAP_NET_RAW。bounding 一旦被裁，exec 带capability的文件时钥匙就真的发不回来了——这正是容器 `--cap-drop` 的实现层。
 
 ## 5. umask：新文件的反向模板
 
@@ -272,7 +272,7 @@ sudo rm /etc/sudoers.d/appops && sudo userdel -r appops         # 清理
 
 <details><summary>答案</summary>
 
-收益是把漏洞爆炸半径从"全部 root 特权"缩到"仅 raw socket"：即便 ping 被打出任意代码执行，攻击者拿到的进程 permitted 集里只有 CAP_NET_RAW。后一问：`--drop` 只动了当前 shell 的集合，exec ping 时新进程的 permitted = 文件 permitted & **进程 bounding**——bounding 没被裁，文件上的 cap_net_raw 又把钥匙发回来了。要真正禁掉，得同时裁 bounding set（容器 `--cap-drop` 就是这么实现的），这正是"看 /proc/<pid>/status 的 CapBnd 而不是只看 CapEff"的原因。
+收益是把漏洞爆炸半径从"全部 root 特权"缩到"仅 raw socket"：即便 ping 被打出任意代码执行，攻击者拿到的进程 permitted 集里只有 CAP_NET_RAW。后一问：`--drop` 裁的就是 bounding set（裁它要 CAP_SETPCAP）；ping 仍能通的常见原因不是钥匙发回来了，而是现代 iputils 走了 `ping_group_range` 放开的 ping socket——那条路不需要 CAP_NET_RAW。想彻底禁掉：收紧 ping_group_range 或去掉文件 capability；容器 `--cap-drop` 同样在 bounding 层动手，这正是"看 /proc/<pid>/status 的 CapBnd 而不是只看 CapEff"的原因。
 </details>
 
 5. 新部署的服务组内互访读不了彼此的日志，umask、SGID、PAM 三者各在哪一层起作用？

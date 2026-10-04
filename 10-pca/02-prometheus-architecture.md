@@ -357,7 +357,7 @@ scrape_configs:
 ```yaml
 # [master] remote_write：样本转发到远端接收端
 remote_write:
-  - url: http://thanos-receive:19291/api/v1/write
+  - url: http://thanos-receive:19291/api/v1/receive
     queue_config:
       max_samples_per_send: 5000
 ```
