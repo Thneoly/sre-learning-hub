@@ -19,7 +19,9 @@
       "29-networkpolicy-false-safety",
       "35-alertmanager-storm",
       "36-nginx-502-anatomy",
-      "37-prometheus-high-cardinality"
+      "37-prometheus-high-cardinality",
+      "43-mongodb-rollback-files",
+      "44-kafka-acks-reliability"
     ]
   },
   "K8s 深入理解": {
@@ -34,7 +36,9 @@
       "30-hpa-why-slow",
       "31-node-notready-verdict-chain",
       "38-statefulset-pvc-lifecycle",
-      "39-argocd-gitops-loop"
+      "39-argocd-gitops-loop",
+      "45-qos-eviction-order",
+      "46-ingress-to-gateway-api"
     ]
   },
   "分布式不难懂": {
@@ -45,7 +49,9 @@
       "21-redis-distributed-lock-redlock",
       "32-distributed-transactions-saga",
       "33-consistency-models-spectrum",
-      "40-failure-detection-swim"
+      "40-failure-detection-swim",
+      "47-paxos-why-hard",
+      "48-zk-etcd-consul-coordination"
     ]
   },
   "SRE 转型路线": {
@@ -58,7 +64,9 @@
       "23-rto-rpo-restore-drill",
       "34-llm-oncall-runbook",
       "41-oncall-first-year",
-      "42-postmortem-culture"
+      "42-postmortem-culture",
+      "49-cka-two-months-plan",
+      "50-linux-60s-triage"
     ]
   }
 }
