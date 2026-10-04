@@ -100,7 +100,7 @@ PRIMARY 把每次写（含 `rs.reconfig` 等管理操作）记录到 `local` 库
 | 写关注 | 语义 | 风险 |
 |---|---|---|
 | `w: 0` | 发出即忘 | 不知道成败，仅限可丢弃的日志类写入 |
-| `w: 1`（默认） | PRIMARY 本地 journal 相关确认即可（是否等 journal 由 `j` 决定） | PRIMARY 立即宕机且未复制出去的写会被回滚 |
+| `w: 1`（4.x 及以前的默认；5.0 起副本集的隐式默认已改为 majority） | PRIMARY 本地 journal 相关确认即可（是否等 journal 由 `j` 决定） | PRIMARY 立即宕机且未复制出去的写会被回滚 |
 | `w: "majority"` | 多数派成员确认 | 不会被回滚，与 readConcern majority 配合是强一致基线 |
 
 `j: true` 额外要求确认前先落本机 journal。重要业务写推荐 `{ w: "majority", j: true }`，并**始终配 `wtimeout`**（如 `wtimeout: 5000`），否则从库全挂时写请求会无限等待，把连接池拖死。
@@ -123,7 +123,7 @@ PRIMARY 把每次写（含 `rs.reconfig` 等管理操作）记录到 `local` 库
 
 | 组合 | 效果 |
 |---|---|
-| w:1 + readPreference primary | 默认，性能好，切换窗口可能回滚 |
+| w:1 + readPreference primary | 4.x 的默认组合，性能好，切换窗口可能回滚 |
 | w:"majority" + readConcern majority | 不会回滚不会脏读，金融基线 |
 | w:1 + readPreference secondary | 最弱，仅离线分析可接受 |
 

@@ -180,7 +180,7 @@ def phase(pid, n, v, accs):
     seen = [r[1] for r in res.values() if r[0] == "promise" and r[1]]
     use = max(seen)[1] if seen else v          # 关键规则：有已接受值就必须沿用
     if use != v:
-        print(f"    !! promise 带回了编号更高的已接受值，改提 {use}（chosen 值接管）")
+        print(f"    !! promise 带回了已接受值（取其中编号最大的沿用），改提 {use}（chosen 值接管）")
     print(f"[{pid}] accept({n}, {use})")
     res2 = {a.name: a.accept(n, use) for a in accs}
     for k, r in res2.items():
@@ -235,7 +235,7 @@ python3 /tmp/paxos_demo.py
     过半 accepted —— 值 v=A 被 CHOSEN
 [S5] prepare(7)
     A1: promise（带回已接受 (1, 'v=A')） ...
-    !! promise 带回了编号更高的已接受值，改提 v=A（chosen 值接管）
+    !! promise 带回了已接受值（取其中编号最大的沿用），改提 v=A（chosen 值接管）
 [S5] accept(7, v=A)
     过半 accepted —— 值 v=A 被 CHOSEN          ← S5 想提 B，B 没有机会出现
 === 场景 3：活锁（两台轮流抬编号，谁也过不了半）===
@@ -300,7 +300,7 @@ ectl endpoint status -w table
 4. 新 leader 上任：Raft 只比较最后一条日志就能确定"数据最全的人"，Multi-Paxos 却要重新探测所有 slot。这个差别源自哪条协议设计？
 <details><summary>答案</summary>
 
-源自 Raft 的连续性 + 投票限制的合力：日志按 index 严格连续，且投票时要求候选人日志"至少和我一样新"（[03 章 §4.2](./03-consensus-and-replication.md)），于是"最后一条 (index, term) 最大"者必然包含全部已提交条目——最后一条就是全貌的指纹。Multi-Paxos 的 slot 相互独立，"最后一条"没有含义（可能中间还有空洞），新 leader 只能对全量 slot 重新 prepare，把每个 slot 上各 acceptor 已接受的值探出来再补 no-op。一句话：Raft 用"日志必须连续"这条约束，把恢复成本从 O(日志长) 压到 O(1)。
+源自 Raft 的连续性 + 投票限制的合力：日志按 index 严格连续，且投票时要求候选人日志"至少和我一样新"（[03 章 §4.2](./03-consensus-and-replication.md)），于是"最后一条 (term, index) 最大"者（先比 term，同 term 再比 index）必然包含全部已提交条目——最后一条就是全貌的指纹。Multi-Paxos 的 slot 相互独立，"最后一条"没有含义（可能中间还有空洞），新 leader 只能对全量 slot 重新 prepare，把每个 slot 上各 acceptor 已接受的值探出来再补 no-op。一句话：Raft 用"日志必须连续"这条约束，把恢复成本从 O(日志长) 压到 O(1)。
 </details>
 
 5. ZAB 论文把自己的定位写成 atomic broadcast 而不是共识，但 ZooKeeper 用它实现了线性一致的写路径。两者是什么关系？

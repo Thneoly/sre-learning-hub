@@ -52,7 +52,7 @@ C 追平后：HW 推进到 4，offset 2、3 对消费者可见
 
 ## 3. ISR：动态同步副本集
 
-**ISR（In-Sync Replicas）** = leader + 所有"跟得上"的 follower。判定标准只有一个：`replica.lag.time.max.ms`（默认 30 秒）内有没有追上 leader 的日志末端（即 Fetch 是否持续到达）。注意判定的是**时间**而不是落后条数——落后 1 亿条但仍在持续 Fetch 的 GC 停顿恢复期副本，30 秒内追平就留在 ISR；彻底断连的立刻出局。
+**ISR（In-Sync Replicas）** = leader + 所有"跟得上"的 follower。判定标准只有一个：`replica.lag.time.max.ms`（默认 30 秒）内有没有追上 leader 的日志末端（判据是最后一次 Fetch 读到日志末端的时间，而不是 Fetch 请求还在不在发）。注意判定的是**时间**而不是落后条数——落后 1 亿条但仍在持续 Fetch 的 GC 停顿恢复期副本，30 秒内追平就留在 ISR；彻底断连的立刻出局。
 
 - 收缩：follower 超时 → leader 把它移出 ISR，写一段特殊的 ISR 变更记录到日志（KRaft 下进元数据日志），HW 重新按剩余 ISR 计算。
 - 扩张：follower 追上 leader LEO → leader 把它加回 ISR。

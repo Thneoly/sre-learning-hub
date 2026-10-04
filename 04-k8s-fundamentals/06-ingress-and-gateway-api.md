@@ -364,7 +364,7 @@ for i in $(seq 1 10); do curl -s -H 'Host: gw.example.com' "http://$NODEIP:$GW_P
 | 协议 | 基本只有 HTTP(S)；TCP/UDP/QUIC 要靠私有注解或别的方法 | HTTPRoute/GRPCRoute/TLSRoute/TCPRoute/UDPRoute 统一建模 |
 | 扩展方式 | 控制器私有 annotation（不可移植） | 规范字段 + 标准化扩展点（policy attachment） |
 | 角色分离 | 无：入口与路由在同一对象 | 三层对象 + allowedRoutes/ReferenceGrant 显式授权 |
-| 流量管理 | 基本路由 + 各家私有 canary | 权重拆分、header/path 匹配、超时重试进规范 |
+| 流量管理 | 基本路由 + 各家私有 canary | 权重拆分、header/path 匹配进核心规范；超时/重试在实验通道（GEP-1742/1731） |
 | 跨 namespace | 不支持（Service 必须同 ns） | parentRefs/backendRefs 均可跨 ns，需授权 |
 | 状态反馈 | 无（ADDRESS 列而已） | Route/Gateway 分层 conditions |
 | API 稳定性 | networking.k8s.io/v1，GA 多年 | Gateway/GatewayClass/HTTPRoute v1（GA）；其余渐进 |

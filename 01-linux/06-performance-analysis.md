@@ -37,6 +37,7 @@ iostat -xz 1 3
 free -m
 sar -n DEV 1 3
 sar -n TCP,ETCP 1 3
+top -bn1 | head -20
 ```
 
 十条命令覆盖 USE 的全部资源，60 秒内跑完。逐个讲判读：
@@ -82,7 +83,7 @@ procs ---------memory---- --swap- ----io---- -system-- ------cpu-----
 
 ```bash
 # [任意节点]
-pidstat 1 3                    # 每 CPU 排名
+pidstat 1 3                    # 按 %CPU 排名找进程
 pidstat -d 1 3                 # 谁在打 IO(kB_rd/s kB_wr/s)
 pidstat -r 1 3                 # 内存: RSS 与 majflt/s(持续非零=换页,第3章)
 pidstat -w 1 3                 # 上下文开关: cswch/s(自愿,等资源) 与 nvcswch/s(非自愿,被抢占)
@@ -114,6 +115,10 @@ active/s passive/s iseg/s  oseg/s  retrans/s  atmptf/s  estres/s
 ```
 
 `sar` 的另一个杀手锏是**历史回放**：sysstat 的 cron（`/etc/cron.d/sysstat`，Ubuntu 装完需取消 enable 开关）每 10 分钟采样落盘，`sar -r -f /var/log/sysstat/sa22` 能回看今天 22 号的内存曲线——凌晨三点的事故不用等复现。
+
+### 2.9 top：原版清单的收尾第 10 条
+
+Gregg 原版 60 秒清单的最后一条是 `top`（这里用 `top -bn1` 批处理取一屏）。它最快的价值不是看平均值——整体 %CPU 会把"单核打满、其余空闲"的热点完全掩盖——而是按 `1` 展开每核视图：某单核 100% 而整体只有 12%，立刻把方向从"机器慢"改成"单线程瓶颈/中断亲和"（与 §2.4 mpstat 互证）。
 
 ## 3. perf 与火焰图
 

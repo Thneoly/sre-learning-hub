@@ -48,7 +48,7 @@
 
 ```
 # [图] 120 分钟时间轴
-|--8'--|---------------------70'------------------|---25'---|--12'--|
+|--8'--|---------------------70'------------------|---30'---|--12'--|
  开场    第一遍：只做 5 分钟内能拿下的题          第二遍：  终检
  检查    (创建类/修改类秒杀题, 卡住立即标记跳过)    攻坚难题
 ```
@@ -146,7 +146,7 @@ source ~/.bashrc
 # [考试终端] $do：生成 YAML 而不真正创建，改两笔再 apply，比手写快且不易错
 k run nginx --image=nginx:1.29 $do > pod.yaml
 k create deployment web --image=nginx:1.29 --replicas=3 $do > dep.yaml
-k create job pi --image=busybox:1.36 -- sh -c 'echo 3.14 > /tmp/x; sleep 5' $do > job.yaml
+k create job pi --image=busybox:1.36 $do -- sh -c 'echo 3.14 > /tmp/x; sleep 5' > job.yaml
 
 # [考试终端] $now：立即删除，跳过 30s 优雅期（清理做错的实验对象时用）
 k delete pod bad-pod $now
