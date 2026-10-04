@@ -366,7 +366,7 @@ docker exec hadoop-lab yarn application -kill application_1769000000000_0002
 2. 一个大队列里跑着几百个"永远只要 1 个 container"的小应用，`maximum-am-resource-percent` 保持默认 0.1，会发生什么？为什么这个默认值是对的行为？
 <details><summary>答案</summary>
 
-AM 也占队列资源，几百个小应用的 AM 加起来可能吃掉远超 10% 的配额，于是后续应用的 AM 拿不到容器，全部排在 ACCEPTED——队列明明还有资源却没有一个应用能干活。默认 0.1 正是防这种死锁的护栏：AM 是"管理开销"，必须给真正的 task 留出主体资源。正确处置是识别负载形态：这类场景要么调大 am-percent，要么把常驻型应用（Spark Thrift Server 等）挪到独立队列。
+AM 也占队列资源，几百个小应用的 AM 需求加起来轻松吃满这 10% 的配额上限（运行中的 AM 合计被 0.1 封顶），于是后续应用的 AM 拿不到容器，全部排在 ACCEPTED——队列明明还有资源却没有一个应用能干活。默认 0.1 正是防这种死锁的护栏：AM 是"管理开销"，必须给真正的 task 留出主体资源。正确处置是识别负载形态：这类场景要么调大 am-percent，要么把常驻型应用（Spark Thrift Server 等）挪到独立队列。
 </details>
 
 3. 为什么"内存打满、vcores 大量剩余"是 YARN 集群常态？容量规划时你按哪个维度做主轴？

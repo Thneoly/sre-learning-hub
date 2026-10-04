@@ -30,7 +30,7 @@ Hive 的本质是两样东西的组合：一个**把 SQL 编译成分布式作�
         /warehouse/dwd_order/dt=2026-08-29/*.orc   ← 数据本体
 ```
 
-对 SRE 的含义：**排障先分清是哪一半坏了**。SQL 报"表不存在/分区不存在"是 metastore（元数据）侧；作业跑得慢、文件读不出来是 HDFS/引擎侧；连接挂起是 HS2 侧。三者是独立进程，独立重启，独立看日志。
+对 SRE 的含义：**排障先分清是哪一半坏了**。SQL 报"表不存在/分区不存在"是 metastore（元数据）侧；作业跑得慢、文件读不出来是 HDFS/引擎侧；连接挂起是 HS2 侧。三者是独立进程（生产 remote 形态下；embedded/local 形态 metastore 与 HS2 同 JVM），独立重启，独立看日志。
 
 ## 2. metastore 三种部署形态：为什么生产只认独立模式
 
@@ -358,7 +358,7 @@ SHOW COMPACTIONS;
 
 <details><summary>1. 为什么 local 模式（metastore 与 HS2 同 JVM、后端 MySQL）在生产几乎绝迹，尽管它比 remote 少一个进程？</summary>
 
-三个原因：① 故障域不隔离——HS2 被 OOM/重启，metastore 服务跟着消失，所有依赖元数据的引擎（含正在提交的 Spark 作业）同时受影响；② 连接数不收敛——每个 HS2 实例独立维护 JDBC 连接，HS2 横向扩容时 MySQL 连接线性增长，最终打满 MySQL；③ 无法独立扩容/升级 metastore。remote 模式多花一个进程换来了"元数据面"与"查询接入面"解耦，这和把 etcd 从 apiserver 进程里拆出来是同一类架构决策。
+三个原因：① 故障域不隔离——HS2 被 OOM/重启，metastore 服务跟着消失，所有依赖元数据的引擎（含正在提交的 Spark 作业）同时受影响；② 连接数不收敛——每个 HS2 实例独立维护 JDBC 连接，HS2 横向扩容时 MySQL 连接线性增长，最终打满 MySQL；③ 无法独立扩容/升级 metastore。remote 模式多花一个进程换来了"元数据面"与"查询接入面"解耦，这和 apiserver 坚持把状态托管给独立的 etcd（而不是自己做存储）是同一类架构决策。
 </details>
 
 <details><summary>2. 同一条 `SELECT city, sum(amount) FROM t WHERE dt='2026-08-29' AND amount>100 GROUP BY city`，TextFile 和 ORC 的物理执行差在哪一步？差距是 SQL 引擎造成的吗？</summary>

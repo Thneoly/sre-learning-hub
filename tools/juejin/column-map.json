@@ -28,7 +28,11 @@
       "59-git-reflog-rescue",
       "60-terraform-vs-ansible",
       "65-postgres-mvcc-vacuum-bloat",
-      "66-prometheus-remote-write-storage"
+      "66-prometheus-remote-write-storage",
+      "68-yarn-queue-starvation",
+      "69-hive-metastore-pitfalls",
+      "71-clickhouse-mergetree-temper",
+      "73-supply-chain-quality-gates"
     ]
   },
   "K8s 深入理解": {
@@ -63,7 +67,11 @@
       "48-zk-etcd-consul-coordination",
       "56-sharding-rebalance-live",
       "61-crdt-convergence",
-      "62-kafka-kraft-metadata"
+      "62-kafka-kraft-metadata",
+      "67-hdfs-namenode-anatomy",
+      "70-spark-dag-shuffle",
+      "72-lakehouse-table-formats",
+      "74-zookeeper-refuses-to-die"
     ]
   },
   "SRE 转型路线": {

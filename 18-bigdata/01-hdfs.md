@@ -62,7 +62,7 @@ checkpoint 触发条件默认是"每 1 小时或累计 100 万事务"（`dfs.nam
         └──────────┴──────────┴──────────┘  （写成功 2/3 才向客户端确认）
 ```
 
-故障切换的完整过程（NN1 宕机）：ZKFC1 失去 ZK 会话 → 锁节点释放 → ZKFC2 抢到锁 → **先对旧 Active 做 fencing**（默认 sshfence：ssh 上去 kill 进程，防脑裂双写）→ NN2 升为 Active，开始对外服务。
+故障切换的完整过程（NN1 宕机）：ZKFC1 失去 ZK 会话 → 锁节点释放 → ZKFC2 抢到锁 → **先对旧 Active 做 fencing**（防脑裂双写；fencing 方法**没有默认值、必须显式配置**，常用 sshfence：ssh 上去 kill 进程）→ NN2 升为 Active，开始对外服务。
 
 运维要点：
 

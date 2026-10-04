@@ -131,7 +131,7 @@ Trivy 的 CLI 用法（severity 过滤、`--exit-code` 门禁）第 09-cks/04 �
 
 - **自动扫描**：项目配置里可勾选 push 时自动扫描；旧镜像可在 UI 手动触发或按时间重扫（漏洞库每天在变，昨天的干净镜像今天可能爆出 CVE）
 - **扫描策略**：扫描结果只是数据，"多少严重度算不合格"的判定发生在**消费侧**——CI 里 `trivy image --severity CRITICAL --exit-code 1`（09-cks/04 第 2.2 节）、项目策略的阻止拉取开关（下条）、或集群侧准入策略（09-cks/04 第 5 节）
-- **阻止拉取有漏洞镜像（Prevent vulnerable images from running）**：项目策略里的开关，勾选后 Harbor 在 pull 请求的 token 环节直接拒绝"扫描结果超过阈值"的镜像。这是**仓库侧闸门**：好处是所有客户端一视同仁（不用每个集群都配准入）；代价是把可用性押在扫描结果上——CI 必须先扫后推（先推后扫的镜像在扫描完成前会被拉断），且"无修复版本的 CRITICAL"会把自己锁死，开启前务必配好忽略策略（类比 trivy 的 `--ignore-unfixed`）
+- **阻止拉取有漏洞镜像（Prevent vulnerable images from running）**：项目策略里的开关，勾选后 Harbor 在 pull 拉取 manifest 的处理链上（registry 的 vulnerable 中间件，不是 token 签发环节）直接拒绝"扫描结果超过阈值"的镜像。这是**仓库侧闸门**：好处是所有客户端一视同仁（不用每个集群都配准入）；代价是把可用性押在扫描结果上——CI 必须先扫后推（先推后扫的镜像在扫描完成前会被拉断），且"无修复版本的 CRITICAL"会把自己锁死，开启前务必配好忽略策略（类比 trivy 的 `--ignore-unfixed`）
 
 ## 5. 签名验证：cosign 集成
 
@@ -294,7 +294,8 @@ UI：项目 demo → api → v0.1 → Scan（或项目配置勾选 Automatically
 预期：几分钟出 CVE 报告，按 CRITICAL/HIGH/... 分组
 
 UI：项目 demo → Policy → 勾选 Prevent vulnerable images from running 并选严重度阈值
-     （另一个开关 Prevent latent vulnerable images from running：未扫描的镜像也拒拉）
+     （v2.x 只有这一个开关，"未扫描的镜像也拒拉"已并入主开关——scannable 但还没有报告同样被拒；
+       独立的 Prevent latent 开关是 1.x 时代的 UI）
 验证：对一个 CRITICAL 超阈值的 tag 尝试 docker pull，预期被 Harbor 拒绝并提示策略原因
 ```
 
@@ -367,7 +368,7 @@ docker 客户端先向 core 的 token 服务证明身份（basic auth，机器�
 
 <details><summary>2. 阻止拉取有漏洞镜像的开关开在 Harbor（仓库侧），为什么说它和集群准入（09-cks/04 第 5 节）不是互相替代的关系？各自拦得住什么、拦不住什么？</summary>
 
-Harbor 侧开关在 token 签发环节拒绝 pull，保护**所有**以它为仓库的客户端（包括没装准入策略的集群、裸 docker 主机），一处配置全局生效；但它只约束"经我这个 Harbor 的路径"，绕开仓库直连上游（比如节点直接 pull docker.io）就失效。集群准入（Kyverno/policy-controller）在 apiserver 的 admission 拦截，保护**这个集群**不管镜像来自哪个仓库，还能叠加签名验证（cosign）、仓库白名单等策略；代价是每个集群都要部署维护，且 kubelet 已缓存的镜像层不重新过 admission。生产组合拳：仓库侧挡大部分（含扫描结果），集群准入做最后一道（签名+仓库白名单）。
+Harbor 侧开关在 pull 拉取 manifest 的处理链上拒绝，保护**所有**以它为仓库的客户端（包括没装准入策略的集群、裸 docker 主机），一处配置全局生效；但它只约束"经我这个 Harbor 的路径"，绕开仓库直连上游（比如节点直接 pull docker.io）就失效。集群准入（Kyverno/policy-controller）在 apiserver 的 admission 拦截，保护**这个集群**不管镜像来自哪个仓库，还能叠加签名验证（cosign）、仓库白名单等策略；代价是每个集群都要部署维护，且 kubelet 已缓存的镜像层不重新过 admission。生产组合拳：仓库侧挡大部分（含扫描结果），集群准入做最后一道（签名+仓库白名单）。
 
 </details>
 

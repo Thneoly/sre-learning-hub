@@ -228,7 +228,7 @@ CREATE TABLE paimon.demo.orders (
 | 维度 | Iceberg | Hudi | Paimon |
 |---|---|---|---|
 | 更新频率 | 低~中（v2 delete 文件可用但读放大大） | 高（MOR 为 upsert 而生） | 高（LSM 主键表） |
-| 查询延迟 | 最稳（读路径无合并，计划剪枝强） | MOR 依赖 compaction 节奏 | 依赖 compaction 节奏 |
+| 查询延迟 | 最稳（低更新负载下读路径无合并，计划剪枝强；v2 upsert 表读路径仍有 delete 合并，见 2.4） | MOR 依赖 compaction 节奏 | 依赖 compaction 节奏 |
 | 入湖引擎 | 全中立（各引擎自己实现规范） | Spark 最成熟，Flink 可用 | Flink 一家独大 |
 | 流式消费 | 增量读可用，changelog 弱 | 增量读 + CDC 生态成熟 | changelog 一等公民 |
 | 生态/国内现状 | 最广（主流云与数仓均原生支持） | 存量大、Uber 系 | 国内 Flink 栈最活跃 |

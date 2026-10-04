@@ -401,7 +401,7 @@ RSS ≠ 堆。容器 8GB 里堆 6g，剩余 2g 给堆外：netty DirectByteBuffe
 
 <details><summary>3. 一个 stage 的 199 个 task 都是 3 秒，1 个 task 跑了 25 分钟且 Spill (disk) 达到十几 GB。说出你的完整处置顺序。</summary>
 
-① 确认倾斜而非环境问题：该 task 的 Input Size 是否远大于其他 task（若数据量相同才怀疑节点/盘）；② 看 EXPLAIN 定位该 Exchange 前后的算子，找出分组/join key；③ 用 `df.groupBy(key).count().orderBy(desc)` 采样验证 key 分布（或直接查 null 占比）；④ 选武器：null/空值先拆、小表 broadcast、聚合两阶段、join 加盐；⑤ Spark 3.5 先确认 AQE skewJoin 已生效（它只自动处理排序 join 的倾斜）；⑥ 修复后在同一数据集对比 stage 的 max/median task 时长。Spill 十几 GB 说明执行内存也被这批数据压垮了，倾斜解决后 spill 自然消失。
+① 确认倾斜而非环境问题：该 task 的 Input Size 是否远大于其他 task（若数据量相同才怀疑节点/盘）；② 看 EXPLAIN 定位该 Exchange 前后的算子，找出分组/join key；③ 用 `df.groupBy(key).count().orderBy(desc)` 采样验证 key 分布（或直接查 null 占比）；④ 选武器：null/空值先拆、小表 broadcast、聚合两阶段、join 加盐；⑤ Spark 3.5 先确认 AQE skewJoin 已生效（它自动处理 sort-merge / shuffled hash 这类 shuffle join 的倾斜）；⑥ 修复后在同一数据集对比 stage 的 max/median task 时长。Spill 十几 GB 说明执行内存也被这批数据压垮了，倾斜解决后 spill 自然消失。
 </details>
 
 <details><summary>4. 开了 dynamicAllocation，为什么 YARN 必须配 external shuffle service，而 K8s 上却用 shuffleTracking？本质矛盾是什么？</summary>
