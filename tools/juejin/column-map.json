@@ -21,7 +21,10 @@
       "36-nginx-502-anatomy",
       "37-prometheus-high-cardinality",
       "43-mongodb-rollback-files",
-      "44-kafka-acks-reliability"
+      "44-kafka-acks-reliability",
+      "51-cpu-throttling-cfs",
+      "52-otel-collector-tail-sampling",
+      "53-elk-vs-loki-selection"
     ]
   },
   "K8s 深入理解": {
@@ -38,7 +41,9 @@
       "38-statefulset-pvc-lifecycle",
       "39-argocd-gitops-loop",
       "45-qos-eviction-order",
-      "46-ingress-to-gateway-api"
+      "46-ingress-to-gateway-api",
+      "54-k8s-delete-lifecycle",
+      "55-rbac-four-objects"
     ]
   },
   "分布式不难懂": {
@@ -51,7 +56,8 @@
       "33-consistency-models-spectrum",
       "40-failure-detection-swim",
       "47-paxos-why-hard",
-      "48-zk-etcd-consul-coordination"
+      "48-zk-etcd-consul-coordination",
+      "56-sharding-rebalance-live"
     ]
   },
   "SRE 转型路线": {
@@ -66,7 +72,9 @@
       "41-oncall-first-year",
       "42-postmortem-culture",
       "49-cka-two-months-plan",
-      "50-linux-60s-triage"
+      "50-linux-60s-triage",
+      "57-chaos-engineering-design",
+      "58-private-llm-deployment"
     ]
   }
 }
