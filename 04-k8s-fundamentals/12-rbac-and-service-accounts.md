@@ -217,7 +217,7 @@ SA 是"给进程用的账号"。token 机制按版本分三个阶段：
 | 1.21 ~ 1.23 | Pod 默认改挂 TokenRequest 签发的**投影 token**（短时、自动刷新）；仍会自动生成 legacy Secret |
 | ≥ 1.24 | **不再自动生成 Secret**；Pod 里挂的全部是短时投影 token；永久 token 只能手工创建 |
 
-投影 token 的关键属性：audience 是 apiserver、默认有效期约 1 小时、kubelet 在到期前自动用 TokenRequest API 换新——所以长跑 Pod 永远拿着有效 token，而落盘的 token 泄漏后也只值一小时。挂载路径固定为 `/var/run/secrets/kubernetes.io/serviceaccount/`（`token`、`ca.crt`、`namespace` 三件套）。Pod 不需要 API 权限时显式关掉：`automountServiceAccountToken: false`（SA 上设置可对整个 ns 生效，SA 级优先于 Pod 级）。
+投影 token 的关键属性：audience 是 apiserver、默认有效期约 1 小时、kubelet 在到期前自动用 TokenRequest API 换新——所以长跑 Pod 永远拿着有效 token，而落盘的 token 泄漏后也只值一小时。挂载路径固定为 `/var/run/secrets/kubernetes.io/serviceaccount/`（`token`、`ca.crt`、`namespace` 三件套）。Pod 不需要 API 权限时显式关掉：`automountServiceAccountToken: false`。它可在 Pod spec 或 SA 上设置，**两者都设时 Pod spec 优先**（Pod 级 false 一票否决自动挂载）；SA 级设置只作用于使用该 SA 的 Pod，不是整个 namespace。
 
 ```bash
 # [master] 1.24+ 集群: 新建 SA 不再自带 Secret

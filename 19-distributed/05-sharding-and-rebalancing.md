@@ -107,7 +107,7 @@ HDFS 面对的是**文件**不是"键值"：一个 10GB 文件直接按 `dfs.blo
 
 | 账本 | 内容 | 实测锚点 |
 |---|---|---|
-| **迁移流量** | ≈ 搬移数据量走一遍网络与磁盘；1TB 数据 1Gbps 网络理论 2 小时+，叠加业务流量翻倍 | 迁 16384/6 ≈ 2731 个槽 ≈ 1/6 的数据 |
+| **迁移流量** | ≈ 搬移数据量走一遍网络与磁盘；1TB 数据 1Gbps 网络理论 2 小时+，叠加业务流量翻倍 | 迁 16384/6 ≈ 2727 个槽 ≈ 1/6 的数据 |
 | **源端/目标端压力** | Redis `MIGRATE` 是**同步阻塞源节点单线程**的命令，大批量小 key 直接把源节点卡出超时 | 小批量循环（每批 10~100 个 key）是铁律（[redis 02 章 §7.2](../13-middleware/redis/02-persistence-and-ha.md)） |
 | **客户端感知** | 槽迁移中的 ASK 重定向、Kafka 消费组 rebalance 期间的整组停顿、Mongo balancer 搬 chunk 时的路由抖动 | 消费组 rebalance 的触发条件与代价见 [kafka 01 章 §6](../14-data-streaming/kafka/01-log-model-and-architecture.md) |
 
@@ -249,7 +249,7 @@ HDFS 的对象是文件而非键空间：文件按 128MB 物理切块，块与�
 5. 你们打算把 5 节点 Redis Cluster 扩到 6 个，容量 200GB。给出执行计划的关键数字与步骤。
 <details><summary>答案</summary>
 
-迁移量：约 16384/6 ≈ 2730 个槽、约 1/6 ≈ 33GB 数据。步骤：① 低峰窗口，确认没有滚动发布/大批量任务；② 新节点以 cluster meet 加入，确认槽位图传播正常；③ 逐槽 `CLUSTER SETSLOT IMPORTING/MIGRATING` + 小批量 MIGRATE（10~100 key/批），批间观察源节点延迟与客户端超时率，随时可暂停（中间态有 ASK 兜底）；④ 每迁完一槽执行 `SETSLOT NODE` 收敛归属，客户端靠 MOVED 更新槽表；⑤ 全部收敛后复核 `cluster check`、倾斜率与 hit/miss。要点：迁移量可控可暂停是 16384 槽相对一致性哈希的运维优势，这里正好用上（[redis 02 章 §7.2](../13-middleware/redis/02-persistence-and-ha.md)）。
+迁移量：约 16384/6 ≈ 2727 个槽、约 1/6 ≈ 33GB 数据。步骤：① 低峰窗口，确认没有滚动发布/大批量任务；② 新节点以 cluster meet 加入，确认槽位图传播正常；③ 逐槽 `CLUSTER SETSLOT IMPORTING/MIGRATING` + 小批量 MIGRATE（10~100 key/批），批间观察源节点延迟与客户端超时率，随时可暂停（中间态有 ASK 兜底）；④ 每迁完一槽执行 `SETSLOT NODE` 收敛归属，客户端靠 MOVED 更新槽表；⑤ 全部收敛后复核 `cluster check`、倾斜率与 hit/miss。要点：迁移量可控可暂停是 16384 槽相对一致性哈希的运维优势，这里正好用上（[redis 02 章 §7.2](../13-middleware/redis/02-persistence-and-ha.md)）。
 </details>
 
 ## 延伸阅读
